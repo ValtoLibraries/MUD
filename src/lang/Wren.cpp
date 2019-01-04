@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -20,16 +20,16 @@
 #include <stdlib.h>
 module mud.lang;
 #else
-#include <proto/Proto.h>
+#include <ecs/Proto.h>
 #include <infra/NonCopy.h>
 #include <refl/Meta.h>
 #include <refl/Enum.h>
 #include <refl/Sequence.h>
-#include <obj/Any.h>
+#include <type/Any.h>
 #include <infra/Vector.h>
 #include <refl/System.h>
-#include <obj/Dispatch.h>
-#include <obj/DispatchDecl.h>
+#include <type/Dispatch.h>
+#include <type/DispatchDecl.h>
 #include <infra/Global.h>
 #include <lang/Types.h>
 #include <lang/Wren.h>
@@ -59,11 +59,18 @@ namespace mud
 	{
 		const TextScript* script = wren_script(vm);
 		if(script && type == WREN_ERROR_COMPILE)
-			script->m_compile_errors.push_back({ size_t(line), size_t(0), string("^ ") + message });
+			script->m_compile_errors[line] = { size_t(line), size_t(0), string("^ ") + message };
 		else if(script && type == WREN_ERROR_RUNTIME)
-			script->m_runtime_errors.push_back({ size_t(line), size_t(0), string("^ ") + message });
+			script->m_runtime_errors[-1] = { size_t(line), size_t(0), string("^ ") + message };
 		else if(script && type == WREN_ERROR_STACK_TRACE)
-			script->m_runtime_errors.back().m_line = size_t(line);
+		{
+			if(script->m_runtime_errors.find(-1) != script->m_runtime_errors.end())
+			{
+				script->m_runtime_errors[line] = script->m_runtime_errors[-1];
+				script->m_runtime_errors[line].m_line = size_t(line);
+				script->m_runtime_errors.erase(-1);
+			}
+		}
 		else
 			printf("ERROR: wren -> %s:%i %s\n", module, line, message);
 	}
@@ -285,7 +292,7 @@ namespace mud
 			if (!success)
 			{
 #ifdef MUD_WREN_DEBUG
-				printf("ERROR: wren -> wrong argument %s, expect type %s, got %s\n", params[i].m_name, type(params[i].m_value).m_name, type(vars[i]).m_name);
+				printf("ERROR: wren -> wrong argument %s, expect type %s, got %s\n", callable.m_params[i].m_name, type(callable.m_params[i].m_value).m_name, type(vars[i]).m_name);
 #endif
 				return false;
 			}
@@ -343,9 +350,9 @@ namespace mud
 	inline void call_wren(WrenVM* vm, WrenHandle* method, WrenHandle* object, array<Var> parameters, Var* result = nullptr)
 	{
 		wrenBegin(vm);
-		wrenEnsureSlots(vm, parameters.m_count + 1);
+		wrenEnsureSlots(vm, int(parameters.m_count + 1));
 		wrenSetSlotHandle(vm, 0, object);
-		for(size_t i = 0; i < parameters.size(); ++i)
+		for(int i = 0; i < int(parameters.size()); ++i)
 			push(vm, i + 1, parameters[i]);
 		wrenCall(vm, method);
 		if(result) read(vm, 0, *result);
@@ -473,7 +480,7 @@ namespace mud
 		string members;
 		for(size_t i = 0; i < enu.m_names.size(); ++i)
 		{
-			members += t + "static " + string(enu.m_names[i]) + " { " + to_string(enu.m_indices[i]) + " }\n";
+			members += t + "static " + string(enu.m_names[i]) + " { " + to_string(enu.m_values[i]) + " }\n";
 		}
 
 		string decl;
@@ -538,6 +545,8 @@ namespace mud
 
 		for(CopyConstructor& constructor : cls(type).m_copy_constructors)
 		{
+			UNUSED(constructor);
+
 			bind += t + t + "__copy_constructor = CopyConstructor.ref(\"" + c + "\")\n";
 
 			constructors += t + "static copy(other) { __copy_constructor.call(this, other) }\n";
@@ -885,7 +894,7 @@ namespace mud
 	inline void read_enum(WrenVM* vm, int slot, Ref result)
 	{
 		if(wrenGetSlotType(vm, slot) == WREN_TYPE_NUM)
-			enum_set_index(result, size_t(wrenGetSlotDouble(vm, slot)));
+			enum_set_index(result, uint32_t(wrenGetSlotDouble(vm, slot)));
 	}
 
 	inline void read_sequence(WrenVM* vm, int slot, Type& sequence_type, Ref result)
@@ -954,6 +963,7 @@ namespace mud
 	{
 		UNUSED(vm); UNUSED(slot);
 		iterate_dict(value, [=](Var key, Var element) {
+			UNUSED(key); UNUSED(element);
 		//	set_table(vm, key, element); });
 		});
 	}
@@ -961,10 +971,10 @@ namespace mud
 	inline void push_sequence(WrenVM* vm, int slot, Ref value)
 	{
 		wrenSetSlotNewList(vm, slot);
-		size_t slots = wrenGetSlotCount(vm);
+		int slots = wrenGetSlotCount(vm);
 		wrenEnsureSlots(vm, slots + 1);
 
-		size_t index = 1;
+		int index = 1;
 		iterate_sequence(value, [&](Ref element) {
 			push(vm, slots, element);
 			wrenInsertInList(vm, slot, index, slots);
@@ -981,9 +991,10 @@ namespace mud
 		function<void>([](Ref, WrenVM* vm, int slot) { return push_null(vm, slot); });
 
 		dispatch_branch<int>     (*this, [](int&      value, WrenVM* vm, int slot) { return push_integer(vm, slot, value); });
-		dispatch_branch<uint16_t>(*this, [](uint16_t& value, WrenVM* vm, int slot) { return push_integer(vm, slot, value); });
-		dispatch_branch<uint32_t>(*this, [](uint32_t& value, WrenVM* vm, int slot) { return push_integer(vm, slot, value); });
-		dispatch_branch<uint64_t>(*this, [](uint64_t& value, WrenVM* vm, int slot) { return push_integer(vm, slot, value); });
+		dispatch_branch<ushort>  (*this, [](ushort&   value, WrenVM* vm, int slot) { return push_integer(vm, slot, value); });
+		dispatch_branch<uint>    (*this, [](uint&     value, WrenVM* vm, int slot) { return push_integer(vm, slot, value); });
+		dispatch_branch<ulong>   (*this, [](ulong&    value, WrenVM* vm, int slot) { return push_integer(vm, slot, value); });
+		dispatch_branch<ulong2>  (*this, [](ulong2&   value, WrenVM* vm, int slot) { return push_integer(vm, slot, value); });
 		dispatch_branch<float>   (*this, [](float&    value, WrenVM* vm, int slot) { return push_scalar(vm, slot, value); });
 		dispatch_branch<double>  (*this, [](double&   value, WrenVM* vm, int slot) { return push_scalar(vm, slot, value); });
 		dispatch_branch<cstring> (*this, [](cstring   value, WrenVM* vm, int slot) { return push_cstring(vm, slot, value); });
@@ -1335,8 +1346,6 @@ namespace mud
 	void WrenInterpreter::virtual_call(Method& method, Ref object, array<Var> args)
 	{
 		m_script = m_virtual_scripts[object.m_value];
-		m_script->m_runtime_errors.clear();
-
 		call_wren_virtual(m_context->m_vm, method, object, args);
 	}
 

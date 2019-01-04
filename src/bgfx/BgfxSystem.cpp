@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -12,7 +12,7 @@
 #ifdef MUD_MODULES
 module mud.bgfx;
 #else
-#include <obj/Type.h>
+#include <type/Type.h>
 #include <bgfx/Config.h>
 #include <bgfx/BgfxSystem.h>
 #endif
@@ -39,14 +39,14 @@ namespace mud
 
 	BgfxSystem::BgfxSystem(cstring resource_path)
 		: RenderSystem(resource_path, true)
-		//, m_profile(true)
+		//, m_capture_every(100)
 	{
 		printf("INFO: Init Gfx System\n");
 	}
 
 	BgfxSystem::~BgfxSystem()
 	{
-		// we would need to do that after all ressources are destroyed
+		// we would need to do that after all resources are destroyed
 		// bgfx::shutdown();
 	}
 
@@ -65,7 +65,8 @@ namespace mud
 
 		printf("GfxSystem: bgfx::init\n");
 		bgfx::Init params = {};
-		//params.type = bgfx::RendererType::OpenGL;
+		params.type = bgfx::RendererType::OpenGL;
+		//params.type = bgfx::RendererType::Direct3D11;
 		params.resolution.width = uint32_t(context.m_width);
 		params.resolution.height = uint32_t(context.m_height);
 		params.resolution.reset = BGFX_RESET_NONE;
@@ -73,7 +74,9 @@ namespace mud
 
 		//bgfx::reset(uint32_t(context.m_width), uint32_t(context.m_height), BGFX_RESET_NONE);
 
+#ifdef _DEBUG
 		bgfx::setDebug(BGFX_DEBUG_TEXT | BGFX_DEBUG_PROFILER);
+#endif
 
 		bgfx::setViewRect(0, 0, 0, uint16_t(context.m_width), uint16_t(context.m_height));
 		bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x000000ff, 1.0f, 0);
@@ -82,14 +85,15 @@ namespace mud
 		m_initialized = true;
 	}
 
+	void BgfxSystem::begin_frame()
+	{}
+
 	bool BgfxSystem::next_frame()
 	{
-		bgfx::touch(0);
-
-#ifdef  _DEBUG
-		size_t capture_every = 100;
-		bool capture = m_profile && (m_frame % capture_every) == 0;
-		m_frame = bgfx::frame(capture);
+#ifdef _DEBUG
+		m_capture |= m_capture_every && (m_frame % m_capture_every) == 0;
+		m_frame = bgfx::frame(m_capture);
+		m_capture = false;
 #else
 		m_frame = bgfx::frame();
 #endif

@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -52,8 +52,7 @@ namespace mud
 
 		std::vector<unique_ptr<Picker>> m_pickers;
 
-		Ref m_selected;
-		Ref m_hovered;
+		Item* m_hovered = nullptr;
 
 		RenderFilters m_filters;
 
@@ -122,7 +121,7 @@ namespace ui
 	export_ MUD_GFX_UI_EXPORT func_ OrbitController& orbit_controller(Viewer& viewer, float yaw = c_pi / 4.f, float pitch = -c_pi / 4.f, float distance = 10.f);
 	export_ MUD_GFX_UI_EXPORT func_ FreeOrbitController& free_orbit_controller(Viewer& viewer);
 	export_ MUD_GFX_UI_EXPORT func_ OrbitController& isometric_controller(Viewer& viewer, bool topdown = false);
-	export_ MUD_GFX_UI_EXPORT func_ OrbitController& hybrid_controller(Viewer& viewer, OrbitMode mode, Transform& entity, bool& aiming, vec2& angles);
+	export_ MUD_GFX_UI_EXPORT func_ OrbitController& hybrid_controller(Viewer& viewer, OrbitMode mode, Transform& entity, bool& aiming, vec2& angles, bool modal = false);
 
 	export_ MUD_GFX_UI_EXPORT func_ void velocity_controller(Viewer& viewer, vec3& linear, vec3& angular, float speed = 1.f);
 }

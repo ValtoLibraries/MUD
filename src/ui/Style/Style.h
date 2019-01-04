@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -41,7 +41,8 @@ namespace mud
 		
 		struct Impl;
 		unique_ptr<Impl> m_impl;
-
-		bool m_defined;
 	};
+
+	export_ MUD_UI_EXPORT void layout_minimal(UiWindow& ui_window);
+	export_ MUD_UI_EXPORT void style_minimal(UiWindow& ui_window);
 }

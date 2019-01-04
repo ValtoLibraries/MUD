@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -113,7 +113,7 @@ namespace mud
 #ifdef _WIN32
 		return (FunctionPointer)GetProcAddress((HMODULE)module.m_handle, name);
 #else
-		return (FunctionPointer)dlsym(module.m_handle, "getModule");
+		return (FunctionPointer)dlsym(module.m_handle, name);
 #endif
 	}
 
@@ -164,14 +164,14 @@ namespace mud
 		for(Function* function : m.m_functions)
 			m_functions.push_back(function);
 
-		for(Module* depend : m_modules)
-			depend->handle_load(m);
+		//for(Module* depend : m_modules)
+		//	depend->handle_load(m);
 	}
 
 	void System::unload_module(Module& m)
 	{
-		for(Module* depend : m_modules)
-			depend->handle_unload(m);
+		//for(Module* depend : m_modules)
+		//	depend->handle_unload(m);
 
 		vector_remove(m_modules, &m);
 

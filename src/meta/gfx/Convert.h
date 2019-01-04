@@ -3,7 +3,7 @@
 
 #include <gfx/Types.h>
 
-#if !defined MUD_MODULES || defined MUD_OBJ_LIB
+#if !defined MUD_MODULES || defined MUD_TYPE_LIB
 #include <refl/Meta.h>
 #include <refl/Enum.h>
 #include <infra/StringConvert.h>
@@ -34,9 +34,6 @@ namespace mud
     
     export_ template <> inline void from_string(const string& str, mud::IsometricAngle& val) { val = static_cast<mud::IsometricAngle>(enu<mud::IsometricAngle>().value(str.c_str())); };
     export_ template <> inline void to_string(const mud::IsometricAngle& val, string& str) { str = enu<mud::IsometricAngle>().m_map[size_t(val)]; };
-    
-    export_ template <> inline void from_string(const string& str, mud::ItemFlag& val) { val = static_cast<mud::ItemFlag>(enu<mud::ItemFlag>().value(str.c_str())); };
-    export_ template <> inline void to_string(const mud::ItemFlag& val, string& str) { str = enu<mud::ItemFlag>().m_map[size_t(val)]; };
     
     export_ template <> inline void from_string(const string& str, mud::ItemShadow& val) { val = static_cast<mud::ItemShadow>(enu<mud::ItemShadow>().value(str.c_str())); };
     export_ template <> inline void to_string(const mud::ItemShadow& val, string& str) { str = enu<mud::ItemShadow>().m_map[size_t(val)]; };
@@ -79,6 +76,9 @@ namespace mud
     
     export_ template <> inline void from_string(const string& str, mud::TextureSampler& val) { val = static_cast<mud::TextureSampler>(enu<mud::TextureSampler>().value(str.c_str())); };
     export_ template <> inline void to_string(const mud::TextureSampler& val, string& str) { str = enu<mud::TextureSampler>().m_map[size_t(val)]; };
+
+	export_ template <> inline void from_string(const string& str, mud::ModelFormat& val) { val = static_cast<mud::ModelFormat>(enu<mud::ModelFormat>().value(str.c_str())); };
+	export_ template <> inline void to_string(const mud::ModelFormat& val, string& str) { str = enu<mud::ModelFormat>().m_map[size_t(val)]; };
     
     
 }

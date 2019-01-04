@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -26,7 +26,7 @@ namespace ui
 		if(size != self.m_frame.m_content)
 		{
 			self.m_frame.m_content = size;
-			self.m_frame.set_dirty(DIRTY_LAYOUT);
+			self.m_frame.mark_dirty(DIRTY_LAYOUT);
 		}
 		return self;
 	}

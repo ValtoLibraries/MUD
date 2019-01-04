@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -71,10 +71,10 @@ namespace mud
 		enum Modes { CALL = 1 << 0 };
 		string name = "Call method " + string(method.m_object_type->m_name) + "::" + method.m_name;
 		
-		if(ui::modal_button(parent, parent, "Open Script", CALL))
+		if(ui::modal_button(parent, parent, "Call", CALL))
 		{
 			Widget& modal = ui::auto_modal(parent, CALL, { 600, 400 });
-			method_edit(parent, object, method);
+			method_edit(modal, object, method);
 		}
 	}
 

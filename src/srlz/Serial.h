@@ -1,12 +1,12 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #pragma once
 
 #ifndef MUD_MODULES
-#include <obj/Any.h>
-#include <obj/Dispatch.h>
+#include <type/Any.h>
+#include <type/Dispatch.h>
 #endif
 #include <srlz/Forward.h>
 
@@ -72,5 +72,6 @@ namespace mud
 	export_ MUD_SRLZ_EXPORT string pack_json(const Var& value);
 
 	export_ MUD_SRLZ_EXPORT void pack_json_file(const Var& value, const string& path);
+	export_ MUD_SRLZ_EXPORT void pack_json_file(ToJson& packer, const Var& value, const string& path);
 	export_ MUD_SRLZ_EXPORT void unpack_json_file(Ref value, const string& path);
 }

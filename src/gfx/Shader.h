@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -15,15 +15,18 @@ namespace mud
 		SKELETON,
 		INSTANCING,
 		BILLBOARD,
-		MRT
+		QNORMALS,
+		MRT,
+		DEFERRED,
+		CLUSTERED
 	};
 
 	export_ struct MUD_GFX_EXPORT ShaderVersion
 	{
 		ShaderVersion() {}
-		ShaderVersion(Program* program) : m_program(program) {}
+		ShaderVersion(const Program* program) : m_program(program) {}
 
-		Program* m_program = nullptr;
+		const Program* m_program = nullptr;
 		uint32_t m_options = 0;
 		uint8_t m_modes[4] = {};
 

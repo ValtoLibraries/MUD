@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -7,13 +7,14 @@
 #ifndef MUD_MODULES
 #include <infra/Array.h>
 #include <infra/NonCopy.h>
-#include <obj/Any.h>
+#include <type/Any.h>
 #include <refl/Method.h>
 #include <refl/Class.h>
 #endif
 #include <lang/Forward.h>
 
 #ifndef MUD_CPP_20
+#include <map>
 #include <string>
 #endif
 
@@ -63,8 +64,8 @@ namespace mud
 		using Callable::operator();
 		virtual void operator()(array<Var> args, Var& result) const;
 
-		mutable std::vector<Error> m_compile_errors;
-		mutable std::vector<Error> m_runtime_errors;
+		mutable std::map<int, Error> m_compile_errors;
+		mutable std::map<int, Error> m_runtime_errors;
 	};
 
 	export_ class refl_ MUD_LANG_EXPORT Interpreter : public NonCopy

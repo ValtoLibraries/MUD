@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -15,7 +15,12 @@ module mud.gfx;
 #include <gfx/Camera.h>
 #include <gfx/Item.h>
 #include <gfx/Renderer.h>
+#include <gfx/Froxel.h>
+#include <gfx/Shot.h>
+#include <gfx/Culling.h>
 #endif
+
+//#define NO_OCCLUSION_CULLING
 
 namespace mud
 {
@@ -29,20 +34,33 @@ namespace mud
 		, m_scissor(scissor)
 	{}
 
+	Viewport::~Viewport()
+	{}
+
 	void Viewport::render_pass(cstring name, const Pass& render_pass)
 	{
-#if _DEBUG
 		bgfx::setViewName(render_pass.m_index, name);
-#endif
-
 		bgfx::setViewRect(render_pass.m_index, uint16_t(m_rect.x), uint16_t(m_rect.y), uint16_t(rect_w(m_rect)), uint16_t(rect_h(m_rect)));
 		bgfx::setViewTransform(render_pass.m_index, value_ptr(m_camera->m_transform), value_ptr(m_camera->m_projection));
 		bgfx::setViewFrameBuffer(render_pass.m_index, render_pass.m_fbo);
+		bgfx::setViewClear(render_pass.m_index, BGFX_CLEAR_NONE);
 
 		if(m_scissor)
 			bgfx::setViewScissor(render_pass.m_index, uint16_t(m_rect.x), uint16_t(m_rect.y), uint16_t(rect_w(m_rect)), uint16_t(rect_h(m_rect)));
 
 		bgfx::touch(render_pass.m_index);
+	}
+
+	void Viewport::cull(Render& render)
+	{
+#ifndef NO_OCCLUSION_CULLING
+		if(!m_culler)
+			m_culler = make_unique<Culler>(*this);
+		if(m_culler)
+			m_culler->render(render);
+#else
+		UNUSED(render);
+#endif
 	}
 
 	void Viewport::render(Render& render)
@@ -52,6 +70,14 @@ namespace mud
 
 		m_camera->m_aspect = float(rect_w(m_rect)) / float(rect_h(m_rect));
 		m_camera->update();
+
+		if(m_camera->m_clusters)
+		{
+			m_camera->m_clusters->m_dirty |= Froxelizer::VIEWPORT_CHANGED | Froxelizer::PROJECTION_CHANGED;
+			m_camera->m_clusters->update(*this, m_camera->m_projection, m_camera->m_near, m_camera->m_far);
+			m_camera->m_clusters->froxelize_lights(*m_camera, render.m_shot->m_lights);
+			m_camera->m_clusters->upload();
+		}
 
 		if(m_render)
 			m_render(render);

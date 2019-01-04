@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -151,7 +151,7 @@ namespace mud
 		void shutdown();
 
 		void update(float timestep);
-		void render(uint8_t pass, const mat4& view, const vec3& eye);
+		void render(bgfx::Encoder& encoder, uint8_t pass, const mat4& view, const vec3& eye);
 		
 		TPool<Particles>& m_emitters;
 
@@ -166,10 +166,10 @@ namespace mud
 		BlockParticles(GfxSystem& gfx_system);
 		~BlockParticles();
 
-		virtual void init_gfx_block() final;
+		virtual void init_block() override;
 
-		virtual void begin_gfx_block(Render& render) final;
-		virtual void submit_gfx_block(Render& render) final;
+		virtual void begin_render(Render& render) override;
+		virtual void begin_pass(Render& render) override;
 
 		SpriteAtlas m_sprites;
 		bgfx::TextureHandle m_texture;
@@ -186,7 +186,6 @@ namespace mud
 	public:
 		PassParticles(GfxSystem& gfx_system);
 
-		virtual void begin_render_pass(Render& render) final;
 		virtual void submit_render_pass(Render& render) final;
 	};
 }

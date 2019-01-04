@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -13,11 +13,12 @@ module mud.srlz;
 #include <json11.hpp>
 
 #include <infra/File.h>
-#include <obj/Vector.h>
+#include <type/Vector.h>
 #include <refl/System.h>
 #include <refl/Convert.h>
 #include <refl/Sequence.h>
 #include <refl/Meta.h>
+#include <refl/Enum.h>
 #include <refl/Injector.h>
 #include <refl/Member.h>
 #include <refl/Method.h>
@@ -26,6 +27,8 @@ module mud.srlz;
 #endif
 
 //#define MUD_DEBUG_SERIAL
+#define NO_HUMAN_READABLE
+#define NO_PACK_DEFAULT
 
 namespace mud
 {
@@ -74,12 +77,13 @@ namespace mud
 
 	FromJson::FromJson()
 	{
-		dispatch_branch<int>(*this, [](int& value, Ref&, const json& json_value) { value = json_value.int_value(); });
-		dispatch_branch<uint16_t>(*this, [](uint16_t& value, Ref&, const json& json_value) { value = uint16_t(json_value.int_value()); });
-		dispatch_branch<uint32_t>(*this, [](uint32_t& value, Ref&, const json& json_value) { value = uint32_t(json_value.int_value()); });
-		dispatch_branch<uint64_t>(*this, [](uint64_t& value, Ref&, const json& json_value) { value = uint64_t(json_value.number_value()); });
-		dispatch_branch<float>(*this, [](float& value, Ref&, const json& json_value) { value = float(json_value.number_value()); });
-		dispatch_branch<double>(*this, [](double& value, Ref&, const json& json_value) { value = json_value.number_value(); });
+		dispatch_branch<int>    (*this, [](int&    value, Ref&, const json& json_value) { value = json_value.int_value(); });
+		dispatch_branch<ushort> (*this, [](ushort& value, Ref&, const json& json_value) { value = ushort(json_value.int_value()); });
+		dispatch_branch<uint>   (*this, [](uint&   value, Ref&, const json& json_value) { value = uint(json_value.int_value()); });
+		dispatch_branch<ulong>  (*this, [](ulong&  value, Ref&, const json& json_value) { value = ulong(json_value.number_value()); });
+		dispatch_branch<ulong2> (*this, [](ulong2& value, Ref&, const json& json_value) { value = ulong2(json_value.number_value()); });
+		dispatch_branch<float>  (*this, [](float&  value, Ref&, const json& json_value) { value = float(json_value.number_value()); });
+		dispatch_branch<double> (*this, [](double& value, Ref&, const json& json_value) { value = json_value.number_value(); });
 		// cstring can't be deserialized I believe, or we need to memoize them ?
 		dispatch_branch<string>(*this, [](string& value, Ref&, const json& json_value) { value = json_value.string_value(); });
 		dispatch_branch<bool>(*this, [](bool& value, Ref&, const json& json_value) { value = json_value.bool_value(); });
@@ -99,15 +103,16 @@ namespace mud
 
 	ToJson::ToJson()
 	{
-		dispatch_branch<int>(*this, [](int& value, json& json_value) { json_value = json(value); });
-		dispatch_branch<uint16_t>(*this, [](uint16_t& value, json& json_value) { json_value = json(int(value)); });
-		dispatch_branch<uint32_t>(*this, [](uint32_t& value, json& json_value) { json_value = json(int(value)); });
-		dispatch_branch<uint64_t>(*this, [](uint64_t& value, json& json_value) { json_value = json(double(value)); });
-		dispatch_branch<float>(*this, [](float& value, json& json_value) { json_value = value; });
-		dispatch_branch<double>(*this, [](double& value, json& json_value) { json_value = value; });
-		dispatch_branch<cstring>(*this, [](cstring value, json& json_value) { json_value = string(value); });
-		dispatch_branch<string>(*this, [](string& value, json& json_value) { json_value = value; });
-		dispatch_branch<bool>(*this, [](bool& value, json& json_value) { json_value = value; });
+		dispatch_branch<int>     (*this, [](int&     value, json& json_value) { json_value = json(value); });
+		dispatch_branch<uint>    (*this, [](uint&    value, json& json_value) { json_value = json(int(value)); });
+		dispatch_branch<ushort>  (*this, [](ushort&  value, json& json_value) { json_value = json(int(value)); });
+		dispatch_branch<ulong>   (*this, [](ulong&   value, json& json_value) { json_value = json(double(value)); });
+		dispatch_branch<ulong2>  (*this, [](ulong2&  value, json& json_value) { json_value = json(double(value)); });
+		dispatch_branch<float>   (*this, [](float&   value, json& json_value) { json_value = value; });
+		dispatch_branch<double>  (*this, [](double&  value, json& json_value) { json_value = value; });
+		dispatch_branch<cstring> (*this, [](cstring  value, json& json_value) { json_value = string(value); });
+		dispatch_branch<string>  (*this, [](string&  value, json& json_value) { json_value = value; });
+		dispatch_branch<bool>    (*this, [](bool&    value, json& json_value) { json_value = value; });
 
 		dispatch_branch<Type>(*this, [](Type& type, json& json_value) { json_value = type.m_name; });
 
@@ -131,11 +136,6 @@ namespace mud
 	inline void enum_set_value(Ref value, size_t enum_value)
 	{
 		memcpy(value.m_value, &enum_value, meta(value).m_size);
-	}
-
-	inline void enum_manual_value(Ref result, size_t value)
-	{
-		enum_set_value(result, value);
 	}
 
 	Var unpack(Type& type, const json& json_value)
@@ -184,7 +184,7 @@ namespace mud
 		}
 		else if(is_enum(type(value)) && json_value.is_number()) // is_number_integer
 		{
-			enum_manual_value(value, json_value.int_value());
+			enum_set_value(value, json_value.int_value());
 			return;
 		}
 		else if(g_convert[type(value).m_id] && json_value.is_string())
@@ -224,17 +224,20 @@ namespace mud
 			};
 
 			if(json_value.is_object())
+			{
 				for(const Member& member : cls.m_members)
 					if(!json_value[member.m_name].is_null())
 					{
 						unpack_member(member, json_value[member.m_name]);
 					}
-
-			if(json_value.is_array())
+			}
+			else if(json_value.is_array())
+			{
 				for(size_t index = 0; index < size; ++index)
 				{
 					unpack_member(cls.m_members[index], json_value[index]);
 				}
+			}
 		}
 		else
 		{
@@ -274,16 +277,24 @@ namespace mud
 		{
 			packer.dispatch(value.m_ref, json_value);
 		}
-		else if(is_basic(type(value)))
+		else if(is_base_type(type(value)))
 		{
 			json_value = to_string(value);
+		}
+		else if(is_enum(type(value)))
+		{
+#ifdef NO_HUMAN_READABLE
+			json_value = int(enu(value).value(value));
+#else
+			json_value = to_string(value);
+#endif
 		}
 		else if(is_sequence(type(value)))
 		{
 			size_t i = 0;
 			std::vector<json> json_values = std::vector<json>(sequence_size(value.m_ref));
 			iterate_sequence(value.m_ref, [&](Ref element) {
-				pack(element, json_values[i++]);
+				pack(packer, element, json_values[i++]);
 			});
 			json_value = json_values;
 		}
@@ -292,7 +303,21 @@ namespace mud
 			if(value.null())
 				json_value = nullptr;
 			else if(cls(value).m_type_member && !typed)
-				pack_typed(value, json_value);
+				pack_typed(packer, value, json_value);
+			else if(is_array(type(value)))
+			{
+				std::vector<json> json_members;
+				json_members.resize(cls(value).m_members.size());
+
+				for(Member& member : cls(value).m_members)
+					if(&member != cls(value).m_type_member)
+					{
+						Var member_val = member.get(value.m_ref);
+						pack(packer, member_val, json_members[member.m_index]);
+					}
+
+				json_value = json_members;
+			}
 			else
 			{
 				std::map<std::string, json> json_members;
@@ -301,6 +326,10 @@ namespace mud
 					if(&member != cls(value).m_type_member)
 					{
 						Var member_val = member.get(value.m_ref);
+#ifdef NO_PACK_DEFAULT
+						if(memcmp(member_val.m_ref.m_value, member.m_default_value.m_ref.m_value, meta(member_val).m_size) == 0)
+							continue;
+#endif
 						pack(packer, member_val, json_members[member.m_name]);
 					}
 
@@ -347,6 +376,13 @@ namespace mud
 	{
 		json json_value;
 		pack(value, json_value);
+		dump_json_file(path, json_value);
+	}
+
+	void pack_json_file(ToJson& packer, const Var& value, const string& path)
+	{
+		json json_value;
+		pack(packer, value, json_value);
 		dump_json_file(path, json_value);
 	}
 

@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -44,7 +44,10 @@ namespace mud
 	export_ MUD_UIO_EXPORT func_ bool object_edit_expandbox(Widget& parent, Ref object);
 	export_ MUD_UIO_EXPORT func_ bool object_edit(Widget& parent, Ref object, EditorHint hint = EditorHint::Table);
 
+	export_ MUD_UIO_EXPORT func_ bool entity_edit(Widget& parent, Entity entity, EditorHint hint = EditorHint::Table);
+
 	export_ MUD_UIO_EXPORT func_ bool inspector(Widget& parent, Ref object);
+	export_ MUD_UIO_EXPORT func_ bool inspector(Widget& parent, Entity entity);
 	export_ MUD_UIO_EXPORT func_ bool inspector(Widget& parent);
 	export_ MUD_UIO_EXPORT func_ void multi_inspector(Widget& parent, Type& type, std::vector<Var>& objects, size_t& selected);
 

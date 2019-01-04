@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -10,9 +10,6 @@
 #ifdef MUD_MODULES
 module mud.gfx;
 #else
-#include <refl/Convert.h>
-#include <refl/Meta.h>
-#include <srlz/Serial.h>
 #include <infra/StringConvert.h>
 #include <geom/Mesh.h>
 #include <geom/Shape/ProcShape.h>
@@ -56,10 +53,25 @@ namespace mud
 		ms_vertex_decl = vertex_decl(VertexAttribute::Position | VertexAttribute::Colour);
 	}
 
-	inline bool checkAvailTransientBuffers(uint32_t _numVertices, const bgfx::VertexDecl& _decl, uint32_t _numIndices)
+	void ImmediateDraw::begin()
 	{
-		return _numVertices == bgfx::getAvailTransientVertexBuffer(_numVertices, _decl)
-			&& _numIndices == bgfx::getAvailTransientIndexBuffer(_numIndices);
+		DrawMode draw_modes[2] = { PLAIN, OUTLINE };
+		for(DrawMode draw_mode : draw_modes)
+			for(Batch& batch : m_batches[draw_mode])
+			{
+				batch.m_vertices.clear();
+				batch.m_indices.clear();
+			}
+	}
+
+	ImmediateDraw::Batch* ImmediateDraw::batch(DrawMode draw_mode, size_t vertex_count)
+	{
+		size_t& cursor = m_cursor[draw_mode];
+		if(m_batches[draw_mode][cursor].m_vertices.size() + vertex_count > UINT16_MAX)
+			cursor++;
+		if(cursor > m_batches[draw_mode].size())
+			return nullptr;
+		return &m_batches[draw_mode][cursor];
 	}
 
 	void ImmediateDraw::draw(const mat4& transform, const ProcShape& shape)
@@ -82,12 +94,9 @@ namespace mud
 
 	void ImmediateDraw::draw(const mat4& transform, array<ProcShape> shapes, ShapeSize size, DrawMode draw_mode)
 	{
-		size_t& cursor = m_cursor[draw_mode];
-		if(m_batches[draw_mode][cursor].m_vertices.size() + size.vertex_count > UINT16_MAX)
-			cursor++;
-		if(cursor > m_batches[draw_mode].size())
-			return;
-		this->draw(m_batches[draw_mode][cursor], transform, shapes, size, draw_mode);
+		Batch* batch = this->batch(draw_mode, size.vertex_count);
+		if(batch)
+			this->draw(*batch, transform, shapes, size, draw_mode);
 	}
 
 	void ImmediateDraw::draw(Batch& batch, const mat4& transform, array<ProcShape> shapes, ShapeSize size, DrawMode draw_mode)
@@ -98,10 +107,7 @@ namespace mud
 		batch.m_vertices.resize(batch.m_vertices.size() + size.vertex_count);
 		batch.m_indices.resize(batch.m_indices.size() + size.index_count);
 
-		array<Vertex> vertices = { &batch.m_vertices[vertex_offset], size_t(size.vertex_count) };
-		array<uint16_t> indices = { &batch.m_indices[index_offset], size_t(size.index_count) };
-
-		MeshData data(vertices, indices);
+		MeshAdapter data(Vertex::vertex_format, &batch.m_vertices[vertex_offset], size.vertex_count, &batch.m_indices[index_offset], size.index_count, false);
 		data.m_offset = uint32_t(vertex_offset);
 
 		for(const ProcShape& shape : shapes)
@@ -114,53 +120,53 @@ namespace mud
 		for(size_t i = vertex_offset; i < batch.m_vertices.size(); ++i)
 		{
 			batch.m_vertices[i].m_position = vec3(transform * vec4(batch.m_vertices[i].m_position, 1.f));
+			//batch.m_vertices[i].m_position = batch.m_vertices[i].m_position;
 		}
 	}
 
-	void ImmediateDraw::submit(uint8_t view, uint64_t bgfx_state)
+	void ImmediateDraw::submit(bgfx::Encoder& encoder, uint8_t view, uint64_t bgfx_state)
 	{
-		this->submit(view, bgfx_state, PLAIN);
-		this->submit(view, bgfx_state, OUTLINE);
+		this->submit(encoder, view, bgfx_state, PLAIN);
+		this->submit(encoder, view, bgfx_state, OUTLINE);
 	}
 
-	void ImmediateDraw::submit(uint8_t view, uint64_t bgfx_state, DrawMode draw_mode)
+	void ImmediateDraw::submit(bgfx::Encoder& encoder, uint8_t view, uint64_t bgfx_state, DrawMode draw_mode)
 	{
 		for(Batch& batch : m_batches[draw_mode])
-			this->submit(view, bgfx_state, draw_mode, batch);
+			this->submit(encoder, view, bgfx_state, draw_mode, batch);
 		m_cursor[draw_mode] = 0;
 	}
 
-	void ImmediateDraw::submit(uint8_t view, uint64_t bgfx_state, DrawMode draw_mode, Batch& batch)
+	void ImmediateDraw::submit(bgfx::Encoder& encoder, uint8_t view, uint64_t bgfx_state, DrawMode draw_mode, Batch& batch)
 	{
 		if(batch.m_vertices.empty())
 			return;
 
-		if(!checkAvailTransientBuffers(batch.m_vertices.size(), ms_vertex_decl, batch.m_indices.size()))
-		{
-			batch.m_vertices.clear();
-			batch.m_indices.clear();
+		uint32_t num_vertices = uint32_t(batch.m_vertices.size());
+		uint32_t num_indices = uint32_t(batch.m_indices.size());
+
+		if(num_vertices != bgfx::getAvailTransientVertexBuffer(num_vertices, ms_vertex_decl)
+		|| num_indices != bgfx::getAvailTransientIndexBuffer(num_indices))
 			return;
-		}
 
 		bgfx::TransientVertexBuffer vertex_buffer;
-		bgfx::allocTransientVertexBuffer(&vertex_buffer, batch.m_vertices.size(), ms_vertex_decl);
-		bx::memCopy(vertex_buffer.data, batch.m_vertices.data(), batch.m_vertices.size() * sizeof(Vertex));//ms_vertex_decl.m_stride);
+		bgfx::allocTransientVertexBuffer(&vertex_buffer, num_vertices, ms_vertex_decl);
+		bx::memCopy(vertex_buffer.data, batch.m_vertices.data(), num_vertices * sizeof(Vertex));//ms_vertex_decl.m_stride);
 
 		bgfx::TransientIndexBuffer index_buffer;
-		bgfx::allocTransientIndexBuffer(&index_buffer, batch.m_indices.size());
-		bx::memCopy(index_buffer.data, batch.m_indices.data(), batch.m_indices.size() * sizeof(uint16_t));
+		bgfx::allocTransientIndexBuffer(&index_buffer, num_indices);
+		bx::memCopy(index_buffer.data, batch.m_indices.data(), num_indices * sizeof(uint16_t));
 
-		m_material.submit(bgfx_state);
+		m_material.submit(encoder, bgfx_state);
 
-		bgfx::setVertexBuffer(0, &vertex_buffer);
-		bgfx::setIndexBuffer(&index_buffer);
-		bgfx::setState(draw_mode == OUTLINE ? bgfx_state | BGFX_STATE_PT_LINES | BGFX_STATE_LINEAA : bgfx_state);
+		encoder.setVertexBuffer(0, &vertex_buffer);
+		encoder.setIndexBuffer(&index_buffer);
+		encoder.setState(draw_mode == OUTLINE ? bgfx_state | BGFX_STATE_PT_LINES | BGFX_STATE_LINEAA : bgfx_state);
+
 		mat4 identity = bxidentity();
-		bgfx::setTransform(value_ptr(identity));
-		bgfx::submit(view, m_material.m_program->default_version());
+		encoder.setTransform(value_ptr(identity));
 
-		batch.m_vertices.clear();
-		batch.m_indices.clear();
+		encoder.submit(view, m_material.m_program->default_version());
 	}
 
 	bgfx::VertexDecl ImmediateDraw::ms_vertex_decl;
@@ -190,6 +196,7 @@ namespace mud
 		if(m_materials[hash] == nullptr)
 		{
 			m_materials[hash] = &gfx_system.fetch_material(("Symbol" + to_string(hash)).c_str(), "unshaded");
+			m_materials[hash]->m_base_block.m_depth_draw_mode = DepthDraw::Disabled;
 			m_materials[hash]->m_base_block.m_depth_test = symbol.m_overlay ? DepthTest::Disabled : DepthTest::Enabled;
 			m_materials[hash]->m_base_block.m_cull_mode = symbol.m_double_sided ? CullMode::None : CullMode::Back;
 			m_materials[hash]->m_unshaded_block.m_enabled = true;
@@ -202,13 +209,13 @@ namespace mud
 	{
 		uint64_t hash = hash_symbol(symbol, draw_mode);
 		std::array<char, c_max_shape_size> shape_mem = {};
-		std::memcpy(&shape_mem[0], (void*) &shape, meta(shape.m_type).m_size);
+		std::memcpy(&shape_mem[0], (void*) &shape, shape.m_type.m_size);
 
 		if(m_symbols[hash][shape_mem] == nullptr)
 		{
-			printf("INFO: created indexed Shape %s %s\n", shape.m_type.m_name, pack_json(Ref(&shape)).c_str());
-			string name = "Shape:" + string(meta(shape.m_type).m_name);
-			m_symbols[hash][shape_mem] = draw_model(name.c_str(), ProcShape{ symbol, &shape, draw_mode });
+			//printf("INFO: created indexed Shape %s %s\n", shape.m_type.m_name, pack_json(Ref(&shape)).c_str());
+			string name = "Shape:" + string(shape.m_type.m_name);
+			m_symbols[hash][shape_mem] = draw_model(name.c_str(), ProcShape{ symbol, &shape, draw_mode }, true);
 		}
 
 		return *m_symbols[hash][shape_mem];
@@ -265,25 +272,21 @@ namespace mud
 		Mesh& mesh = model.add_mesh((model.m_name + to_string(draw_mode)).c_str(), readback);
 		mesh.m_material = material;
 
-		GpuMesh gpu_mesh = alloc_mesh<ShapeVertex, ShapeIndex>(size.vertex_count, size.index_count);
+		GpuMesh gpu_mesh = alloc_mesh(ShapeVertex::vertex_format, size.vertex_count, size.index_count);
 		
-		MeshData data = gpu_mesh.m_data;
-
 		for(const ProcShape& shape : shapes)
 			if(shape.m_draw_mode == draw_mode)
 			{
-				draw_mode == OUTLINE ? symbol_draw_lines(shape, data)
-									 : symbol_draw_triangles(shape, data);
-				data.next();
+				draw_mode == OUTLINE ? symbol_draw_lines(shape, gpu_mesh.m_writer)
+									 : symbol_draw_triangles(shape, gpu_mesh.m_writer);
+				gpu_mesh.m_writer.next();
 			}
 
 		if(draw_mode == PLAIN)
-			generate_mikkt_tangents(gpu_mesh.indices<ShapeIndex>(), gpu_mesh.vertices<ShapeVertex>());
+			generate_mikkt_tangents({ (ShapeIndex*)gpu_mesh.m_indices, gpu_mesh.m_index_count }, { (ShapeVertex*)gpu_mesh.m_vertices, gpu_mesh.m_vertex_count });
 
 		mesh.upload(draw_mode, gpu_mesh);
-		if(readback)
-			mesh.cache<ShapeVertex, ShapeIndex>(gpu_mesh);
 
-		model.m_items.emplace_back(ModelItem{ bxidentity(), &mesh, -1, Colour::White });
+		model.add_item(mesh, bxidentity());
 	}
 }

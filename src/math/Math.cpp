@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -8,7 +8,7 @@
 #include <cstdlib>
 module mud.math;
 #else
-#include <refl/Convert.h>
+//#include <refl/Convert.h>
 #include <math/Types.h>
 #include <math/VecOps.h>
 #include <math/Math.h>
@@ -26,9 +26,11 @@ namespace mud
 
 	void register_math_conversions()
 	{
+#if 0
 		dispatch_branch<float, vec3, copy_convert<float, vec3>>(TypeConverter::me());
 		TypeConverter::me().default_converter<vec3, ivec3>();
 		TypeConverter::me().default_converter<vec3, uvec3>();
+#endif
 	}
 
 	const vec3 X3 = { 1.f, 0.f, 0.f };
@@ -56,17 +58,12 @@ namespace mud
 	const vec4 Zero4 = { 0.f, 0.f, 0.f, 0.f };
 	const vec4 Rect4 = { 0.f, 0.f, 1.f, 1.f };
 
-	Transform::Transform(const mat4& mat)
-	{
-		UNUSED(mat);
-	}
-
-	quat average_quat(quat& cumulative, const quat& rotation, const quat& first, int count)
+	quat average_quat(quat& cumulative, const quat& rotation, const quat& first, uint32_t count)
 	{
 		if(dot(rotation, first) < 0.f)
 			return average_quat(cumulative, inverse(rotation), first, count);
 
-		float factor = 1.f / (float)count;
+		float factor = 1.f / float(count);
 		cumulative += rotation;
 		return normalize(cumulative * factor);
 	}
@@ -78,7 +75,7 @@ namespace mud
 
 		quat cumulative = { 0.f, 0.f, 0.f, 0.f };
 
-		size_t count = 0;
+		uint32_t count = 0;
 		for(Transform* transform : transforms)
 		{
 			average.m_position += transform->m_position;
@@ -102,9 +99,8 @@ namespace mud
 	double nsin(double a) { return (sin(a) + 1.0) / 2.0; }
 	double ncos(double a) { return (cos(a) + 1.0) / 2.0; }
 
-	quat look_at(const vec3& source, const vec3& dest, const vec3& forward)
+	quat look_dir(const vec3& direction, const vec3& forward)
 	{
-		vec3 direction = normalize(dest - source);
 		float d = dot(forward, direction);
 
 		if(abs(d - (-1.0f)) < 0.000001f)
@@ -114,6 +110,12 @@ namespace mud
 
 		vec3 axis = normalize(cross(-Z3, direction));
 		return axis_angle(axis, acos(d));
+	}
+
+	quat look_at(const vec3& source, const vec3& dest, const vec3& forward)
+	{
+		vec3 direction = normalize(dest - source);
+		return look_dir(direction, forward);
 	}
 
 	uint32_t pack4(const vec4& colour)
@@ -275,8 +277,8 @@ namespace mud
 	mat4 abs(const mat4& mat)
 	{
 		mat4 result;
-		for(size_t i = 0; i < 4; ++i)
-			for(size_t j = 0; j < 4; ++j)
+		for(mat4::length_type i = 0; i < 4; ++i)
+			for(mat4::length_type j = 0; j < 4; ++j)
 				result[i][j] = std::abs(mat[i][j]);
 		return result;
 	}
@@ -299,9 +301,9 @@ namespace mud
 		return vec3(coord) * cell_size + cell_size * 0.5f;
 	}
 
-	void index_list(size_t size, std::vector<uint32_t>& output_indices)
+	void index_list(uint32_t size, std::vector<uint32_t>& output_indices)
 	{
-		for(size_t i = 0; i < size; ++i)
+		for(uint32_t i = 0; i < size; ++i)
 			output_indices.push_back(i);
 	}
 }

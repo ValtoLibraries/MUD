@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -18,6 +18,8 @@ module mud.geom;
 
 namespace mud
 {
+	// using std::clamp;
+
 	const float c_cmp_epsilon = 0.00001f;
 	const float c_cmp_epsilon2 = c_cmp_epsilon * c_cmp_epsilon;
 
@@ -338,24 +340,24 @@ namespace mud
 				{
 					if(d < 0.f)
 					{
-						s = std::clamp(-d / a, 0.f, 1.f);
+						s = clamp(-d / a, 0.f, 1.f);
 						t = 0.f;
 					}
 					else
 					{
 						s = 0.f;
-						t = std::clamp(-e / c, 0.f, 1.f);
+						t = clamp(-e / c, 0.f, 1.f);
 					}
 				}
 				else
 				{
 					s = 0.f;
-					t = std::clamp(-e / c, 0.f, 1.f);
+					t = clamp(-e / c, 0.f, 1.f);
 				}
 			}
 			else if(t < 0.f)
 			{
-				s = std::clamp(-d / a, 0.f, 1.f);
+				s = clamp(-d / a, 0.f, 1.f);
 				t = 0.f;
 			}
 			else
@@ -375,12 +377,12 @@ namespace mud
 				{
 					float numer = tmp1 - tmp0;
 					float denom = a - 2 * b + c;
-					s = std::clamp(numer / denom, 0.f, 1.f);
+					s = clamp(numer / denom, 0.f, 1.f);
 					t = 1 - s;
 				}
 				else
 				{
-					t = std::clamp(-e / c, 0.f, 1.f);
+					t = clamp(-e / c, 0.f, 1.f);
 					s = 0.f;
 				}
 			}
@@ -390,12 +392,12 @@ namespace mud
 				{
 					float numer = c + e - b - d;
 					float denom = a - 2 * b + c;
-					s = std::clamp(numer / denom, 0.f, 1.f);
+					s = clamp(numer / denom, 0.f, 1.f);
 					t = 1 - s;
 				}
 				else
 				{
-					s = std::clamp(-e / c, 0.f, 1.f);
+					s = clamp(-e / c, 0.f, 1.f);
 					t = 0.f;
 				}
 			}
@@ -403,7 +405,7 @@ namespace mud
 			{
 				float numer = c + e - b - d;
 				float denom = a - 2 * b + c;
-				s = std::clamp(numer / denom, 0.f, 1.f);
+				s = clamp(numer / denom, 0.f, 1.f);
 				t = 1.f - s;
 			}
 		}
@@ -429,8 +431,8 @@ namespace mud
 	vec2 project_aabb_in_plane(const Plane& plane, const Aabb& aabb)
 	{
 		float length = dot(abs(plane.m_normal), aabb.m_extents);
-		float distance = plane_distance_to(plane, aabb.m_center);
-		return { distance - length, distance + length };
+		float dist = distance(plane, aabb.m_center);
+		return { dist - length, dist + length };
 	}
 
 	bool frustum_aabb_intersection(const Plane6& planes, const Aabb& aabb)
@@ -465,7 +467,7 @@ namespace mud
 		float r2 = radius * radius;
 		float dmin = 0.f;
 
-		for(size_t i = 0; i < 3; ++i)
+		for(vec3::length_type i = 0; i < 3; ++i)
 		{
 			if(center[i] < min[i]) dmin += sqr(center[i] - min[i]);
 			else if(center[i] > max[i]) dmin += sqr(center[i] - max[i]);

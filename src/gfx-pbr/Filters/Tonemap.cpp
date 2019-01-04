@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -11,6 +11,8 @@ module mud.gfx.pbr;
 #else
 #include <gfx/RenderTarget.h>
 #include <gfx/Filter.h>
+#include <gfx/Asset.h>
+#include <gfx/GfxSystem.h>
 #include <gfx-pbr/Types.h>
 #include <gfx-pbr/Filters/Tonemap.h>
 #endif
@@ -21,7 +23,7 @@ namespace mud
 		: GfxBlock(gfx_system, *this)
 		, m_filter(filter)
 		, m_copy(copy)
-		, m_program("filter/tonemap")
+		, m_program(gfx_system.programs().create("filter/tonemap"))
 	{
 		static cstring options[2] = {
 			"ADJUST_BCS",
@@ -37,17 +39,22 @@ namespace mud
 		m_program.register_block(*this);
 	}
 
-	void BlockTonemap::init_gfx_block()
+	void BlockTonemap::init_block()
 	{
 		u_uniform.createUniforms();
 	}
 
-	void BlockTonemap::begin_gfx_block(Render& render)
+	void BlockTonemap::begin_render(Render& render)
 	{
 		UNUSED(render);
 	}
 
-	void BlockTonemap::submit_gfx_block(Render& render)
+	void BlockTonemap::begin_pass(Render& render)
+	{
+		UNUSED(render);
+	}
+	
+	void BlockTonemap::submit_pass(Render& render)
 	{
 		if(render.m_filters && render.m_filters->m_tonemap.m_enabled)
 			this->render(render, render.m_filters->m_tonemap, render.m_filters->m_bcs);
@@ -59,7 +66,7 @@ namespace mud
 	{
 		ShaderVersion shader_version(&m_program);
 
-		m_filter.set_uniforms(render);
+		m_filter.set_uniforms(render, *bgfx::begin());
 
 		shader_version.set_mode(m_index, TONEMAP_MODE, uint8_t(tonemap.m_mode));
 

@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -6,7 +6,7 @@
 
 #ifndef MUD_MODULES
 #include <infra/File.h>
-#include <srlz/Serial.h>
+//#include <srlz/Serial.h>
 #endif
 #include <gfx/Asset.h>
 
@@ -30,13 +30,7 @@ namespace mud
 		: m_gfx_system(gfx_system)
 		, m_path(path)
 	{
-		auto loader = [&](GfxSystem& gfx_system, T_Asset& asset, cstring path)
-		{
-			UNUSED(gfx_system);
-			unpack_json_file(Ref(&asset), string(path) + m_cformats[0]); // @kludge: fix extensions assumed in loaders (gltf, obj, etc...)
-		};
-
-		this->add_format(format, loader);
+		UNUSED(format);
 	}
 
 	template <class T_Asset>
@@ -62,6 +56,12 @@ namespace mud
 			printf("WARNING: creating asset of already existing name: previous asset deleted\n");
 		m_assets[name] = make_unique<T_Asset>(name);
 		return *m_assets[name];
+	}
+
+	template <class T_Asset>
+	void AssetStore<T_Asset>::destroy(cstring name)
+	{
+		m_assets[name] = nullptr;
 	}
 
 	template <class T_Asset>

@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -9,6 +9,7 @@
 #include <math/Colour.h>
 #endif
 #include <gfx/Forward.h>
+#include <gfx/Renderer.h>
 
 #ifndef MUD_CPP_20
 #include <functional>
@@ -33,7 +34,11 @@ namespace mud
 		Unshaded,
 		Shaded,
 		Volume,
-		Clear
+		Voxels,
+		Lightmap,
+		Clear,
+
+		Count
 	};
 
 	struct RenderFilters;
@@ -42,6 +47,7 @@ namespace mud
 	{
 	public:
 		Viewport(Camera& camera, Scene& scene, uvec4 rect = {}, bool scissor = false);
+		~Viewport();
 
 		attr_ Camera* m_camera;
 		attr_ Scene* m_scene;
@@ -52,13 +58,17 @@ namespace mud
 		attr_ bool m_scissor = false;
 		attr_ Colour m_clear_colour = Colour::Black;
 		attr_ Shading m_shading = Shading::Shaded;
+		attr_ Lighting m_lighting = Lighting::Clustered;
 		/*attr_ mut_*/ RenderFilters* m_filters = nullptr;
 
 		std::function<uvec4()> m_get_size;
 		std::function<void(Render&)> m_render;
 
+		unique_ptr<Culler> m_culler;
+
 		void render_pass(cstring name, const Pass& render_pass);
 
+		void cull(Render& render);
 		void render(Render& render);
 
 		Ray ray(const vec2& pos);

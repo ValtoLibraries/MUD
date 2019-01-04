@@ -4,7 +4,7 @@
 
 #include <infra/Config.h>
 
-#include <obj/Forward.h>
+#include <type/Forward.h>
 #include <math/Forward.h>
 
 #ifndef MUD_GEOM_EXPORT
@@ -72,7 +72,7 @@ namespace mud {
     struct Tri;
     struct ShapeVertex;
     struct ShapeTriangle;
-    struct MeshData;
+    struct MeshAdapter;
     class Geometry;
     struct MeshPacker;
     class Distribution;

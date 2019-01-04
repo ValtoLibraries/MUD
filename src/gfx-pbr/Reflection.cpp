@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -39,17 +39,21 @@ namespace mud
 
 		for(int i = 0; i < 6; i++)
 		{
-			bgfx::Attachment attachments[2] = { { m_depth , 0, 1 }, { m_cubemap, 0, uint16_t(i) } };
+			bgfx::Attachment attachments[2] =
+			{
+				{ m_depth , 0, 1, BGFX_RESOLVE_AUTO_GEN_MIPS },
+				{ m_cubemap, 0, uint16_t(i), BGFX_RESOLVE_AUTO_GEN_MIPS }
+			};
 			m_fbo[i] = bgfx::createFrameBuffer(2, attachments, true);
 		}
 	}
 
 	BlockReflection::BlockReflection(GfxSystem& gfx_system)
-		: GfxBlock(gfx_system, *this)
+		: DrawBlock(gfx_system, type<BlockReflection>())
 		, m_atlas(1024, 16)
 	{}
 
-	void BlockReflection::init_gfx_block()
+	void BlockReflection::init_block()
 	{
 		int max_cubemap_size = 512;
 		int cube_size = max_cubemap_size;
@@ -61,32 +65,40 @@ namespace mud
 		}
 	}
 
-	void BlockReflection::begin_gfx_block(Render& render)
+	void BlockReflection::begin_render(Render& render)
 	{
 		UNUSED(render);
 	}
 
-	void BlockReflection::submit_gfx_block(Render& render)
+	void BlockReflection::begin_pass(Render& render)
 	{
 		UNUSED(render);
 	}
 
-	void BlockReflection::begin_gfx_pass(Render& render)
+	void BlockReflection::begin_draw_pass(Render& render)
 	{
 		UNUSED(render);
 	}
 
-	void BlockReflection::submit_gfx_element(Render& render, Pass& render_pass, DrawElement& element)
+	void BlockReflection::options(Render& render, ShaderVersion& shader_version) const
 	{
-		UNUSED(render); UNUSED(render_pass); UNUSED(element);
-		if(m_atlas.m_size > 0)
-			bgfx::setTexture(uint8_t(TextureSampler::ReflectionProbe), u_uniform.s_atlas, m_atlas.m_color_tex);
+		UNUSED(render); UNUSED(shader_version);
+	}
+
+	void BlockReflection::submit(Render& render, const Pass& render_pass) const
+	{
+		UNUSED(render);
+		bgfx::Encoder& encoder = *render_pass.m_encoder;
+
+		if(bgfx::isValid(m_atlas.m_color_tex) && m_atlas.m_size > 0)
+			encoder.setTexture(uint8_t(TextureSampler::ReflectionProbe), u_uniform.s_atlas, m_atlas.m_color_tex);
 
 		//upload_reflection_probes(render, to_array(render.m_shot->m_reflection_probes));
 	}
 
-	void BlockReflection::upload_reflection_probes(Render& render, array<ReflectionProbe*> probes)
+	void BlockReflection::upload_reflection_probes(Render& render, Pass& render_pass, array<ReflectionProbe*> probes)
 	{
+		bgfx::Encoder& encoder = *render_pass.m_encoder;
 		mat4 view_matrix = inverse(render.m_camera.m_transform);
 
 		ReflectionProbeArray<16> probe_array;
@@ -103,16 +115,16 @@ namespace mud
 			probe_array.ambient[probe_count] = { to_vec3(ambient_linear), 0.f };
 
 			probe_array.atlas_rect[probe_count] = { m_atlas.probe_rect(*probe) };
-			probe_array.matrix[probe_count] = view_matrix * probe->m_node.transform();
+			probe_array.matrix[probe_count] = view_matrix * probe->m_node.m_transform;
 
 			probe_count++;
 		}
 
 		if(probe_count > 0)
-			u_uniform.setUniforms(probe_array, probe_count);
+			u_uniform.setUniforms(encoder, probe_array, probe_count);
 
-		bgfx::setUniform(u_uniform.u_count, &probe_array.counts);
-		bgfx::setUniform(u_uniform.u_indices, probe_array.indices, probe_count);
+		encoder.setUniform(u_uniform.u_count, &probe_array.counts);
+		encoder.setUniform(u_uniform.u_indices, probe_array.indices, probe_count);
 	}
 
 	ReflectionCubemap& BlockReflection::find_cubemap(uint16_t size)
@@ -137,13 +149,13 @@ namespace mud
 			vec3 edge = view_normal[i] * probe.m_extents;
 			float range = std::abs(dot(view_normal[i], edge));
 
-			mat4 transform = probe.m_node.transform() * bxlookat(Zero3, view_normal[i], view_up[i]);
+			mat4 transform = probe.m_node.m_transform * bxlookat(Zero3, view_normal[i], view_up[i]);
 			mat4 projection = bxproj(90.f, 1.f, 0.01f, range, bgfx::getCaps()->homogeneousDepth);
 
 			Renderer& renderer = m_gfx_system.renderer(Shading::Volume);
 
-			ManualRender probe_render = { render, cubemap.m_fbo[i], uvec4(Rect4), transform, projection };
-			probe_render.cull();
+			ManualRender probe_render = { render, Shading::Volume,  cubemap.m_fbo[i], uvec4(Rect4), transform, projection };
+			//probe_render.cull();
 			probe_render.render(renderer);
 		}
 	}
@@ -152,11 +164,6 @@ namespace mud
 		: RenderPass(gfx_system, {}, PassType::Probes)
 		, m_block_reflection(block_reflection)
 	{}
-
-	void PassProbes::begin_render_pass(Render& render)
-	{
-		UNUSED(render);
-	}
 
 	void PassProbes::submit_render_pass(Render& render)
 	{

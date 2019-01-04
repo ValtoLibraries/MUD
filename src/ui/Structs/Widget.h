@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -52,7 +52,7 @@ namespace mud
 		meth_ void enable_state(WidgetState state) { if(!(m_state & state)) this->toggle_state(state); }
 
 		meth_ void clear_focus() { this->parent_modal().set_modal(nullptr, device_mask(DeviceType::Keyboard)); }
-		meth_ void take_focus() { this->take_modal(device_mask(DeviceType::Keyboard)); }
+		meth_ void take_focus() { if(!this->modal()) this->take_modal(device_mask(DeviceType::Keyboard)); }
 		meth_ void yield_focus() { this->yield_modal(); }
 
 		meth_ void take_modal(uint32_t device_filter = uint32_t(DeviceMask::All)) { this->parent_modal().set_modal(this, device_filter); }

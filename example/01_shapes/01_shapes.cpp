@@ -1,4 +1,8 @@
-#include <mud/mud.h>
+#include <math/Api.h>
+#include <gfx/Api.h>
+#include <gfx-ui/Api.h>
+#include <mud/Shell.h>
+
 #include <01_shapes/01_shapes.h>
 
 using namespace mud;
@@ -31,8 +35,10 @@ void shape_grid(Gnode& parent, array_2d<ShapeInstance> shape_grid, const Symbol&
 	}
 
 	float spacing = 4.f;
-	vec3 center = { shape_grid.m_size_x * spacing * -0.5f, 0.f, shape_grid.m_size_y * spacing * -0.5f };
+	vec3 center = { (shape_grid.m_size_x-1) * spacing * -0.5f, 0.f, (shape_grid.m_size_y-1) * spacing * -0.5f };
 
+	//size_t x = shape_grid.m_size_x - 1;
+	//size_t y = shape_grid.m_size_y - 1;
 	for(size_t x = 0; x < shape_grid.m_size_x; ++x)
 		for(size_t y = 0; y < shape_grid.m_size_y; ++y)
 		{
@@ -45,7 +51,7 @@ void shape_grid(Gnode& parent, array_2d<ShapeInstance> shape_grid, const Symbol&
 								 : Zero3;
 
 			Gnode& node = gfx::node(parent, {}, center + vec3{ x * spacing, 0.f, y * spacing }, quat(angles));
-			gfx::shape(node, shapes[shape_item.index], symbol, ITEM_SELECTABLE, material);
+			gfx::shape(node, shapes[shape_item.index], symbol, ItemFlag::Default | ItemFlag::Selectable, material);
 		}
 }
 
@@ -63,7 +69,7 @@ void ex_01_shapes(Shell& app, Widget& parent, Dockbar& dockbar)
 	static std::vector<ShapeVar> shapes = { Cube(), Sphere(), Spheroid(), Cylinder(), Rect(), Circle() };
 	static std::vector<ShapeInstance > shape_items = create_shape_grid(10U, 10U, shapes);
 
-	shape_grid(scene, { shape_items.data(), 10U, 10U }, Symbol(Colour::None, Colour::Red), shapes);
+	shape_grid(scene, { shape_items.data(), 10U, 10U }, Symbol::wire(Colour::Red), shapes);
 }
 
 #ifdef _01_SHAPES_EXE

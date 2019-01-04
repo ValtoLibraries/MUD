@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -19,9 +19,6 @@ namespace mud
 	{
 	public:
 		Module(cstring name);
-
-		virtual void handle_load(Module& m) { UNUSED(m); }
-		virtual void handle_unload(Module& m) { UNUSED(m); }
 
 		attr_ cstring m_name;
 		attr_ std::vector<Type*> m_types;

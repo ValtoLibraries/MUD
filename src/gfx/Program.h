@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -6,7 +6,7 @@
 
 #ifndef MUD_MODULES
 #include <infra/Array.h>
-#include <obj/Unique.h>
+#include <type/Unique.h>
 #endif
 #include <gfx/Forward.h>
 
@@ -15,10 +15,12 @@
 namespace mud
 {
 	using cstring = const char*;
-
+	
 	export_ enum class refl_ ShaderType : unsigned int
 	{
+		Compute,
 		Fragment,
+		Geometry,
 		Vertex,
 		Count
 	};
@@ -55,31 +57,39 @@ namespace mud
 	public:
 		struct Version
 		{
-			uint32_t m_update;
-			bgfx::ProgramHandle m_program;
+			Version() {}
+			uint64_t m_version = 0;
+			uint32_t m_update = 0;
+			bgfx::ProgramHandle m_program = BGFX_INVALID_HANDLE;
 		};
 
 	public:
-		Program(cstring name);
+		Program(cstring name, bool compute = false);
 		Program(cstring name, array<GfxBlock*> blocks, array<cstring> sources);
 		~Program();
 
 		attr_ cstring name();
 
-		uint8_t block_option_shift(uint8_t block)
+		uint8_t block_option_shift(uint8_t block) const
 		{
 			return m_blocks.m_shader_blocks[block].m_option_shift;
 		}
 
-		uint8_t block_mode_shift(uint8_t block)
+		uint8_t block_mode_shift(uint8_t block) const
 		{
 			return m_blocks.m_shader_blocks[block].m_mode_shift;
 		}
 
 		void reload() { m_update++; }
 
+		void compile(GfxSystem& gfx_system, Version& version, bool compute = false);
+
+		void update(GfxSystem& gfx_system);
+
 		bgfx::ProgramHandle default_version();
 		bgfx::ProgramHandle version(const ShaderVersion& config);
+
+		ShaderVersion shader_version(Version& version);
 
 		void register_blocks(array<GfxBlock*> blocks);
 		void register_block(const GfxBlock& block);
@@ -90,7 +100,8 @@ namespace mud
 
 		cstring m_sources[size_t(ShaderType::Count)] = { nullptr, nullptr };
 
-		uint32_t m_update;
+		bool m_compute = false;
+		uint32_t m_update = 1;
 
 		struct Impl;
 		unique_ptr<Impl> m_impl;

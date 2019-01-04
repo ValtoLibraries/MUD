@@ -7,8 +7,8 @@ module mud.math;
 #else
 #include <math/Types.h>
 #include <math/Api.h>
-#include <obj/Vector.h>
-//#include <proto/Proto.h>
+#include <type/Vector.h>
+//#include <ecs/Proto.h>
 #endif
 
 namespace mud

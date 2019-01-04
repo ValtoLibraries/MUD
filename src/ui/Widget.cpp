@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -27,6 +27,7 @@ namespace ui
 	Widget& widget(Widget& parent, Style& style, void* identity)
 	{
 		Widget& self = parent.subi(identity).init(style);
+		assert(self.m_frame.d_style);
 		widget_logic(self);
 		return self;
 	}
@@ -34,6 +35,7 @@ namespace ui
 	Widget& widget(Widget& parent, Style& style, bool open, Dim length, Dim2<size_t> index)
 	{
 		Widget& self = parent.subi(&style).init(style, open, length, index);
+		assert(self.m_frame.d_style);
 		widget_logic(self);
 		return self;
 	}

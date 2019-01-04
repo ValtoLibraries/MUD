@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -7,13 +7,10 @@
 #include <iostream>
 #include <vector>
 
-/* vorbis */
 #include <vorbis/vorbisfile.h>
 
-/* OpenAL */
-#include <al.h>
-#include <alc.h>
-
+#include <AL/al.h>
+#include <AL/alc.h>
 
 namespace mud
 {
@@ -115,7 +112,7 @@ namespace mud
 		while(size_read > 0)
 		{
 			//std::cerr << "reading : " << size_read << " at pos : " << last_pos << std::endl;
-			size_read = ov_read(&m_impl->m_ogg_file, chunk.data(), m_chunk_size, 0, 2, 1, &section);
+			size_read = ov_read(&m_impl->m_ogg_file, chunk.data(), int(m_chunk_size), 0, 2, 1, &section);
 			data.insert(data.end(), chunk.begin(), chunk.begin() + size_read);
 			last_pos += size_read;
 		}
@@ -130,7 +127,7 @@ namespace mud
 		
 		bool last_chunk = this->read_chunk(chunk.data(), m_chunk_size);
 
-		alBufferData(buffer, m_format, chunk.data(), m_chunk_size, m_impl->m_vorbis_info->rate);
+		alBufferData(buffer, m_format, chunk.data(), ALsizei(m_chunk_size), m_impl->m_vorbis_info->rate);
 		alGetError();
 
 		return last_chunk;
@@ -142,11 +139,11 @@ namespace mud
 		size_t size = 0;
 		int section;
 		int result;
-		bool last_chunk;
+		bool last_chunk = true;
 
 		while(size < m_chunk_size)
 		{
-			result = ov_read(&m_impl->m_ogg_file, data_chunk + size, m_chunk_size - size, 0, 2, 1, &section);
+			result = ov_read(&m_impl->m_ogg_file, data_chunk + size, int(m_chunk_size - size), 0, 2, 1, &section);
 
 			if(result > 0)
 				size += result;

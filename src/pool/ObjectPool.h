@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -31,15 +31,6 @@ namespace mud
 			if(!m_pools[type<T>().m_id])
 				m_pools[type<T>().m_id] = make_unique<TPool<T>>();
 			return as<TPool<T>>(*m_pools[type<T>().m_id].get());
-		}
-
-		template <class T, class T_Func>
-		inline void iterate_objects(T_Func func)
-		{
-			VecPool<T>* pool = this->pool<T>().m_vec_pool.get();
-			for(; pool; pool = pool->m_next.get())
-				for(T* object : pool->m_objects)
-					func(*object);
 		}
 
 		template <class T>

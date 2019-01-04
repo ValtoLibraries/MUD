@@ -6,6 +6,7 @@ group "bgfx"
 dofile(path.join(BX_DIR, "scripts/bx.lua"))
 dofile(path.join(BIMG_DIR, "scripts/bimg.lua"))
 dofile(path.join(BIMG_DIR, "scripts/bimg_decode.lua"))
+dofile(path.join(BIMG_DIR, "scripts/bimg_encode.lua"))
 dofile(path.join(BGFX_DIR, "scripts/bgfx.lua"))
 bgfxProject("", "StaticLib", {})
 
@@ -27,6 +28,14 @@ project "bgfx"
         
     configuration {}
 
+project "bimg_encode"
+	configuration { "mingw* or linux or osx or asmjs" }
+		buildoptions {
+			"-Wno-undef"
+        }
+        
+    configuration {}
+        
 dofile(path.join(MUD_DIR, "scripts/3rdparty/bgfx/shaderc.lua"))
 
 function uses_bx()
@@ -51,7 +60,7 @@ function uses_bgfx()
         path.join(BGFX_DIR,  "include"),
     }
     
-    configuration { "linux" }
+    configuration { "linux", "not asmjs" }
         links {
             "X11",
             "GLU",
@@ -70,7 +79,7 @@ function uses_bgfx()
             "psapi",
         }
     
-    configuration { "osx or linux*" }
+    configuration { "osx or linux*", "not asmjs" }
         links {
             "pthread",
         }
@@ -98,5 +107,6 @@ end
 bx          = mud_dep(nil, "bx",            false, uses_bx)
 bimg        = mud_dep(nil, "bimg",          false, uses_bimg,       { bx })
 bimg.decode = mud_dep(nil, "bimg_decode",   false, uses_bimg        { bx })
+bimg.encode = mud_dep(nil, "bimg_encode",   false, uses_bimg        { bx })
 bgfx        = mud_dep(nil, "bgfx",          false, uses_bgfx,       { bx, bimg })
 shaderc     = mud_dep(nil, "shaderc",       false, uses_shaderc,    { bx, bimg, bgfx })

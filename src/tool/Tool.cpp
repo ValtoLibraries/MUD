@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -8,8 +8,8 @@
 module mud.tool;
 #else
 #include <infra/Vector.h>
-#include <obj/Any.h>
-#include <obj/DispatchDecl.h>
+#include <type/Any.h>
+#include <type/DispatchDecl.h>
 #include <refl/Class.h>
 #include <refl/Convert.h>
 #include <math/Axes.h>
@@ -160,7 +160,7 @@ namespace mud
 			if(!m_dragging)
 			{
 				auto callback = [&](Item* item) { m_current = &this->gizmo(*item); };
-				viewer.picker(1).pick_point(viewer.m_viewport, mouse_event.m_relative, callback, ITEM_UI);
+				viewer.picker(1).pick_point(viewer.m_viewport, mouse_event.m_relative, callback, ItemFlag::Ui);
 			}
 		}
 

@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -26,8 +26,8 @@ namespace mud
 			return this;
 
 		//MouseEvent& mouse_event = static_cast<MouseEvent&>(inputEvent);
-		//Item* item = this->pick_point(mouse_event.m_relative, ITEM_UI);
-		//return item ? &val<SpaceSheet>(item->m_node.m_object) : m_parent;
+		//Item* item = this->pick_point(mouse_event.m_relative, ItemFlag::Ui);
+		//return item ? &val<SpaceSheet>(item->m_node->m_object) : m_parent;
 		return nullptr;
 	}
 }

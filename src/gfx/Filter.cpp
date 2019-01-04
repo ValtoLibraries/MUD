@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -13,13 +13,15 @@ module mud.gfx;
 #include <gfx/RenderTarget.h>
 #include <gfx/Camera.h>
 #include <gfx/Program.h>
+#include <gfx/Asset.h>
+#include <gfx/GfxSystem.h>
 #endif
 
 namespace mud
 {
 	BlockFilter::BlockFilter(GfxSystem& gfx_system)
 		: GfxBlock(gfx_system, *this)
-		, m_quad_program("filter/quad")
+		, m_quad_program(gfx_system.programs().create("filter/quad"))
 	{
 		static cstring options[5] = {
 			"UNPACK_DEPTH",
@@ -31,32 +33,33 @@ namespace mud
 		m_shader_block->m_options = { options, 5 };
 	}
 
-	void BlockFilter::init_gfx_block()
+	void BlockFilter::init_block()
 	{
 		u_uniform.createUniforms();
 	}
 
-	void BlockFilter::begin_gfx_block(Render& render)
+	void BlockFilter::begin_render(Render& render)
 	{
-		this->set_uniforms(render);
+		UNUSED(render);
+		//this->set_uniforms(render);
 	}
 
-	void BlockFilter::submit_gfx_block(Render& render)
+	void BlockFilter::begin_pass(Render& render)
 	{
 		UNUSED(render);
 	}
 
-	void BlockFilter::set_uniforms(Render& render)
+	void BlockFilter::set_uniforms(Render& render, bgfx::Encoder& encoder)
 	{
-		render.set_uniforms();
+		render.set_uniforms(encoder);
 
 		vec4 camera_params{ render.m_camera.m_near, render.m_camera.m_far,
 							render.m_camera.m_fov, render.m_camera.m_aspect };
-		bgfx::setUniform(u_uniform.u_camera_params, &camera_params);
+		encoder.setUniform(u_uniform.u_camera_params, &camera_params);
 
 		vec4 screen_params{ vec2(render.m_target->m_size),
 							1.0f / vec2(render.m_target->m_size) };
-		bgfx::setUniform(u_uniform.u_screen_size_pixel_size, &screen_params);
+		encoder.setUniform(u_uniform.u_screen_size_pixel_size, &screen_params);
 	}
 
 	struct ScreenQuadVertex
@@ -158,20 +161,20 @@ namespace mud
 	BlockCopy::BlockCopy(GfxSystem& gfx_system, BlockFilter& filter)
 		: GfxBlock(gfx_system, *this)
 		, m_filter(filter)
-		, m_program("filter/copy")
+		, m_program(gfx_system.programs().create("filter/copy"))
 	{
 		m_program.register_block(filter);
 	}
 
-	void BlockCopy::init_gfx_block()
+	void BlockCopy::init_block()
 	{}
 
-	void BlockCopy::begin_gfx_block(Render& render)
+	void BlockCopy::begin_render(Render& render)
 	{
 		UNUSED(render);
 	}
 
-	void BlockCopy::submit_gfx_block(Render& render)
+	void BlockCopy::begin_pass(Render& render)
 	{
 		UNUSED(render);
 	}
@@ -207,11 +210,11 @@ namespace mud
 		this->submit_quad(target, view, texture, quad, flags);
 	}
 
-	void BlockCopy::debug_show_texture(FrameBuffer& target, bgfx::TextureHandle texture, bool is_depth, bool is_depth_packed, bool is_array, int level)
+	void BlockCopy::debug_show_texture(Render& render, bgfx::TextureHandle texture, const vec4& rect, bool is_depth, bool is_depth_packed, bool is_array, int level)
 	{
-		uint8_t view_id = 251;
-
-		RenderQuad target_quad = { Rect4, target.dest_quad(vec4(vec2(0.f), vec2(target.m_size) * 0.33f), true) };
+		assert(render.m_target);
+		vec4 dest = rect == vec4(0.f) ? vec4(vec2(0.f), vec2(render.m_target->m_size) * 0.25f) : rect;;
+		RenderQuad target_quad = { Rect4, render.m_target->dest_quad(dest, true) };
 
 		ShaderVersion shader_version = { &m_program };
 		if(is_depth)
@@ -224,6 +227,7 @@ namespace mud
 		bgfx::setTexture(uint8_t(TextureSampler::Source0), m_filter.u_uniform.s_source_0, texture, GFX_TEXTURE_CLAMP);
 		bgfx::setUniform(m_filter.u_uniform.u_source_0_level, &level);
 
-		m_filter.submit_quad(target, view_id, BGFX_INVALID_HANDLE, m_program.version(shader_version), target_quad, 0);
+		uint8_t view = render.debug_pass();
+		m_filter.submit_quad(*render.m_target, view, BGFX_INVALID_HANDLE, m_program.version(shader_version), target_quad, 0);
 	}
 }

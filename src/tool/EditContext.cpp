@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -7,8 +7,9 @@
 #ifdef MUD_MODULES
 module mud.tool;
 #else
-#include <obj/Any.h>
+#include <type/Any.h>
 #include <pool/ObjectPool.h>
+#include <ecs/Registry.h>
 #include <lang/Lua.h>
 #include <lang/VisualScript.h>
 #include <ui/Edit/Console.h>
@@ -16,7 +17,7 @@ module mud.tool;
 #include <uio/Edit/UiEdit.h>
 #include <tool/Types.h>
 #include <tool/EditContext.h>
-#include <gfx-ui/GfxEdit.h>
+#include <gfx-edit/GfxEdit.h>
 #include <tool/Brush.h>
 #endif
 
@@ -128,7 +129,10 @@ namespace mud
 		{
 			Ref selected = selection[0];
 			Widget& sheet = ui::widget(*self.m_body, styles().sheet, (void*)selected.m_value);
-			object_edit(sheet, selected);
+			if(selected.m_type->is<EntityRef>())
+				entity_edit(sheet, { as_ent(selected), 0 });
+			else
+				object_edit(sheet, selected);
 		}
 	}
 

@@ -2,17 +2,15 @@
 
 #include <gfx/Forward.h>
 
-#if !defined MUD_MODULES || defined MUD_OBJ_LIB
-#include <obj/Type.h>
-#include <obj/Vector.h>
+#if !defined MUD_MODULES || defined MUD_TYPE_LIB
+#include <type/Type.h>
+#include <type/Vector.h>
 #endif
 
 #ifndef MUD_MODULES
 #include <infra/Types.h>
-#include <obj/Types.h>
+#include <type/Types.h>
 #include <pool/Types.h>
-#include <refl/Types.h>
-#include <srlz/Types.h>
 #include <math/Types.h>
 #include <geom/Types.h>
 #include <ctx/Types.h>
@@ -38,7 +36,6 @@ namespace mud
     export_ template <> MUD_GFX_EXPORT Type& type<mud::EmitterFlow>();
     export_ template <> MUD_GFX_EXPORT Type& type<mud::Interpolation>();
     export_ template <> MUD_GFX_EXPORT Type& type<mud::IsometricAngle>();
-    export_ template <> MUD_GFX_EXPORT Type& type<mud::ItemFlag>();
     export_ template <> MUD_GFX_EXPORT Type& type<mud::ItemShadow>();
     export_ template <> MUD_GFX_EXPORT Type& type<mud::LightType>();
     export_ template <> MUD_GFX_EXPORT Type& type<mud::MSAA>();
@@ -95,6 +92,7 @@ namespace mud
     export_ template <> MUD_GFX_EXPORT Type& type<mud::MaterialParam<mud::Colour>>();
     export_ template <> MUD_GFX_EXPORT Type& type<mud::Mesh>();
     export_ template <> MUD_GFX_EXPORT Type& type<mud::Model>();
+	export_ template <> MUD_GFX_EXPORT Type& type<mud::ImportConfig>();
     export_ template <> MUD_GFX_EXPORT Type& type<mud::ModelItem>();
     export_ template <> MUD_GFX_EXPORT Type& type<mud::Node3>();
     export_ template <> MUD_GFX_EXPORT Type& type<mud::ParticleGenerator>();

@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -10,7 +10,8 @@
 #ifdef MUD_MODULES
 module mud.gfx;
 #else
-#include <obj/Indexer.h>
+#include <infra/StringConvert.h>
+#include <type/Indexer.h>
 #include <pool/Pool.h>
 #include <geom/Geom.h>
 #include <gfx/Types.h>
@@ -24,21 +25,6 @@ module mud.gfx;
 
 namespace mud
 {
-	ModelConfig load_model_config(cstring path, cstring model_name)
-	{
-		std::ifstream file = std::ifstream(string(path) + "models/" + model_name + ".cfg");
-		ModelConfig model_config = { ModelFormat::obj, bxidentity() };
-
-		if(!file.good())
-		{
-			if(std::ifstream(string(path) + "models/" + model_name + ".gltf").good())
-				model_config.m_format = ModelFormat::gltf;
-			return model_config;
-		}
-
-		return model_config;
-	}
-
 	//static uint16_t s_model_index = 0;
 
 	GfxSystem* Model::ms_gfx_system = nullptr;
@@ -54,7 +40,6 @@ namespace mud
 	Mesh& Model::add_mesh(cstring name, bool readback)
 	{
 		Mesh& mesh = ms_gfx_system->meshes().construct(name, readback);
-		m_meshes.push_back(&mesh);
 		return mesh;
 	}
 
@@ -65,16 +50,21 @@ namespace mud
 		return *m_rig;
 	}
 
+	ModelItem& Model::add_item(Mesh& mesh, mat4 transform, int skin, Colour colour, Material* material)
+	{
+		m_items.push_back({ m_items.size(), &mesh, transform != bxidentity(), transform, skin, colour, material });
+		return m_items.back();
+	}
+
 	void Model::prepare()
 	{
-		m_aabb = { Zero3, Zero3 };
+		m_aabb = {};
 		m_radius = 0.f;
 
-		for(ModelItem& item: m_items) //Mesh& mesh : m_meshes)
+		for(const ModelItem& item: m_items)
 		{
 			m_geometry[item.m_mesh->m_draw_mode] = true;
-			m_aabb.merge(transform_aabb(item.m_mesh->m_aabb, item.m_transform));
-			//m_radius = max(item.m_mesh->m_radius, m_radius);
+			m_aabb.mergeSafe(transform_aabb(item.m_mesh->m_aabb, item.m_transform));
 		}
 
 		m_radius = sqrt(2.f) * max(m_aabb.m_extents.x, max(m_aabb.m_extents.y, m_aabb.m_extents.z));

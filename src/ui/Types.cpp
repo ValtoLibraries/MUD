@@ -7,8 +7,8 @@ module mud.ui;
 #else
 #include <ui/Types.h>
 #include <ui/Api.h>
-#include <obj/Vector.h>
-//#include <proto/Proto.h>
+#include <type/Vector.h>
+//#include <ecs/Proto.h>
 #endif
 
 namespace mud

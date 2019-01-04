@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -14,7 +14,7 @@ namespace mud
 {
 	export_ enum class refl_ LightType : unsigned int
 	{
-		Directional,
+		Direct,
 		Point,
 		Spot,
 		Count
@@ -32,8 +32,6 @@ namespace mud
 	public:
 		Light(Node3& node, LightType type = LightType::Point, bool shadows = false);
 		~Light();
-
-		vec3 direction();
 
 		attr_ Node3& m_node;
 
@@ -62,5 +60,7 @@ namespace mud
 
 		attr_ float m_shadow_normal_bias = 0.1f;
 		attr_ float m_shadow_bias = 0.f;
+
+		size_t m_shot_index = 0;
 	};
 }

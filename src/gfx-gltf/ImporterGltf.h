@@ -5,6 +5,7 @@
 #include <math/Vec.h>
 #include <math/VecOps.h>
 #include <math/Colour.h>
+#include <gfx/Importer.h>
 #endif
 #include <gfx-gltf/Forward.h>
 
@@ -12,6 +13,12 @@
 #include <map>
 #include <vector>
 #endif
+
+export_ struct refl_ glTFNodeExtras
+{
+	bool occluder = false;
+	bool collision = false;
+};
 
 // all the declarations here should fit the glTF 2.0 specification
 // https://github.com/KhronosGroup/glTF/tree/master/specification/2.0
@@ -40,10 +47,12 @@ export_ enum class refl_ glTFType : unsigned int
 	MAT2,
 	MAT3,
 	MAT4,
+	INVALID,
 };
 
 export_ struct refl_ glTFBuffer
 {
+	attr_ std::string name;
 	attr_ std::string mime_type;
 	attr_ std::string uri;
 	attr_ int byte_length;
@@ -51,6 +60,7 @@ export_ struct refl_ glTFBuffer
 
 export_ struct refl_ glTFImage
 {
+	attr_ std::string name;
 	attr_ std::string mime_type;
 	attr_ std::string uri;
 	attr_ int buffer_view;
@@ -59,6 +69,7 @@ export_ struct refl_ glTFImage
 export_ struct refl_ glTFBufferView
 {
 	glTFBufferView() {}
+	attr_ std::string name;
 	attr_ int buffer = 0;
 	attr_ size_t byte_offset = 0;
 	attr_ size_t byte_length = 0;
@@ -95,12 +106,13 @@ export_ struct refl_ glTFAccessor
 	glTFAccessor(int buffer_view, int byte_offset, glTFComponentType component_type, bool normalized, int count, glTFType type)
 		: buffer_view(buffer_view), byte_offset(byte_offset), component_type(component_type), normalized(normalized), count(count), type(type)
 	{}
+	attr_ std::string name;
 	attr_ int buffer_view = -1;
 	attr_ int byte_offset = 0;
 	attr_ glTFComponentType component_type;
 	attr_ bool normalized = false;
 	attr_ int count;
-	attr_ glTFType type;
+	attr_ glTFType type = glTFType::INVALID;
 	// min is an array whose content depends on glTFType
 	// max is an array whose content depends on glTFType
 
@@ -120,8 +132,9 @@ export_ struct refl_ glTFSampler
 export_ struct refl_ glTFTexture
 {
 	glTFTexture() {}
-	attr_ int source;
 	attr_ std::string name;
+	attr_ int sampler = -1;
+	attr_ int source = -1;
 };
 
 export_ struct refl_ glTFSkin
@@ -173,6 +186,7 @@ export_ struct refl_ glTFPrimitive
 
 export_ struct refl_ glTFMesh
 {
+	attr_ std::string name;
 	attr_ std::vector<glTFPrimitive> primitives;
 	attr_ std::vector<float> weights;
 };
@@ -195,6 +209,7 @@ export_ struct refl_ glTFOrthographic
 
 export_ struct refl_ glTFCamera
 {
+	attr_ std::string name;
 	attr_ std::string type;
 	attr_ glTFOrthographic orthographic;
 	attr_ glTFPerspective perspective;
@@ -244,7 +259,7 @@ export_ struct refl_ glTFTextureInfo
 export_ struct refl_ glTFMaterialPBR
 {
 	glTFMaterialPBR() {}
-	attr_ mud::vec4 base_color_factor = to_vec4(mud::Colour::White);
+	attr_ mud::vec4 base_color_factor = mud::vec4(1.f);
 	attr_ glTFTextureInfo base_color_texture;
 	attr_ float metallic_factor = 1.f;
 	attr_ float roughness_factor = 1.f;
@@ -313,6 +328,7 @@ export_ struct refl_ glTF
 	attr_ std::vector<glTFSkin> m_skins;
 	attr_ std::vector<glTFAnimation> m_animations;
 	attr_ std::vector<glTFCamera> m_cameras;
+	attr_ std::vector<glTFSampler> m_samplers;
 	attr_ std::vector<glTFScene> m_scenes;
 
 	std::vector<std::vector<uint8_t>> m_binary_buffers;
@@ -322,13 +338,16 @@ namespace mud
 {
 	using string = std::string;
 
-	export_ class MUD_GFX_GLTF_EXPORT ImporterGltf
+	export_ class MUD_GFX_GLTF_EXPORT ImporterGltf : public Importer
 	{
 	public:
 		ImporterGltf(GfxSystem& gfx_system);
 
 		GfxSystem& m_gfx_system;
 
-		void import_model(Model& model, const string& path, const ModelConfig& config);
+		virtual void import(Import& import, const string& filepath, const ImportConfig& config) override;
+		virtual void import_model(Model& model, const string& filepath, const ImportConfig& config) override;
+		virtual void import_prefab(Prefab& prefab, const string& filepath, const ImportConfig& config) override;
+		virtual void repack(const string& filepath, const ImportConfig& config) override;
 	};
 }

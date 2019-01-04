@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -21,6 +21,8 @@ module mud.ui;
 
 namespace mud
 {
+	// using std::clamp;
+
 namespace ui
 {
 	bool drag_float(Widget& parent, float& value, float step)
@@ -244,6 +246,7 @@ namespace
 
 	void draw_curve(const Colour& colour, Curve& curve, size_t hovered, Vg& vg)
 	{
+		UNUSED(hovered);
 		float distance = 100.f;
 		Paint paint = { colour, 1.f };
 
@@ -288,7 +291,7 @@ namespace
 			if(dragged != SIZE_MAX)
 			{
 				vec2 delta = mouse_event.m_delta / curve.m_scale;
-				curve.m_values[dragged] = std::clamp(curve.m_values[dragged] + delta.y, lowest, highest);
+				curve.m_values[dragged] = clamp(curve.m_values[dragged] + delta.y, lowest, highest);
 			}
 
 		if(MouseEvent mouse_event = self.mouse_event(DeviceType::MouseLeft, EventType::Released))

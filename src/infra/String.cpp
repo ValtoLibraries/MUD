@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -15,7 +15,6 @@ module mud.infra;
 #include <infra/StringConvert.h>
 #include <infra/Strung.h>
 #include <infra/NonCopy.h>
-#include <infra/Updatable.h>
 #endif
 
 namespace mud
@@ -81,14 +80,14 @@ namespace mud
 	string to_lower(const string& original)
 	{
 		string result = original;
-		std::transform(result.begin(), result.end(), result.begin(), ::tolower);
+		std::transform(result.begin(), result.end(), result.begin(), [](char c) { return char(tolower(c)); });
 		return result;
 	}
 
 	string to_upper(const string& original)
 	{
 		string result = original;
-		std::transform(result.begin(), result.end(), result.begin(), ::toupper);
+		std::transform(result.begin(), result.end(), result.begin(), [](char c) { return char(toupper(c)); });
 		return result;
 	}
 

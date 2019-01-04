@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -22,9 +22,16 @@ module mud.gfx;
 #include <gfx/Particles.h>
 #include <gfx/Animated.h>
 #include <gfx/Draw.h>
+#include <gfx/Model.h>
 #include <gfx/Pipeline.h>
 #include <gfx/GfxSystem.h>
+// @kludge fix this dependency inversion
+#include <gfx-pbr/Types.h>
+#include <gfx-pbr/VoxelGI.h>
+#include <gfx-pbr/Lightmap.h>
 #endif
+
+//#define DEBUG_ITEMS
 
 namespace mud
 {
@@ -58,9 +65,14 @@ namespace mud
 		static Clock clock;
 		float timestep = float(clock.step());
 
-		m_pool->iterate_objects<Animated>([=](Animated& animated)
+		m_pool->pool<Animated>().iterate([=](Animated& animated)
 		{
 			animated.advance(timestep);
+		});
+
+		m_pool->pool<Item>().iterate([=](Item& item)
+		{
+			item.update();
 		});
 
 		for(size_t i = 0; i < size_t(PassType::Count); ++i)
@@ -70,70 +82,138 @@ namespace mud
 	Gnode& Scene::begin()
 	{
 		this->update();
+		m_immediate->begin();
 		return begin_node<Gnode>(m_graph, true);
 	}
 
-	void Scene::gather_render(Render& render)
+	void Scene::cull_items(const Plane6& planes, std::vector<Item*>& items)
 	{
-		Plane6 planes = frustum_planes(render.m_camera.m_projection, render.m_camera.m_transform);
-
-		Plane near_plane = render.m_camera.near_plane();
-
-		vec4 lod_levels = render.m_camera.m_far * vec4{ 0.02f, 0.3f, 0.6f, 0.8f };
-
-		//render.m_shot->m_items.reserve(m_pool->pool<Item>().m_vec_pool.size());
-
-		m_pool->iterate_objects<Item>([&](Item& item)
+		//items.reserve(m_pool->pool<Item>().size());
+		m_pool->pool<Item>().iterate([&](Item& item)
 		{
-			if(item.m_visible && item.m_cast_shadows != ItemShadow::OnlyShadow)
+			if(item.m_visible && (item.m_flags & ItemFlag::Render) != 0
+			&& frustum_aabb_intersection(planes, item.m_aabb))
 			{
-				float depth = plane_distance_to(near_plane, item.m_node.m_position);
+				items.push_back(&item);
+			}
+		});
+	}
+
+	void Scene::gather_items(const Camera& camera, std::vector<Item*>& items)
+	{
+		Plane6 planes = frustum_planes(camera.m_projection, camera.m_transform);
+
+		Plane near_plane = camera.near_plane();
+
+		vec4 lod_levels = camera.m_far * vec4{ 0.02f, 0.3f, 0.6f, 0.8f };
+
+		//items.reserve(m_pool->pool<Item>().size());
+		m_pool->pool<Item>().iterate([&](Item& item)
+		{
+			if(item.m_visible && (item.m_flags & ItemFlag::Render) != 0)
+			{
+				if(!frustum_aabb_intersection(planes, item.m_aabb))
+					return;
+
+				float depth = distance(near_plane, item.m_aabb.m_center);
 
 				vec4 comparison = vec4(greater(vec4(depth), lod_levels));
 				float index = dot(vec4(1.f), comparison);
 				uint8_t lod = uint8_t(min(index, 3.f));
 
-				bool has_lod = (item.m_flags & (ITEM_LOD_0 << lod)) != 0;
-				if(frustum_aabb_intersection(planes, item.m_aabb) && has_lod)
+				bool has_lod = (item.m_flags & (ItemFlag::Lod0 << lod)) != 0;
+				if(has_lod)
 				{
 					item.m_depth = depth;
-					render.m_shot->m_items.push_back(&item);
+					items.push_back(&item);
 				}
 			}
 		});
+	}
 
-		//render.m_shot->m_lights.reserve(m_shot->m_lights.size());
+	void Scene::gather_occluders(const Camera& camera, std::vector<Item*>& occluders)
+	{
+		Plane6 planes = frustum_planes(camera.m_projection, camera.m_transform);
 
-		m_pool->iterate_objects<Light>([&](Light& light)
+		//occluders.reserve(m_pool->pool<Item>().size());
+		m_pool->pool<Item>().iterate([&](Item& item)
+		{
+			if(item.m_visible && (item.m_flags & ItemFlag::Occluder) != 0
+			&& frustum_aabb_intersection(planes, item.m_aabb))
+			{
+				occluders.push_back(&item);
+			}
+		});
+	}
+	void Scene::gather_lights(std::vector<Light*>& lights)
+	{
+		//lights.reserve(m_pool->pool<Light>().size());
+		m_pool->pool<Light>().iterate([&](Light& light)
 		{
 			if(light.m_visible)
 			{
-				render.m_shot->m_lights.push_back(&light);
+				light.m_shot_index = lights.size();
+				lights.push_back(&light);
 			}
 		});
+	}
+
+	void Scene::gather_gi_probes(std::vector<GIProbe*>& gi_probes)
+	{
+		//gi_probes.reserve(m_pool->pool<GIProbe>().size());
+		m_pool->pool<GIProbe>().iterate([&](GIProbe& gi_probe)
+		{
+			gi_probes.push_back(&gi_probe);
+		});
+	}
+
+	void Scene::gather_lightmaps(std::vector<LightmapAtlas*>& atlases)
+	{
+		//atlases.reserve(m_pool->pool<LightmapAtlas>().size());
+		m_pool->pool<LightmapAtlas>().iterate([&](LightmapAtlas& atlas)
+		{
+			atlases.push_back(&atlas);
+		});
+	}
 
 #if  0
-		render.m_shot->m_gi_probes.reserve(m_shot->m_gi_probes.size());
-
-		m_pool->iterate_objects<GIProbe>([&](GIProbe& gi_probe)
+	void Scene::gather_reflection_probes(std::vector<ReflectionProbe*>& reflection_probes)
+	{
+		m_pool->pool<ReflectionProbe>().iterate([&](ReflectionProbe& probe)
 		{
-			render.m_shot->m_gi_probes.push_back(gi_probe);
-			gi_probe->m_dirty = true;
-		});
-
-		m_pool->iterate_objects<ReflectionProbe>([&](ReflectionProbe& probe)
-		{
-			if(probe->m_visible)
+			if(probe.m_visible)
 			{
-				render.m_shot->m_reflection_probes.push_back(probe);
-				probe->m_dirty = true; // force dirty for now
+				reflection_probes.push_back(probe);
+				probe.m_dirty = true; // force dirty for now
 			}
 		});
+	}
 #endif
+
+	void Scene::gather_render(Render& render)
+	{
+		this->gather_items(render.m_camera, render.m_shot->m_items);
+		this->gather_occluders(render.m_camera, render.m_shot->m_occluders);
+		this->gather_lights(render.m_shot->m_lights);
+		this->gather_gi_probes(render.m_shot->m_gi_probes);
+		this->gather_lightmaps(render.m_shot->m_lightmaps);
+		//this->gather_reflection_probes(render.m_shot->m_reflection_probes);
 
 		render.m_frustum = make_unique<Frustum>(optimized_frustum(render.m_camera, to_array(render.m_shot->m_items)));
 
 		render.m_environment = &m_environment;
 		render.m_shot->m_immediate = { m_immediate.get() };
+
+#ifdef DEBUG_ITEMS
+		mat4 identity = bxidentity();
+		bool debug = render.m_target != nullptr;
+		if(debug)
+			for(Item* item : render.m_shot->m_items)
+			{
+				Colour colour = { 1.f, 0.f, 1.f, 0.15f };
+				m_immediate->draw(identity, { Symbol::wire(colour, true), &item->m_aabb, OUTLINE });
+				//m_immediate->draw(item->m_node->m_transform, { Symbol::wire(colour, true), &item->m_aabb, OUTLINE });
+			}
+#endif
 	}
 }

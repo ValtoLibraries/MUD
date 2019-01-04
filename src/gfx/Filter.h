@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -27,11 +27,13 @@ namespace mud
 			s_source_0		= bgfx::createUniform("s_source_0",		bgfx::UniformType::Int1);
 			s_source_1		= bgfx::createUniform("s_source_1",		bgfx::UniformType::Int1);
 			s_source_2		= bgfx::createUniform("s_source_2",		bgfx::UniformType::Int1);
+			s_source_3		= bgfx::createUniform("s_source_3",		bgfx::UniformType::Int1);
 			s_source_depth	= bgfx::createUniform("s_source_depth",	bgfx::UniformType::Int1);
 
 			u_source_0_level	 = bgfx::createUniform("u_source_0_level",		bgfx::UniformType::Int1);
 			u_source_1_level	 = bgfx::createUniform("u_source_1_level",		bgfx::UniformType::Int1);
 			u_source_2_level	 = bgfx::createUniform("u_source_2_level",		bgfx::UniformType::Int1);
+			u_source_3_level	 = bgfx::createUniform("u_source_3_level",		bgfx::UniformType::Int1);
 			u_source_depth_level = bgfx::createUniform("u_source_depth_level",	bgfx::UniformType::Int1);
 
 			u_source_0_crop		 = bgfx::createUniform("u_source_0_crop",		bgfx::UniformType::Vec4);
@@ -43,6 +45,7 @@ namespace mud
 		bgfx::UniformHandle s_source_0;
 		bgfx::UniformHandle s_source_1;
 		bgfx::UniformHandle s_source_2;
+		bgfx::UniformHandle s_source_3;
 		bgfx::UniformHandle s_source_depth;
 
 		bgfx::UniformHandle u_source_0_level;
@@ -81,12 +84,12 @@ namespace mud
 	public:
 		BlockFilter(GfxSystem& gfx_system);
 
-		virtual void init_gfx_block() final;
+		virtual void init_block() override;
 
-		virtual void begin_gfx_block(Render& render) final;
-		virtual void submit_gfx_block(Render& render) final;
+		virtual void begin_render(Render& render) override;
+		virtual void begin_pass(Render& render) override;
 
-		void set_uniforms(Render& render);
+		void set_uniforms(Render& render, bgfx::Encoder& encoder);
 
 		void submit_quad(FrameBuffer& target, uint8_t view, bgfx::FrameBufferHandle fbo, bgfx::ProgramHandle program, const RenderQuad& quad, uint64_t flags = 0U, bool render = false);
 		void submit_quad(FrameBuffer& target, uint8_t view, bgfx::FrameBufferHandle fbo, bgfx::ProgramHandle program, const uvec4& rect, uint64_t flags = 0U, bool render = false);
@@ -97,7 +100,7 @@ namespace mud
 
 		FilterUniform u_uniform;
 
-		Program m_quad_program;
+		Program& m_quad_program;
 	};
 
 	export_ class refl_ MUD_GFX_EXPORT BlockCopy : public GfxBlock
@@ -105,10 +108,10 @@ namespace mud
 	public:
 		BlockCopy(GfxSystem& gfx_system, BlockFilter& filter);
 
-		virtual void init_gfx_block() final;
+		virtual void init_block() override;
 
-		virtual void begin_gfx_block(Render& render) final;
-		virtual void submit_gfx_block(Render& render) final;
+		virtual void begin_render(Render& render) override;
+		virtual void begin_pass(Render& render) override;
 
 		void submit_quad(FrameBuffer& target, uint8_t view, bgfx::FrameBufferHandle fbo, bgfx::TextureHandle texture, const RenderQuad& quad, uint64_t flags = 0U);
 		void submit_quad(FrameBuffer& target, uint8_t view, bgfx::FrameBufferHandle fbo, bgfx::TextureHandle texture, const uvec4& rect, uint64_t flags = 0U);
@@ -116,10 +119,10 @@ namespace mud
 		void submit_quad(FrameBuffer& target, uint8_t view, bgfx::TextureHandle texture, const uvec4& rect, uint64_t flags = 0U);
 		void submit_quad(FrameBuffer& target, uint8_t view, bgfx::TextureHandle texture, uint64_t flags = 0U);
 
-		void debug_show_texture(FrameBuffer& target, bgfx::TextureHandle texture, bool is_depth = false, bool is_depth_packed = false, bool is_array = false, int level = 0);
+		void debug_show_texture(Render& render, bgfx::TextureHandle texture, const vec4& rect, bool is_depth = false, bool is_depth_packed = false, bool is_array = false, int level = 0);
 
 		BlockFilter& m_filter;
 
-		Program m_program;
+		Program& m_program;
 	};
 }

@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -28,6 +28,9 @@ namespace mud
 		constr_ Symbol(Colour fill = Colour::White, Colour outline = Colour::None, bool overlay = false, bool double_sided = false, SymbolDetail detail = SymbolDetail::Medium);
 		Symbol(cstring image, float alpha = 1.f);
 		Symbol(const Image256& image256, float alpha = 1.f);
+
+		constr_ static Symbol plain(Colour colour, bool overlay = false) { return Symbol(colour, Colour::None, overlay); }
+		constr_ static Symbol wire(Colour colour, bool overlay = false) { return Symbol(Colour::None, colour, overlay); }
 
 		bool operator==(const Symbol& other) const;
 

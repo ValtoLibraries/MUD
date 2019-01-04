@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -8,10 +8,8 @@
 module mud.uio;
 #else
 #include <infra/Vector.h>
-#include <obj/Any.h>
-#ifdef MUD_PROTO
-#include <proto/Complex.h>
-#endif
+#include <type/Any.h>
+#include <ecs/Registry.h>
 #include <refl/Class.h>
 #include <uio/Edit/Inspector.h>
 #include <ui/Structs/Container.h>
@@ -107,6 +105,7 @@ namespace mud
 
 	bool object_edit_rows(Widget& parent, Table& table, Ref object)
 	{
+		UNUSED(parent);
 		bool changed = false;
 
 		auto member_edit = [&](Member& member)
@@ -208,10 +207,41 @@ namespace mud
 			return object_edit_inline(parent, object);
 	}
 
+	bool entity_edit(Widget& parent, Entity entity, EditorHint hint)
+	{
+		UNUSED(hint);
+		bool changed = false;
+
+		static cstring columns[2] = { "field", "value" };
+		static float spans[2] = { 0.4f, 0.6f };
+		Table& self = ui::table(parent, { columns, 2 }, { spans, 2 });
+
+		ParallelBuffers& stream = s_ecs[entity.m_stream]->Stream(entity);
+		uint32_t index = stream.m_indices[entity];
+		for(auto& buffer : stream.m_buffers)
+		{
+			Widget& row = ui::table_separator(self);
+			Widget* body = ui::tree_node(row, buffer->m_type->m_name, false, true).m_body;
+			if(body)
+				changed |= object_edit_columns(*body, buffer->Get(index));
+		}
+
+		return changed;
+	}
+
+	bool inspector(Widget& parent, Entity entity)
+	{
+		Section& self = section(parent, "Entity Inspector", {}, true);
+		return entity_edit(*self.m_body, entity);
+	}
+
 	bool inspector(Widget& parent, Ref object)
 	{
 		Section& self = section(parent, "Inspector", {}, true);
-		return object_edit_columns(*self.m_body, object);
+		if(object.m_type->is<EntityRef>())
+			return inspector(parent, { as_ent(object), 0 });
+		else
+			return object_edit_columns(*self.m_body, object);
 	}
 
 	bool inspector(Widget& parent)

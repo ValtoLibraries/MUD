@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -42,10 +42,10 @@ namespace mud
 	public:
 		BlockBlur(GfxSystem& gfx_system, BlockFilter& filter);
 
-		virtual void init_gfx_block() final;
+		virtual void init_block() override;
 
-		virtual void begin_gfx_block(Render& render) final;
-		virtual void submit_gfx_block(Render& render) final;
+		virtual void begin_render(Render& render) override;
+		virtual void begin_pass(Render& render) override;
 		
 		void blur(Render& render);
 
@@ -54,6 +54,6 @@ namespace mud
 		BlockFilter& m_filter;
 
 		EffectBlurUniform u_uniform;
-		Program m_program;
+		Program& m_program;
 	};
 }

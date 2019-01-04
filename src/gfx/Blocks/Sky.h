@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -97,7 +97,7 @@ namespace mud
 	{
 		void init(GfxSystem& gfx_system, ivec2 vertex_count);
 		void shutdown();
-		void render(Render& render);
+		void submit(Render& render, Pass& render_pass);
 
 		bgfx::VertexBufferHandle m_vbh;
 		bgfx::IndexBufferHandle m_ibh;
@@ -153,10 +153,10 @@ namespace mud
 	public:
 		BlockSky(GfxSystem& gfx_system, BlockFilter& filter);
 
-		virtual void init_gfx_block() final;
+		virtual void init_block() override;
 
-		virtual void begin_gfx_block(Render& render) final;
-		virtual void submit_gfx_block(Render& render) final;
+		virtual void begin_render(Render& render) override;
+		virtual void begin_pass(Render& render) override;
 
 		BlockFilter& m_filter;
 
@@ -175,6 +175,6 @@ namespace mud
 
 		} u_skybox;
 
-		Program m_skybox_program;
+		Program& m_skybox_program;
 	};
 }

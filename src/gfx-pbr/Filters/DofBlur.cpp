@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -10,6 +10,8 @@
 module mud.gfx.pbr;
 #else
 #include <gfx/RenderTarget.h>
+#include <gfx/Asset.h>
+#include <gfx/GfxSystem.h>
 #include <gfx-pbr/Types.h>
 #include <gfx-pbr/Filters/DofBlur.h>
 #include <gfx-pbr/Filters/Tonemap.h>
@@ -20,25 +22,29 @@ namespace mud
 	BlockDofBlur::BlockDofBlur(GfxSystem& gfx_system, BlockFilter& filter)
 		: GfxBlock(gfx_system, *this)
 		, m_filter(filter)
-		, m_program("filter/dof_blur")
+		, m_program(gfx_system.programs().create("filter/dof_blur"))
 	{
 		static cstring options[1] = { "DOF_FIRST_PASS" };
 		m_shader_block->m_options = { options, 1 };
 		m_program.register_block(*this);
-
 	}
 
-	void BlockDofBlur::init_gfx_block()
+	void BlockDofBlur::init_block()
 	{
 		u_uniform.createUniforms();
 	}
 
-	void BlockDofBlur::begin_gfx_block(Render& render)
+	void BlockDofBlur::begin_render(Render& render)
 	{
 		UNUSED(render);
 	}
 	
-	void BlockDofBlur::submit_gfx_block(Render& render)
+	void BlockDofBlur::begin_pass(Render& render)
+	{
+		UNUSED(render);
+	}
+	
+	void BlockDofBlur::submit_pass(Render& render)
 	{
 		if(render.m_filters && render.m_filters->m_dof_blur.m_enabled)
 			this->render(render, render.m_filters->m_dof_blur);

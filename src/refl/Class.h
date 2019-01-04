@@ -1,11 +1,11 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #pragma once
 
 #include <refl/Forward.h>
-#include <obj/Var.h>
+#include <type/Var.h>
 #include <infra/Strung.h>
 #include <refl/Method.h>
 #include <refl/Member.h>
@@ -95,9 +95,6 @@ namespace mud
 		std::vector<Member*> m_components;
 		std::vector<Member*> m_deep_members;
 		std::vector<Method*> m_deep_methods;
-
-		// Complex
-		std::vector<Type*> m_complexes;
 
 		// Sequence
 		Type* m_content = nullptr;

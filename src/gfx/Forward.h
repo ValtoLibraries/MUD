@@ -5,10 +5,8 @@
 #include <infra/Config.h>
 
 #include <infra/Forward.h>
-#include <obj/Forward.h>
+#include <type/Forward.h>
 #include <pool/Forward.h>
-#include <refl/Forward.h>
-#include <srlz/Forward.h>
 #include <math/Forward.h>
 #include <geom/Forward.h>
 #include <ctx/Forward.h>
@@ -80,7 +78,6 @@ namespace mud {
     enum ShaderOptionFilter : unsigned int;
     enum class LightType : unsigned int;
     enum ShadowFlags : unsigned int;
-    enum ItemFlag : unsigned int;
     enum class ItemShadow : unsigned int;
     enum class MSAA : unsigned int;
     enum class Shading : unsigned int;
@@ -119,6 +116,7 @@ namespace mud {
     class DrawBlock;
     class RenderPass;
     struct DrawElement;
+	struct DrawCluster;
     class DrawPass;
     class Renderer;
     struct BaseMaterialBlock;
@@ -127,7 +125,8 @@ namespace mud {
     struct PbrMaterialBlock;
     struct PbrBlock;
     class Material;
-    struct ModelConfig;
+    struct ImportConfig;
+	class Importer;
     struct ModelItem;
     class Model;
     struct GpuMesh;
@@ -143,6 +142,8 @@ namespace mud {
     struct PrefabNode;
     class Prefab;
     class Camera;
+	class Culler;
+	class Froxelizer;
     struct DepthParams;
     class PassDepth;
     class BlockDepth;
@@ -169,9 +170,7 @@ namespace mud {
     class Pipeline;
     class PassClear;
     class PassUnshaded;
-    class PassOpaque;
     class PassBackground;
-    class PassAlpha;
     class PassFlip;
     struct MinimalRenderer;
     struct UnshadedRenderer;
@@ -195,6 +194,10 @@ namespace mud {
     struct ProceduralSky;
     struct PerezSky;
     class BlockSky;
+	class GIProbe;
+	class Lightmap;
+	class LightmapAtlas;
+	class LightmapItem;
 }
 
 namespace mud {

@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -41,6 +41,7 @@ namespace mud
 	export_ inline vec3 rotate(const vec3& v, float angle, const vec3& axis) { return angle_axis(angle, axis) * v; }
 	export_ inline vec3 rotate(const vec3& v, const vec3& axis, float angle) { return angle_axis(angle, axis) * v; }
 
+	export_ MUD_MATH_EXPORT func_ quat look_dir(const vec3& direction, const vec3& forward = -Z3);
 	export_ MUD_MATH_EXPORT func_ quat look_at(const vec3& eye, const vec3& target, const vec3& forward = -Z3);
 
 	export_ MUD_MATH_EXPORT uint32_t pack4(const vec4& vec);
@@ -64,7 +65,7 @@ namespace mud
 
 	export_ inline void flatten(vec3& vector)
 	{
-		for(size_t i = 0; i < 3; ++i)
+		for(vec3::length_type i = 0; i < 3; ++i)
 			if(fabs(vector[i]) < 0.0000001f)
 				vector[i] = 0.f;
 	}

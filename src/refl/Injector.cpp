@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -7,8 +7,8 @@
 #ifdef MUD_MODULES
 module mud.refl;
 #else
-#include <obj/Types.h>
-//#include <proto/Proto.h>
+#include <type/Types.h>
+//#include <ecs/Proto.h>
 #include <refl/Injector.h>
 #include <refl/Class.h>
 #include <refl/Injector.h>
@@ -21,11 +21,11 @@ namespace mud
 		: Call(constructor)
 		, m_object_type(*constructor.m_object_type)
 		, m_constructor(constructor)
-#ifdef MUD_PROTO
+#ifdef MUD_ECS_PROTO
 		, m_proto(is<Prototype>(type) ? &as<Prototype>(type) : nullptr)
 #endif
 	{
-#ifdef MUD_PROTO
+#ifdef MUD_ECS_PROTO
 		if(m_proto && &constructor == &cls(type).m_constructors[int(ConstructorIndex::ProtoParts)])
 		{
 			// we are a combined constructor
@@ -78,7 +78,7 @@ namespace mud
 		pool.destroy(object);
 	}
 
-#ifdef MUD_PROTO
+#ifdef MUD_ECS_PROTO
 	array<Var> Injector::args(Type& type)
 	{
 		size_t index = m_partIndex[m_proto->part_index(type)];
@@ -88,7 +88,7 @@ namespace mud
 
 	Creator::Creator(Type& type)
 		: m_type(type)
-#ifdef MUD_PROTO
+#ifdef MUD_ECS_PROTO
 		, m_construct(cls(type).m_prototypes.size() > 0)
 		, m_prototype(m_construct ? cls(type).m_prototypes[0] : nullptr)
 #else

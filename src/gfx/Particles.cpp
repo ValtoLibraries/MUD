@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -18,7 +18,6 @@ module mud.gfx;
 #include <pool/Pool.h>
 #include <math/Math.h>
 #include <math/Random.h>
-#include <math/Anim/Anim.h>
 #include <geom/ShapeDistrib.h>
 #include <gfx/Types.h>
 #include <gfx/Particles.h>
@@ -92,7 +91,7 @@ namespace mud
 
 	void Particles::spawn(float dt)
 	{
-		mat4 transform = m_node ? m_node->transform() : bxidentity();
+		mat4 transform = m_node ? m_node->m_transform : bxidentity();
 
 		//quat rotation = m_rotation.sample(m_time, random_scalar(0.f, 1.f));
 		//vec3 position = m_position.sample(m_time, random_scalar(0.f, 1.f));
@@ -122,7 +121,7 @@ namespace mud
 
 			particle.start = vec3(transform * vec4{ pos, 1.f });
 			particle.dir = vec3(transform * vec4{ dir, 0.f });
-			particle.rot = m_node->m_rotation;
+			particle.rot = ZeroQuat; // m_node->m_rotation; // @todo
 
 			particle.speed_seed = random_scalar(0.f, 1.f);
 			particle.angle_seed = random_scalar(0.f, 1.f);
@@ -148,7 +147,7 @@ namespace mud
 		if(m_sprite == nullptr)
 			return 0;
 		
-		size_t index = first;
+		uint32_t index = first;
 		for(Particle& particle : m_particles)
 		{
 			if(index + 1 >= max)
@@ -198,7 +197,7 @@ namespace mud
 			++index;
 		}
 
-		return m_particles.size();
+		return uint32_t(m_particles.size());
 	}
 
 	inline void Particles::write_vertex(ParticleVertex*& dest, ParticleVertex vertex)
@@ -236,12 +235,12 @@ namespace mud
 		for(Particles* emitter : m_emitters.m_vec_pool->m_objects)
 		{
 			emitter->update(_dt);
-			num_particles += emitter->m_particles.size();
+			num_particles += uint32_t(emitter->m_particles.size());
 		}
 		m_num = num_particles;
 	}
 
-	void ParticleSystem::render(uint8_t pass, const mat4& view, const vec3& eye)
+	void ParticleSystem::render(bgfx::Encoder& encoder, uint8_t pass, const mat4& view, const vec3& eye)
 	{
 		if(0 == m_num)
 			return;
@@ -280,11 +279,12 @@ namespace mud
 
 			uint64_t bgfx_state = 0 | BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_DEPTH_TEST_LESS; // | BGFX_STATE_CULL_CW;
 			blend_state(m_emitters.m_vec_pool->m_objects[0]->m_blend_mode, bgfx_state);
-			bgfx::setState(bgfx_state);
-			bgfx::setVertexBuffer(0, &vertex_buffer);
-			bgfx::setIndexBuffer(&index_buffer);
-			bgfx::setTexture(uint8_t(TextureSampler::Color), m_block.s_color, m_block.m_texture);
-			bgfx::submit(pass, m_program);
+
+			encoder.setState(bgfx_state);
+			encoder.setVertexBuffer(0, &vertex_buffer);
+			encoder.setIndexBuffer(&index_buffer);
+			encoder.setTexture(uint8_t(TextureSampler::Color), m_block.s_color, m_block.m_texture);
+			encoder.submit(pass, m_program);
 		}
 	}
 
@@ -299,7 +299,7 @@ namespace mud
 		bgfx::destroy(s_color);
 	}
 
-	void BlockParticles::init_gfx_block()
+	void BlockParticles::init_block()
 	{
 		ParticleVertex::init();
 
@@ -307,18 +307,18 @@ namespace mud
 		m_texture = bgfx::createTexture2D(SPRITE_TEXTURE_SIZE, SPRITE_TEXTURE_SIZE, false, 1, bgfx::TextureFormat::BGRA8);
 
 		this->create_sprite("particle.ktx", "particle.ktx");
-		this->create_sprite("flames.png", "flames_b.png", { 2, 2 });
-		this->create_sprite("billows.png", "billows_b.png", { 2, 2 });
-		this->create_sprite("wave.png", "wave_b.png");
-		this->create_sprite("geometric.png", "geometric_b.png", { 2, 2 });
+		//this->create_sprite("flames.png", "flames_b.png", { 2, 2 });
+		//this->create_sprite("billows.png", "billows_b.png", { 2, 2 });
+		//this->create_sprite("wave.png", "wave_b.png");
+		//this->create_sprite("geometric.png", "geometric_b.png", { 2, 2 });
 	}
 
-	void BlockParticles::begin_gfx_block(Render& render)
+	void BlockParticles::begin_render(Render& render)
 	{
 		UNUSED(render);
 	}
 
-	void BlockParticles::submit_gfx_block(Render& render)
+	void BlockParticles::begin_pass(Render& render)
 	{
 		UNUSED(render);
 	}
@@ -358,16 +358,12 @@ namespace mud
 		UNUSED(gfx_system);
 	}
 
-	void PassParticles::begin_render_pass(Render& render)
-	{
-		UNUSED(render);
-	}
-
 	void PassParticles::submit_render_pass(Render& render)
 	{
 		Pass particle_pass = render.next_pass("particles");
+		bgfx::Encoder& encoder = *particle_pass.m_encoder;
 
 		render.m_scene.m_particle_system->update(render.m_frame.m_delta_time); // * timeScale
-		render.m_scene.m_particle_system->render(particle_pass.m_index, render.m_camera.m_transform, render.m_camera.m_eye);
+		render.m_scene.m_particle_system->render(encoder, particle_pass.m_index, render.m_camera.m_transform, render.m_camera.m_eye);
 	}
 }

@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -96,7 +96,7 @@ namespace mud
 	int IcoSphere::vertex(const vec3& vertex)
 	{
 		m_vertices.emplace_back(normalize(vertex));
-		return m_vertices.size()-1;
+		return int(m_vertices.size() - 1);
 	}
 
 	int IcoSphere::middle_point(int index0, int index1)

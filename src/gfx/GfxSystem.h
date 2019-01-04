@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -6,7 +6,8 @@
 
 #ifndef MUD_MODULES
 #include <infra/Array.h>
-#include <obj/Unique.h>
+#include <jobs/Job.h>
+#include <type/Unique.h>
 #endif
 #include <gfx/Forward.h>
 #ifndef MUD_BGFX_EXPORT
@@ -18,6 +19,8 @@
 #include <vector>
 #include <functional>
 #endif
+
+#include <bgfx/bgfx.h>
 
 #ifndef MUD_MODULES
 namespace bx
@@ -68,7 +71,13 @@ namespace mud
 	public:
 		GfxSystem(array<cstring> resource_paths);
 		~GfxSystem();
-		
+
+		JobSystem* m_job_system = nullptr;
+
+		bgfx::Encoder* m_encoders[8] = {};
+		size_t m_num_encoders = 0;
+
+		virtual void begin_frame() final;
 		virtual bool next_frame() final;
 
 		virtual object_ptr<Context> create_context(cstring name, int width, int height, bool full_screen) final;
@@ -82,6 +91,7 @@ namespace mud
 		Renderer& renderer(Shading shading);
 
 		void render(Renderer& renderer, GfxContext& context, Viewport& viewport, RenderFrame& frame);
+		RenderFrame render_frame();
 
 		GfxContext& context(size_t index = 0);
 
@@ -101,6 +111,9 @@ namespace mud
 		attr_ AssetStore<Model>& models();
 		attr_ AssetStore<ParticleGenerator>& particles();
 		attr_ AssetStore<Prefab>& prefabs();
+
+		void add_importer(ModelFormat format, Importer& importer);
+		Importer* importer(ModelFormat format);
 
 		Texture& default_texture(TextureHint hint);
 

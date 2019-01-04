@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -8,12 +8,12 @@
 module mud.uio;
 #else
 #include <infra/Vector.h>
-//#include <obj/Complex.h>
+//#include <type/Entity.h>
 #include <refl/Class.h>
 #include <refl/System.h>
 #include <refl/Convert.h>
 #include <refl/Module.h>
-#include <meta/obj/Convert.h>
+#include <meta/type/Convert.h>
 #include <meta/refl/Convert.h>
 #include <ui/Structs/Window.h>
 #include <ui/Structs/Container.h>
@@ -33,7 +33,7 @@ namespace mud
 	{
 		static float text_size = 15.f;
 		style.m_empty = false;
-		style.m_text_font = "veramono-bold";
+		//style.m_text_font = "veramono-bold";
 		style.m_text_colour = colour;
 		style.m_text_size = text_size;
 	}
@@ -184,7 +184,7 @@ namespace mud
 			Widget& row = ui::widget(self, meta_styles().element);
 			ui::item(row, meta_styles().identifier, enu.m_names[i]);
 			ui::item(row, meta_styles().syntax, "=");
-			ui::item(row, meta_styles().number, to_string(enu.m_indices[i]).c_str());
+			ui::item(row, meta_styles().number, to_string(enu.m_values[i]).c_str());
 		}
 	}
 
@@ -278,7 +278,7 @@ namespace mud
 
 	void meta_browser(Widget& parent)
 	{
-		enum Mode : size_t { Basetypes = 0, Enums, Classes, Functions };
+		enum Mode : uint32_t { Basetypes = 0, Enums, Classes, Functions };
 
 		static Ref selected = {};
 
@@ -291,7 +291,7 @@ namespace mud
 		Widget& table = ui::columns(left, carray<float, 2>{ 0.3f, 0.7f });
 
 		static Mode mode = Classes;
-		ui::dropdown_field(table, "Browse:", carray<cstring, 4>{ "Basetypes", "Enums", "Classes", "Functions" }, (size_t&) mode);
+		ui::dropdown_field(table, "Browse:", carray<cstring, 4>{ "Basetypes", "Enums", "Classes", "Functions" }, (uint32_t&) mode);
 
 		static std::map<Module*, bool> modules;
 
@@ -302,9 +302,9 @@ namespace mud
 		{
 			for(Module* m : System::instance().m_modules)
 			{
-				Widget& row = ui::row(*drop.m_body);
-				ui::checkbox(row, modules[m]);
-				ui::label(row, m->m_name);
+				Widget& droprow = ui::row(*drop.m_body);
+				ui::checkbox(droprow, modules[m]);
+				ui::label(droprow, m->m_name);
 			}
 		}
 

@@ -33,9 +33,21 @@ wren = mud_dep(nil, "wren")
             "WREN_NAN_TAGGING=0",
         }
         
+    configuration { "mingw* or linux or osx or asmjs" }
+        buildoptions {
+            "-Wno-unused-parameter",
+        }
+        
+    configuration { "osx or *-clang* or asmjs" }
+        buildoptions {
+            "-Wno-macro-redefined", -- for __STDC_LIMIT_MACROS, we can't touch the source and don't want to touch the toolchain
+        }
+        
     configuration { "vs*", "not asmjs" }
         buildoptions {
             "/wd4100", -- warning C4100: 'vm': unreferenced formal parameter
+            "/wd4200", -- warning C4200: nonstandard extension used: zero-sized array in struct/union
+            "/wd4709", -- warning C4200: comma operator within array index expression
         }
     
 	configuration { "linux-*" }

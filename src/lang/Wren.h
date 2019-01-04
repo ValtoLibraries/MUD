@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -7,8 +7,8 @@
 #ifndef MUD_MODULES
 #include <infra/Array.h>
 #include <infra/NonCopy.h>
-#include <obj/Any.h>
-#include <obj/Unique.h>
+#include <type/Any.h>
+#include <type/Unique.h>
 #endif
 #include <lang/Forward.h>
 #include <lang/Script.h>

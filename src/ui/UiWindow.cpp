@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -10,22 +10,15 @@ module mud.ui;
 #include <infra/Vector.h>
 #include <infra/String.h>
 #include <infra/File.h>
-#include <refl/System.h>
-#include <refl/Class.h> // @kludge
 #include <ctx/Context.h>
 #include <ui/UiWindow.h>
-#include <ui/Types.h> // @kludge
-#include <ui/Style/9Sprite.h> // @kludge
-#include <ui/Style/Styler.h>
-#include <ui/Style/Styles.h>
-#include <ui/Structs/RootSheet.h>
-#include <ui/Frame/Frame.h>
-#include <ui/Render/Renderer.h>
-#include <ui/Controller/Controller.h>
+#include <ui/Api.h>
 #endif
 
 namespace mud
 {
+	std::map<string, Style*> UiWindow::s_styles;
+
 	UiWindow::UiWindow(Context& context, Vg& vg, User* user)
 		: m_resource_path(context.m_resource_path)
 		, m_context(context)
@@ -34,12 +27,8 @@ namespace mud
 		, m_atlas(uvec2(1024U))
 		, m_width(float(context.m_width))
 		, m_height(float(context.m_height))
-		, m_styler(make_object<Styler>(*this))
 		, m_user(user)
 	{
-		// @kludge until reflection properly supports Enum default parameters
-		cls<ImageSkin>().m_constructors[0].m_arguments.back() = var(DIM_NONE);
-
 		this->init();
 	}
 
@@ -54,6 +43,8 @@ namespace mud
 
 	void UiWindow::init()
 	{
+		this->init_styles();
+
 		printf("INFO: Initializing UiWindow: resource path %s\n", m_resource_path.c_str());
 		m_vg.setup_context();
 
@@ -69,6 +60,46 @@ namespace mud
 		this->resize(uint16_t(m_width), uint16_t(m_height));
 	}
 
+	void UiWindow::init_styles()
+	{
+		styles();
+
+		ui::cursor_styles();
+		ui::scrollbar_styles();
+		ui::dropdown_styles();
+		ui::table_styles();
+		ui::expandbox_styles();
+		ui::treenode_styles();
+		ui::tabber_styles();
+		ui::menu_styles();
+		ui::toolbar_styles();
+		ui::window_styles();
+		ui::dock_styles();
+		ui::canvas_styles();
+		ui::node_styles();
+		ui::file_styles();
+	}
+
+	void UiWindow::reset_styles()
+	{
+		styles() = {};
+
+		ui::cursor_styles() = {};
+		ui::scrollbar_styles() = {};
+		ui::dropdown_styles() = {};
+		ui::table_styles() = {};
+		ui::expandbox_styles() = {};
+		ui::treenode_styles() = {};
+		ui::tabber_styles() = {};
+		ui::menu_styles() = {};
+		ui::toolbar_styles() = {};
+		ui::window_styles() = {};
+		ui::dock_styles() = {};
+		ui::canvas_styles() = {};
+		ui::node_styles() = {};
+		ui::file_styles() = {};
+	}
+
 	void UiWindow::init_resources()
 	{
 		string sprite_path = string(m_resource_path) + "interface/uisprites/";
@@ -80,6 +111,7 @@ namespace mud
 
 		auto visit_folder = [&](cstring path, cstring folder)
 		{
+			UNUSED(path);
 			load_folder_images(images, sprite_path + folder + "/", string(folder) + "/");
 		};
 

@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -10,6 +10,8 @@
 module mud.gfx.pbr;
 #else
 #include <gfx/Filter.h>
+#include <gfx/Asset.h>
+#include <gfx/GfxSystem.h>
 #include <gfx/RenderTarget.h>
 #include <gfx-pbr/Types.h>
 #include <gfx-pbr/Filters/Blur.h>
@@ -20,24 +22,24 @@ namespace mud
 	BlockBlur::BlockBlur(GfxSystem& gfx_system, BlockFilter& filter)
 		: GfxBlock(gfx_system, *this)
 		, m_filter(filter)
-		, m_program("filter/gaussian_blur")
+		, m_program(gfx_system.programs().create("filter/gaussian_blur"))
 	{
 		static cstring options[2] = { "GAUSSIAN_HORIZONTAL", "GAUSSIAN_VERTICAL" };
 		m_shader_block->m_options = { options, 2 };
 		m_program.register_block(*this);
 	}
 
-	void BlockBlur::init_gfx_block()
+	void BlockBlur::init_block()
 	{
 		u_uniform.createUniforms();
 	}
 
-	void BlockBlur::begin_gfx_block(Render& render)
+	void BlockBlur::begin_render(Render& render)
 	{
 		UNUSED(render);
 	}
 
-	void BlockBlur::submit_gfx_block(Render& render)
+	void BlockBlur::begin_pass(Render& render)
 	{
 		UNUSED(render);
 	}

@@ -3,7 +3,7 @@
 #pragma once
 
 #ifndef MUD_MODULES
-#include <obj/Unique.h>
+#include <type/Unique.h>
 #endif
 #include <gfx/Renderer.h>
 #include <gfx/Forward.h>
@@ -21,11 +21,11 @@ namespace mud
 	export_ class MUD_GFX_EXPORT PassDepth : public DrawPass
 	{
 	public:
+		PassDepth(GfxSystem& gfx_system, cstring name, BlockDepth& block_depth);
 		PassDepth(GfxSystem& gfx_system, BlockDepth& block_depth);
 
 		virtual void next_draw_pass(Render& render, Pass& render_pass) override;
 		virtual void queue_draw_element(Render& render, DrawElement& element) override;
-		virtual void submit_draw_element(Pass& render_pass, DrawElement& element) override;
 
 		BlockDepth& m_block_depth;
 	};
@@ -36,13 +36,15 @@ namespace mud
 		BlockDepth(GfxSystem& gfx_system);
 		~BlockDepth();
 
-		virtual void init_gfx_block() final;
+		virtual void init_block() override;
 
-		virtual void begin_gfx_block(Render& render) final;
-		virtual void submit_gfx_block(Render& render) final;
+		virtual void begin_render(Render& render) override;
+		virtual void begin_pass(Render& render) override;
 
-		virtual void begin_gfx_pass(Render& render) final;
-		virtual void submit_gfx_element(Render& render, Pass& render_pass, DrawElement& element) final;
+		virtual void begin_draw_pass(Render& render) override;
+
+		virtual void options(Render& render, ShaderVersion& shader_version) const override;
+		virtual void submit(Render& render, const Pass& render_pass) const override;
 
 		struct DepthUniform
 		{
@@ -54,6 +56,8 @@ namespace mud
 			bgfx::UniformHandle u_depth_params;
 
 		} u_depth;
+
+		DepthParams* m_current_params = nullptr;
 
 		DepthParams m_depth_params;
 

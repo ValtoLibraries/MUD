@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -67,7 +67,7 @@ namespace mud
 			16									// m_MaxCommandListDepth
 		};
 
-		m_vg = vg::createContext(250, m_allocator, &config);
+		m_vg = vg::createContext(240, m_allocator, &config);
 	}
 
 	void VgVg::release_context()
@@ -86,7 +86,7 @@ namespace mud
 	{
 		string path = this->font_path(name);
 		std::vector<uint8_t> buffer = read_binary_file(path);
-		m_fonts[name] = vg::createFont(m_vg, name, buffer.data(), buffer.size(), 0);
+		m_fonts[name] = vg::createFont(m_vg, name, buffer.data(), uint32_t(buffer.size()), 0);
 	}
 
 	void VgVg::load_image_RGBA(Image& image, const unsigned char* data)
@@ -123,9 +123,9 @@ namespace mud
 
 	void VgVg::begin_frame(const vec4& rect, float pixel_ratio)
 	{
-		bgfx::setViewRect(250, uint16_t(rect.x), uint16_t(rect.y), uint16_t(rect_w(rect)), uint16_t(rect_h(rect)));
-		bgfx::setViewMode(250, bgfx::ViewMode::Sequential);
-		bgfx::setViewName(250, "ui");
+		bgfx::setViewRect(240, uint16_t(rect.x), uint16_t(rect.y), uint16_t(rect_w(rect)), uint16_t(rect_h(rect)));
+		bgfx::setViewMode(240, bgfx::ViewMode::Sequential);
+		bgfx::setViewName(240, "ui");
 
 		vg::beginFrame(m_vg, uint16_t(rect_w(rect)), uint16_t(rect_h(rect)), pixel_ratio);
 	}
@@ -315,7 +315,7 @@ namespace mud
 		std::vector<vg::GlyphPosition> glyphs(numGlyphs);
 		textRow.m_glyphs.resize(numGlyphs);
 
-		vg::textGlyphPositions(m_vg, text_font(paint), rect.x, rect.y, textRow.m_start, textRow.m_end, &glyphs.front(), glyphs.size());
+		vg::textGlyphPositions(m_vg, text_font(paint), rect.x, rect.y, textRow.m_start, textRow.m_end, &glyphs.front(), int(glyphs.size()));
 
 		for(size_t i = 0; i < glyphs.size(); ++i)
 		{

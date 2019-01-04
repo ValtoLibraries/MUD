@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -29,6 +29,7 @@ namespace mud
 	class ShadowAtlas
 	{
 	public:
+		ShadowAtlas() {}
 		ShadowAtlas(uint16_t size, std::vector<uint16_t> slices_subdiv);
 
 		uint16_t m_size = 0;

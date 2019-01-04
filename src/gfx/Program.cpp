@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -8,8 +8,10 @@
 #include <map>
 #include <vector>
 #include <fstream>
+#include <mutex>
 #endif
 
+#include <bx/platform.h>
 #include <bx/readerwriter.h>
 #include <bgfx/bgfx.h>
 
@@ -19,7 +21,6 @@ module mud.gfx;
 #include <infra/Vector.h>
 #include <infra/EnumArray.h>
 #include <infra/File.h>
-#include <srlz/Serial.h>
 #include <infra/StringConvert.h>
 #include <gfx/Program.h>
 #include <gfx/GfxSystem.h>
@@ -53,15 +54,35 @@ namespace mud
 		return mem;
 	}
 
+	bgfx::ShaderHandle load_shader(bx::FileReaderI& reader, cstring path)
+	{
+		if(file_exists(path))
+			return bgfx::createShader(load_mem(reader, path));
+		else
+			return BGFX_INVALID_HANDLE;
+	}
+
+	bgfx::ProgramHandle load_compute_program(bx::FileReaderI& reader, const string& shader_path)
+	{
+		const string  cs_path = shader_path + "_cs";
+
+		bgfx::ShaderHandle compute_shader = load_shader(reader, cs_path.c_str());
+
+		return bgfx::createProgram(compute_shader, true);
+	}
+
 	bgfx::ProgramHandle load_program(bx::FileReaderI& reader, const string& shader_path)
 	{
 		const string vs_path = shader_path + "_vs";
+		const string gs_path = shader_path + "_gs";
 		const string fs_path = shader_path + "_fs";
 
-		bgfx::ShaderHandle vertexShader = bgfx::createShader(load_mem(reader, vs_path.c_str()));
-		bgfx::ShaderHandle fragmentShader = bgfx::createShader(load_mem(reader, fs_path.c_str()));
+		bgfx::ShaderHandle vertex_shader = load_shader(reader, vs_path.c_str());
+		bgfx::ShaderHandle geometry_shader = load_shader(reader, gs_path.c_str());
+		bgfx::ShaderHandle fragment_shader = load_shader(reader, fs_path.c_str());
 
-		bgfx::ProgramHandle program = bgfx::createProgram(vertexShader, fragmentShader, true);
+		bgfx::ProgramHandle program = bgfx::isValid(geometry_shader) ? bgfx::createProgram(vertex_shader, geometry_shader, fragment_shader, true)
+																	 : bgfx::createProgram(vertex_shader, fragment_shader, true);
 
 		if(!bgfx::isValid(program))
 			printf("ERROR: failed to load program %s\n", shader_path.c_str());
@@ -71,15 +92,33 @@ namespace mud
 		return program;
 	}
 
+	static cstring shader_suffixes[] = 
+	{
+		"_cs.sc",
+		"_fs.sc",
+		"_gs.sc",
+		"_vs.sc",
+	};
+
+	cstring shader_suffix(ShaderType shader_type)
+	{
+		return shader_suffixes[size_t(shader_type)];
+	}
+
+	string shader_path(GfxSystem& gfx_system, const string& name, ShaderType shader_type)
+	{
+		string suffix = shader_suffix(shader_type);
+		return string(gfx_system.m_resource_path) + "shaders/" + name + suffix;
+	}
+
 #ifdef MUD_LIVE_SHADER_COMPILER
-	bool compile_shader(GfxSystem& gfx_system, cstring name, cstring suffix, ShaderType shader_type, cstring defines_in, cstring source)
+	bool compile_shader(GfxSystem& gfx_system, const string& name, const string& suffix, ShaderType shader_type, const string& defines_in, cstring source)
 	{
 		string defines = defines_in;
 		bool is_opengl = bgfx::getRendererType() == bgfx::RendererType::OpenGLES
 					  || bgfx::getRendererType() == bgfx::RendererType::OpenGL;
 
-		string source_suffix = shader_type == ShaderType::Vertex ? "_vs.sc" : "_fs.sc";
-		string source_path = string(gfx_system.m_resource_path) + "shaders/" + name + source_suffix;
+		string source_path = shader_path(gfx_system, name, shader_type);
 
 		if(source != nullptr)
 		{
@@ -92,8 +131,12 @@ namespace mud
 		//bool debug = false;
 #endif
 
-		string output_suffix = shader_type == ShaderType::Vertex ? "_vs" : "_fs";
+		static cstring output_suffixes[] = { "_cs", "_fs", "_gs", "_vs" };
+
+		string output_suffix = output_suffixes[size_t(shader_type)];
 		string output_path = string(gfx_system.m_resource_path) + "shaders/compiled/" + name + suffix + output_suffix;
+
+		create_file_tree(output_path.c_str());
 
 		printf("INFO: Compiling Shader : %s\n", source_path.c_str());
 		printf("INFO: Defines : %s\n", defines.c_str());
@@ -102,13 +145,13 @@ namespace mud
 		string varying_path = string(gfx_system.m_resource_path) + "shaders/varying.def.sc";
 
 		enum Target { GLSL, ESSL, HLSL, Metal };
-#if defined MUD_PLATFORM_WINDOWS
+#if BX_PLATFORM_WINDOWS
 		Target target = is_opengl ? GLSL : HLSL;
-#elif defined MUD_PLATFORM_LINUX
-		Target target = GLSL;
-#elif defined MUD_PLATFORM_EMSCRIPTEN
-		Target target = ESSL;
-#elif defined MUD_PLATFORM_OSX
+#elif BX_PLATFORM_LINUX
+		Target target = GLSL; UNUSED(is_opengl);
+#elif BX_PLATFORM_EMSCRIPTEN
+		Target target = ESSL; UNUSED(is_opengl);
+#elif BX_PLATFORM_OSX
 		Target target = is_opengl ? GLSL : Metal;
 #endif
 
@@ -118,13 +161,15 @@ namespace mud
 		std::vector<cstring> args;
 		auto push_arg = [](std::vector<cstring>& args, cstring name, cstring arg) { args.push_back(name); args.push_back(arg); };
 
+		static cstring types[] = { "compute", "fragment", "geometry", "vertex" };
+
 		push_arg(args, "-f", source_path.c_str());
 		push_arg(args, "-o", output_path.c_str());
 		push_arg(args, "-i", include.c_str());
 		args.push_back("--depends");
 		push_arg(args, "--varyingdef", varying_path.c_str());
 		push_arg(args, "--define", defines.c_str());
-		push_arg(args, "--type", shader_type == ShaderType::Vertex ? "vertex" : "fragment");
+		push_arg(args, "--type", types[size_t(shader_type)]);
 
 		//if(debug)
 			//args.push_back("--debug");
@@ -136,7 +181,9 @@ namespace mud
 		if (target == GLSL)
 		{
 			push_arg(args, "--platform", "linux");
-			push_arg(args, "--profile", "120");
+			//push_arg(args, "--profile", "120");
+			//push_arg(args, "--profile", "130");
+			push_arg(args, "--profile", "430");
 		}
 		else if(target == ESSL)
 		{
@@ -144,8 +191,9 @@ namespace mud
 		}
 		else if(target == HLSL)
 		{
+			static cstring profiles[] = { "cs_5_0", "ps_5_0", "gs_5_0", "vs_5_0" };
 			push_arg(args, "--platform", "windows");
-			push_arg(args, "--profile", shader_type == ShaderType::Vertex ? "vs_5_0" : "ps_5_0");
+			push_arg(args, "--profile", profiles[size_t(shader_type)]);
 		}
 		else if (target == Metal)
 		{
@@ -153,7 +201,7 @@ namespace mud
 			push_arg(args, "--profile", "metal");
 		}
 
-		int result = bgfx::compileShader(args.size(), args.data());
+		int result = bgfx::compileShader(uint32_t(args.size()), args.data());
 
 		if(result == EXIT_FAILURE)
 		{
@@ -161,8 +209,8 @@ namespace mud
 			uint16_t output_size;
 			bgfx::getShaderError(output_text, output_size);
 
-			printf("ERROR: Failed to compile %s (%s), defines = %s\n", source_path.c_str(), output_path.c_str(), defines.c_str());
-			printf("%s", output_text);
+			printf("ERROR: failed to compile %s (%s), defines = %s\n", source_path.c_str(), output_path.c_str(), defines.c_str());
+			printf("%s\n", output_text);
 			return false;
 		}
 
@@ -181,16 +229,34 @@ namespace mud
 		std::vector<ShaderDefine> m_defines;
 	};
 
+	string program_defines(Program::Impl& program, const ShaderVersion& version)
+	{
+		string defines = "";
+
+		for(size_t option = 0; option < 32; ++option)
+			if(version.m_options & uint32_t(1 << option))
+				defines += program.m_option_names[option] + ";";
+
+		for(size_t mode = 0; mode < program.m_mode_names.size(); ++mode)
+			defines += program.m_mode_names[mode] + "=" + to_string(version.m_modes[mode]) + ";";
+
+		for(const ShaderDefine& define : program.m_defines)
+			defines += string(define.m_name) + "=" + define.m_value + ";";
+
+		return defines;
+	}
+
 	GfxSystem* Program::ms_gfx_system = nullptr;
 
-	Program::Program(cstring name)
-		: m_impl(make_unique<Impl>())
+	Program::Program(cstring name, bool compute)
+		: m_compute(compute)
+		, m_impl(make_unique<Impl>())
 	{
 		m_impl->m_name = name;
 		PbrBlock& pbr = pbr_block(*ms_gfx_system);
 
-		static cstring options[4] = { "SKELETON", "INSTANCING", "BILLBOARD", "MRT" };
-		this->register_options(0, { options, 4 });
+		static cstring options[7] = { "SKELETON", "INSTANCING", "BILLBOARD", "QNORMALS", "MRT", "DEFERRED", "CLUSTERED" };
+		this->register_options(0, { options, 7 });
 		this->register_options(pbr.m_index, pbr.m_shader_block->m_options);
 	}
 
@@ -206,6 +272,64 @@ namespace mud
 	Program::~Program()
 	{}
 
+	ShaderVersion Program::shader_version(Version& version)
+	{
+		ShaderVersion config = { this };
+		memcpy(&config.m_options, &version.m_version, sizeof(uint64_t));
+		return config;
+	}
+
+	void Program::compile(GfxSystem& gfx_system, Version& version, bool compute)
+	{
+		const ShaderVersion config = shader_version(version);
+
+		string suffix = "_v" + to_string(version.m_version);
+		string defines = program_defines(*m_impl, config);
+
+		bool compiled = true;
+#ifdef MUD_LIVE_SHADER_COMPILER
+		if(compute)
+		{
+			compiled &= compile_shader(gfx_system, m_impl->m_name, suffix, ShaderType::Compute, defines, m_sources[size_t(ShaderType::Compute)]);
+		}
+		else
+		{
+			compiled &= compile_shader(gfx_system, m_impl->m_name, suffix, ShaderType::Vertex, defines, m_sources[size_t(ShaderType::Vertex)]);
+			compiled &= compile_shader(gfx_system, m_impl->m_name, suffix, ShaderType::Fragment, defines, m_sources[size_t(ShaderType::Fragment)]);
+
+			if(file_exists(shader_path(gfx_system, m_impl->m_name, ShaderType::Geometry).c_str()))
+				compiled &= compile_shader(gfx_system, m_impl->m_name, suffix, ShaderType::Geometry, defines, m_sources[size_t(ShaderType::Geometry)]);
+		}
+#endif
+
+		string full_name = m_impl->m_name + suffix;
+
+		if(!compiled)
+		{
+			printf("WARNING: failed to compile program %s : using last valid version instead\n", full_name.c_str());
+			version.m_update = m_update;
+			return;
+		}
+
+		printf("INFO: loading program %s with options %s\n", full_name.c_str(), defines.c_str());
+		string compiled_path = string(gfx_system.m_resource_path) + "/shaders/compiled/" + full_name;
+		version.m_program = compute ? load_compute_program(gfx_system.file_reader(), compiled_path)
+									: load_program(gfx_system.file_reader(), compiled_path);
+		version.m_update = m_update;
+	}
+
+	void Program::update(GfxSystem& gfx_system)
+	{
+		for(auto& hash_version : m_impl->m_versions)
+		{
+			Version& version = hash_version.second;
+			if(version.m_update < m_update)
+			{
+				this->compile(gfx_system, version, m_compute);
+			}
+		}
+	}
+
 	cstring Program::name()
 	{
 		return m_impl->m_name.c_str();
@@ -219,45 +343,16 @@ namespace mud
 
 	bgfx::ProgramHandle Program::version(const ShaderVersion& config)
 	{
-		uint64_t config_hash = config.hash();
+		uint64_t version_hash = config.hash();
 
-		if(m_impl->m_versions.find(config_hash) == m_impl->m_versions.end() || m_impl->m_versions[config_hash].m_update < m_update)
+		Version& version = m_impl->m_versions[version_hash];
+		if(version.m_update < m_update)
 		{
-			string suffix = "_v" + to_string(config_hash);
-			string full_name = m_impl->m_name + suffix;
-			string defines = "";
-
-			for(size_t option = 0; option < 32; ++option)
-				if(config.m_options & uint32_t(1 << option))
-					defines += m_impl->m_option_names[option] + ";";
-
-			for(size_t mode = 0; mode < m_impl->m_mode_names.size(); ++mode)
-				defines += m_impl->m_mode_names[mode] + "=" + to_string(config.m_modes[mode]) + ";";
-
-			for(const ShaderDefine& define : m_impl->m_defines)
-				defines += string(define.m_name) + "=" + define.m_value + ";";
-
-			bool compiled = true;
-#ifdef MUD_LIVE_SHADER_COMPILER
-			compiled &= compile_shader(*ms_gfx_system, m_impl->m_name.c_str(), suffix.c_str(), ShaderType::Vertex, defines.c_str(), m_sources[size_t(ShaderType::Vertex)]);
-			compiled &= compile_shader(*ms_gfx_system, m_impl->m_name.c_str(), suffix.c_str(), ShaderType::Fragment, defines.c_str(), m_sources[size_t(ShaderType::Fragment)]);
-#endif
-
-			if(compiled)
-			{
-				printf("INFO: loading program %s with options %s\n", full_name.c_str(), defines.c_str());
-				string compiled_path = string(ms_gfx_system->m_resource_path) + "/shaders/compiled/" + full_name;
-				m_impl->m_versions[config_hash] = { m_update, load_program(ms_gfx_system->file_reader(), compiled_path) };
-			}
-			else
-			{
-				printf("WARNING: failed to compile program %s : using last valid version instead\n", full_name.c_str());
-				m_impl->m_versions[config_hash].m_update = m_update;
-			}
+			version.m_version = version_hash;
+			this->compile(*ms_gfx_system, version, m_compute);
 		}
 
-		return m_impl->m_versions[config_hash].m_program;
-		//printf("Program name %s index %i\n", name.c_str(), m_program.idx);
+		return version.m_program;
 	}
 
 	template <class T, class U>

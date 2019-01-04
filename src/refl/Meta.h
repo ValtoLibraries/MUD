@@ -1,12 +1,12 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #pragma once
 
 #include <refl/Forward.h>
-#include <obj/Var.h>
-#include <obj/Type.h>
+#include <type/Var.h>
+#include <type/Type.h>
 
 #ifndef MUD_CPP_20
 #include <vector>
@@ -22,7 +22,6 @@ namespace mud
 		None = 0,
 		Object = 1,
 		Struct = 2,
-		Complex = 3,
 		Sequence = 4,
 		BaseType = 5,
 		Enum = 6
@@ -44,13 +43,14 @@ namespace mud
 	export_ class refl_ MUD_REFL_EXPORT Meta
 	{
 	public:
-		Meta(Type& type, Namespace* location, cstring name, size_t size, TypeClass type_class);
+		Meta(Type& type, Namespace* location, cstring name, size_t size, TypeClass type_class, bool is_array = false);
 
 		Type* m_type;
 		Namespace* m_namespace = nullptr;
 		cstring m_name;
 		size_t m_size;
 		TypeClass m_type_class;
+		bool m_is_array = false;
 
 		Ref m_empty_ref;
 		Var m_empty_var;
@@ -78,15 +78,16 @@ namespace mud
 	export_ template <class T>
 	inline Enum& enu() { return enu(type<T>()); }
 
-	export_ inline bool is_none(Type& ty) { return &ty == &type<None>(); }
 	export_ inline bool is_base_type(Type& ty) { return meta(ty).m_type_class == TypeClass::BaseType; }
 	export_ inline bool is_enum(Type& ty) { return meta(ty).m_type_class == TypeClass::Enum; }
 	export_ inline bool is_basic(Type& ty) { return meta(ty).m_type_class == TypeClass::BaseType || meta(ty).m_type_class == TypeClass::Enum; }
 	export_ inline bool is_struct(Type& ty) { return meta(ty).m_type_class == TypeClass::Struct; }
-	export_ inline bool is_object(Type& ty) { return meta(ty).m_type_class == TypeClass::Object || meta(ty).m_type_class == TypeClass::Complex; }
+	export_ inline bool is_object(Type& ty) { return meta(ty).m_type_class == TypeClass::Object; }
 	export_ inline bool is_sequence(Type& ty) { return meta(ty).m_type_class == TypeClass::Sequence; }
 	export_ inline bool is_class(Type& ty) { return meta(ty).m_type_class < TypeClass::Sequence; }
-	
+
+	export_ inline bool is_array(Type& ty) { return meta(ty).m_is_array; }
+
 	export_ inline Meta& meta(const Ref& ref) { return meta(type(ref)); }
 	export_ inline Meta& meta(const Var& var) { return meta(*var.m_ref.m_type); }
 

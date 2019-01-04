@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -73,6 +73,12 @@ namespace mud
 	export_ using glm::mat2;
 	export_ using glm::mat3;
 	export_ using glm::mat4;
+
+	export_ using half3 = glm::vec<3, ushort, glm::highp>;
+	export_ using half2 = glm::vec<2, ushort, glm::highp>;
+	export_ using ushort2 = glm::vec<2, ushort, glm::highp>;
+	export_ using ushort3 = glm::vec<3, ushort, glm::highp>;
+	export_ using ushort4 = glm::vec<4, ushort, glm::highp>;
 }
 #endif
 #endif
@@ -142,7 +148,6 @@ namespace mud
 	{
 		constr_ Transform() {}
 		constr_ Transform(const vec3& position, const quat& rotation, const vec3& scale) : m_position(position), m_rotation(rotation), m_scale(scale) {}
-		Transform(const mat4& mat);
 		attr_ vec3 m_position = Zero3;
 		attr_ quat m_rotation = ZeroQuat;
 		attr_ vec3 m_scale = Unit3;

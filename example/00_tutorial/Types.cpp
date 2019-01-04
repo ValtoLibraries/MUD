@@ -7,8 +7,8 @@ module ._00_tutorial;
 #else
 #include <00_tutorial/Types.h>
 #include <00_tutorial/Api.h>
-#include <obj/Vector.h>
-//#include <proto/Proto.h>
+#include <type/Vector.h>
+//#include <ecs/Proto.h>
 #endif
 
 namespace mud

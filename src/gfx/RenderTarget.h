@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -6,7 +6,7 @@
 
 #ifndef MUD_MODULES
 #include <infra/Array.h>
-#include <obj/Unique.h>
+#include <type/Unique.h>
 #endif
 #include <gfx/Forward.h>
 #include <gfx/Viewport.h>
@@ -103,5 +103,19 @@ namespace mud
 		SwapBuffer m_post_process;
 
 		Cascade m_cascade;
+
+		bool m_deferred = false;
+
+		struct
+		{
+			bgfx::FrameBufferHandle m_fbo;
+
+			bgfx::TextureHandle m_depth;
+			bgfx::TextureHandle m_position;
+			bgfx::TextureHandle m_normal;
+			bgfx::TextureHandle m_albedo;
+			bgfx::TextureHandle m_surface;
+
+		} m_gbuffer;
 	};
 }

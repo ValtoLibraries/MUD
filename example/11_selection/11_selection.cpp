@@ -23,7 +23,7 @@ void ex_11_selection(Shell& app, Widget& parent, Dockbar& dockbar)
 
 	Material& material = milky_white(viewer.m_gfx_system);
 
-	//gfx::directional_light_node(scene);
+	//gfx::direct_light_node(scene);
 	gfx::radiance(scene, "radiance/tiber_1_1k.hdr", BackgroundMode::None);
 
 	static std::vector<ShapeVar> shapes = { Cube(1.f), Sphere(), Cylinder() }; // @todo Circle() looks weird
@@ -34,7 +34,7 @@ void ex_11_selection(Shell& app, Widget& parent, Dockbar& dockbar)
 	static std::vector<Item*> selected = {};
 	if(MouseEvent mouse_event = viewer.mouse_event(DeviceType::MouseLeft, EventType::Stroked))
 	{
-		viewer.picker(0).pick_point(viewer.m_viewport, mouse_event.m_relative, [&](Item* item) { selected = { item }; }, ITEM_SELECTABLE);
+		viewer.picker(0).pick_point(viewer.m_viewport, mouse_event.m_relative, [&](Item* item) { selected = { item }; }, ItemFlag::Default | ItemFlag::Selectable);
 	}
 
 	static vec4 select_rect = Zero4;
@@ -47,7 +47,8 @@ void ex_11_selection(Shell& app, Widget& parent, Dockbar& dockbar)
 
 	if(MouseEvent mouse_event = viewer.mouse_event(DeviceType::MouseLeft, EventType::DragEnded))
 	{
-		viewer.picker(0).pick_rectangle(viewer.m_viewport, select_rect, [&](array<Item*> items) { selected = to_vector(items); }, ITEM_SELECTABLE);
+		auto select = [&](array<Item*> items) { selected = to_vector(items); };
+		viewer.picker(0).pick_rectangle(viewer.m_viewport, select_rect, select, ItemFlag::Default | ItemFlag::Selectable);
 		select_rect = Zero4;
 	}
 
@@ -56,7 +57,7 @@ void ex_11_selection(Shell& app, Widget& parent, Dockbar& dockbar)
 
 	for(Item* selected_item : selected)
 		if(selected_item)
-			gfx::draw(scene, selected_item->m_aabb, Symbol(Colour::None, Colour::White));
+			gfx::draw(scene, selected_item->m_aabb, Symbol::wire(Colour::White));
 }
 
 #ifdef _11_SELECTION_EXE

@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -6,7 +6,7 @@
 
 #ifndef MUD_MODULES
 #include <infra/NonCopy.h>
-#include <obj/Unique.h>
+#include <type/Unique.h>
 #include <math/Vec.h>
 #endif
 #include <gfx/Forward.h>
@@ -105,6 +105,15 @@ namespace mud
 
 		meth_ Gnode& begin();
 		void update();
+
+		void cull_items(const Plane6& planes, std::vector<Item*>& items);
+
+		void gather_items(const Camera& camera, std::vector<Item*>& items);
+		void gather_occluders(const Camera& camera, std::vector<Item*>& occluders);
+		void gather_lights(std::vector<Light*>& lights);
+		void gather_gi_probes(std::vector<GIProbe*>& gi_probes);
+		void gather_lightmaps(std::vector<LightmapAtlas*>& atlases);
+		//void gather_reflection_probes(std::vector<ReflectionProbe*>& reflection_probes);
 
 		void gather_render(Render& render);
 

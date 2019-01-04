@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -7,7 +7,7 @@
 #ifndef MUD_MODULES
 #include <infra/NonCopy.h>
 #include <infra/Strung.h>
-#include <obj/Unique.h>
+#include <type/Unique.h>
 #include <math/Timer.h>
 #include <math/ImageAtlas.h>
 #endif
@@ -16,6 +16,7 @@
 
 #ifndef MUD_CPP_20
 #include <vector>
+#include <map>
 #endif
 
 namespace mud
@@ -40,9 +41,10 @@ namespace mud
 		void render_frame();
 		void shutdown();
 
-		void resize(uint16_t width, uint16_t height);
+		void init_styles();
+		void reset_styles();
 
-		void handle_resize(uint16_t width, uint16_t height);
+		void resize(uint16_t width, uint16_t height);
 
 		Image& create_image(cstring image, uvec2 size, uint8_t* data, bool filtering = true);
 		void remove_image(Image& image);
@@ -68,12 +70,12 @@ namespace mud
 
 		Clipboard m_clipboard;
 
-		object_ptr<Styler> m_styler;
-
 		object_ptr<Ui> m_root_sheet;
 
 		bool m_shutdown = false;
 
 		User* m_user = nullptr;
+
+		static std::map<string, Style*> s_styles;
 	};
 }

@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -12,21 +12,19 @@ module mud.gfx;
 #include <math/Math.h>
 #include <geom/Intersect.h>
 #include <geom/Symbol.h>
-#include <geom/Geom.h>
 #include <gfx/Types.h>
 #include <gfx/Graph.h>
 #include <gfx/Gfx.h>
 #include <gfx/Draw.h>
-#include <gfx/Shot.h>
 #include <gfx/Prefab.h>
 #include <gfx/Item.h>
 #include <gfx/Animated.h>
 #include <gfx/Particles.h>
 #include <gfx/Scene.h>
-#include <gfx/Blocks/Sky.h>
 #include <gfx/Asset.h>
 #include <gfx/Model.h>
 #include <gfx/Texture.h> // @kludge : make all this logic private and export_ asset stores
+#include <gfx/Blocks/Sky.h>
 #include <gfx/GfxSystem.h>
 #include <gfx/Pipeline.h>
 #endif
@@ -60,15 +58,15 @@ namespace mud
 			m_scene->m_pool->pool<Animated>().tdestroy(*m_animated);
 			m_animated = nullptr;
 		}
-		if(m_light)
-		{
-			m_scene->m_pool->pool<Light>().tdestroy(*m_light);
-			m_light = nullptr;
-		}
 		if(m_particles)
 		{
 			m_scene->m_pool->pool<Particles>().tdestroy(*m_particles);
 			m_particles = nullptr;
+		}
+		if(m_light)
+		{
+			m_scene->m_pool->pool<Light>().tdestroy(*m_light);
+			m_light = nullptr;
 		}
 
 		if(m_sound)
@@ -97,27 +95,11 @@ namespace mud
 	inline T_Element& create(Scene& scene, T_Args&&... args)
 	{
 		return scene.m_pool->pool<T_Element>().construct(std::forward<T_Args>(args)...);
-	};
-
-	void PrefabNode::draw(Gnode& parent)
-	{
-		Gnode& self = gfx::node(parent, m_object);
-		Gnode& item = gfx::node(self, Ref(this), m_transform.m_position, m_transform.m_rotation, m_transform.m_scale);
-
-		if(m_call.m_callable)
-			m_call.m_arguments[0] = Ref(&item);
-		if(m_call.validate())
-			m_call();
-		//else
-		//	printf("WARNING: invalid prefab node element arguments\n");
-
-		for(PrefabNode& node : m_nodes)
-			node.draw(self);
 	}
 
 namespace gfx
 {
-	Gnode& node(Gnode& parent, Ref object, const vec3& position, const quat& rotation, const vec3& scale)
+	Gnode& node(Gnode& parent, Ref object, const mat4& transform)
 	{
 		Gnode& self = parent.subi(object.m_value);
 		if(!self.m_node)
@@ -125,10 +107,13 @@ namespace gfx
 			self.m_node = &create<Node3>(*parent.m_scene, parent.m_scene, object);
 			self.m_attach = self.m_node;
 		}
-		self.m_node->m_position = position;
-		self.m_node->m_rotation = rotation;
-		self.m_node->m_scale = scale;
+		self.m_node->m_transform = transform;
 		return self;
+	}
+
+	Gnode& node(Gnode& parent, Ref object, const vec3& position, const quat& rotation, const vec3& scale)
+	{
+		return node(parent, object, bxTRS(scale, rotation, position));
 	}
 
 	Gnode& node(Gnode& parent, Ref object, const Transform& transform)
@@ -138,32 +123,19 @@ namespace gfx
 
 	Gnode& transform(Gnode& parent, Ref object, const vec3& position, const quat& rotation, const vec3& scale)
 	{
-		vec3 relative = rotate(parent.m_attach->m_rotation, position) * parent.m_attach->m_scale;
-		return node(parent, object, parent.m_attach->m_position + relative, parent.m_attach->m_rotation * rotation, parent.m_attach->m_scale * scale);
+		return node(parent, object, parent.m_attach->m_transform * bxTRS(scale, rotation, position));
 	}
 
 	Gnode& transform(Gnode& parent, Ref object, const vec3& position, const quat& rotation)
 	{
-		vec3 relative = rotate(parent.m_attach->m_rotation, position);
-		return node(parent, object, parent.m_attach->m_position + relative, parent.m_attach->m_rotation * rotation, Unit3);
-	}
-
-	void update_item_lights(Item& item)
-	{
-		item.m_lights.clear();
-
-		item.m_node.m_scene->m_pool->iterate_objects<Light>([&](Light& light)
-		{
-			if(light.m_type == LightType::Directional || sphere_aabb_intersection(light.m_node.m_position, light.m_range, item.m_aabb))
-				item.m_lights.push_back(&light);
-		});
+		return node(parent, object, parent.m_attach->m_transform * bxTRS(Unit3, rotation, position));
 	}
 
 	void update_item_aabb(Item& item)
 	{
 		if(item.m_instances.size() == 0)
 		{
-			item.m_aabb = transform_aabb(item.m_model->m_aabb, item.m_node.transform());
+			item.m_aabb = transform_aabb(item.m_model->m_aabb, item.m_node->m_transform);
 		}
 		else
 		{
@@ -173,25 +145,61 @@ namespace gfx
 		}
 	}
 
+	void update_item_lights(Item& item)
+	{
+		item.m_lights.clear();
+
+		item.m_node->m_scene->m_pool->pool<Light>().iterate([&](Light& light)
+		{
+			if(light.m_type == LightType::Direct || sphere_aabb_intersection(light.m_node.position(), light.m_range, item.m_aabb))
+				item.m_lights.push_back(&light);
+		});
+	}
+
 	Item& item(Gnode& parent, const Model& model, uint32_t flags, Material* material, size_t instances, array<mat4> transforms)
 	{
 		Gnode& self = parent.suba<Gnode>();
+		bool update = (flags & ItemFlag::NoUpdate) == 0;
 		if(!self.m_item)
 		{
 			self.m_item = &create<Item>(*self.m_scene, *self.m_attach, model, flags, material, instances);
+			update = true;
 		}
 		self.m_item->m_model = const_cast<Model*>(&model);
 		self.m_item->m_material = material;
 		if(transforms.size() > 0)
-			transforms.copy(self.m_item->m_instances);
-		if(instances > 0)
+		{
 			self.m_item->m_instances.resize(instances);
-		if((flags & ITEM_NO_UPDATE) == 0)
+			transforms.copy(self.m_item->m_instances);
+		}
+		if(instances > 0)
+		{
+			self.m_item->m_instances.resize(instances);
+			self.m_item->update_instances();
+		}
+		if(update)
 		{
 			update_item_aabb(*self.m_item);
 			update_item_lights(*self.m_item);
 		}
 		return *self.m_item;
+	}
+
+	void prefab(Gnode& parent, const Prefab& prefab, bool transform, uint32_t flags, Material* material, size_t instances, array<mat4> transforms)
+	{
+		Gnode& self = parent.suba<Gnode>();
+		
+		for(size_t i = 0; i < prefab.m_items.size(); ++i)
+		{
+			mat4 tr = transform ? parent.m_attach->m_transform * prefab.m_nodes[i].m_transform
+								: prefab.m_nodes[i].m_transform;
+			Gnode& no = node(self, {}, tr);
+			Item& it = item(no, *prefab.m_items[i].m_model, prefab.m_items[i].m_flags | flags, material, instances, transforms);
+			//it = prefab.m_items[i];
+			//shape(self, Cube(i.m_aabb.m_center, vec3(0.1f)), Symbol::wire(Colour::Red, true));
+			//shape(self, submodel->m_aabb, Symbol::wire(Colour::White));
+			UNUSED(it);
+		}
 	}
 
 	Item& shape_item(Gnode& parent, Model& model, const Symbol& symbol, uint32_t flags, Material* material, size_t instances, DrawMode draw_mode)
@@ -212,13 +220,18 @@ namespace gfx
 		return *item;
 	}
 
-	void draw(Gnode& parent, const Shape& shape, const Symbol& symbol, uint32_t flags)
+	void draw(Scene& scene, const mat4& transform, const Shape& shape, const Symbol& symbol, uint32_t flags)
 	{
 		UNUSED(flags);
 		if(symbol.fill())
-			parent.m_scene->m_immediate->draw(parent.m_attach->transform(), { symbol, &shape, PLAIN });
+			scene.m_immediate->draw(transform, { symbol, &shape, PLAIN });
 		if(symbol.outline())
-			parent.m_scene->m_immediate->draw(parent.m_attach->transform(), { symbol, &shape, OUTLINE });
+			scene.m_immediate->draw(transform, { symbol, &shape, OUTLINE });
+	}
+
+	void draw(Gnode& parent, const Shape& shape, const Symbol& symbol, uint32_t flags)
+	{
+		draw(*parent.m_scene, parent.m_attach->m_transform, shape, symbol, flags);
 	}
 
 	Item& sprite(Gnode& parent, const Image256& image, const vec2& size, uint32_t flags, Material* material, size_t instances)
@@ -271,13 +284,13 @@ namespace gfx
 		return *self.m_light;
 	}
 
-	Light& directional_light_node(Gnode& parent, const quat& rotation)
+	Light& direct_light_node(Gnode& parent, const quat& rotation)
 	{
 		Gnode& self = node(parent, {}, Zero3, rotation);
-		Light& l = light(self, LightType::Directional, true, Colour{ 0.8f, 0.8f, 0.7f }, 1.f);
+		Light& l = light(self, LightType::Direct, true, Colour{ 0.8f, 0.8f, 0.7f }, 1.f);
 		l.m_energy = 0.6f;
 		l.m_shadow_flags = CSM_Stabilize;
-#if 1 // MUD_PLATFORM_EMSCRIPTEN
+#ifdef MUD_PLATFORM_EMSCRIPTEN
 		l.m_shadow_num_splits = 2;
 #else
 		l.m_shadow_num_splits = 4;
@@ -287,7 +300,7 @@ namespace gfx
 
 	Light& sun_light(Gnode& parent, float azimuth, float elevation)
 	{
-		return directional_light_node(parent, sun_rotation(azimuth, elevation));
+		return direct_light_node(parent, sun_rotation(azimuth, elevation));
 	}
 
 	quat facing(const vec3& direction)
@@ -296,25 +309,15 @@ namespace gfx
 		return { cosf(angle / 2.f), 0.f, 1.f * sinf(angle / 2.f), 0.f };
 	}
 
-	Light& directional_light_node(Gnode& parent, const vec3& direction)
+	Light& direct_light_node(Gnode& parent, const vec3& direction)
 	{
-		return directional_light_node(parent, facing(direction));
+		return direct_light_node(parent, facing(direction));
 	}
 
-	Light& directional_light_node(Gnode& parent)
+	Light& direct_light_node(Gnode& parent)
 	{
-		return directional_light_node(parent, quat{ vec3{ -c_pi / 4.f, -c_pi / 4.f, 0.f } });
+		return direct_light_node(parent, quat{ vec3{ -c_pi / 4.f, -c_pi / 4.f, 0.f } });
 	}
-
-#if 0
-	GIProbe& gi_probe(Gnode& parent)
-	{
-		Gnode& self = parent.suba();
-		if(!self.m_gi_probe)
-			self.m_gi_probe = &create<GIProbe>(*self.m_scene, *self.m_attach);
-		return *self.m_gi_probe;
-	}
-#endif
 
 	void radiance(Gnode& parent, const string& texture, BackgroundMode background)
 	{

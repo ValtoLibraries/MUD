@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -51,10 +51,11 @@ namespace mud
 	public:
 		BlockGlow(GfxSystem& gfx_system, BlockFilter& filter, BlockCopy& copy, BlockBlur& blur);
 
-		virtual void init_gfx_block() final;
+		virtual void init_block() override;
 
-		virtual void begin_gfx_block(Render& render) final;
-		virtual void submit_gfx_block(Render& render) final;
+		virtual void begin_render(Render& render) override;
+		virtual void begin_pass(Render& render) override;
+		virtual void submit_pass(Render& render) final;
 
 		void glow_bleed(Render& render, Glow& glow);
 		void glow_blur(Render& render, Glow& glow);
@@ -68,8 +69,8 @@ namespace mud
 
 		GlowUniform u_uniform;
 
-		Program m_bleed_program;
-		Program m_merge_program;
+		Program& m_bleed_program;
+		Program& m_merge_program;
 	};
 
 }

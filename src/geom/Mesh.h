@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -37,9 +37,9 @@ namespace mud
 	{
 		constr_ MeshPacker();
 
-		size_t vertex_format();
-		size_t vertex_count() { return m_positions.size(); }
-		size_t index_count() { return m_indices.size() > 0 ? m_indices.size() : m_positions.size(); }
+		uint32_t vertex_format();
+		uint32_t vertex_count() { return uint32_t(m_positions.size()); }
+		uint32_t index_count() { return m_indices.size() > 0 ? uint32_t(m_indices.size()) : uint32_t(m_positions.size()); }
 
 		PrimitiveType m_primitive = PrimitiveType::Triangles;
 
@@ -55,17 +55,13 @@ namespace mud
 
 		std::vector<uint32_t> m_indices;
 
+		bool m_quantize = false;
+
 		void bake(bool normals, bool tangents);
 
-		void pack_vertices(MeshData& data, const mat4& transform);
+		void pack_vertices(MeshAdapter& writer, const mat4& transform);
 		void generate_normals();
 		void generate_tangents();
-
-		/*inline ShapeVertex& vertex()
-		{
-			m_vertices.emplace_back();
-			return m_vertices.back();
-		}*/
 	};
 
 	export_ MUD_GEOM_EXPORT void generate_mikkt_tangents(array<ShapeIndex> indices, array<ShapeVertex> vertices);

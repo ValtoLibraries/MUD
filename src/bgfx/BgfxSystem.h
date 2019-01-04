@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -47,7 +47,7 @@ namespace mud
 
 	export_ struct MUD_BGFX_EXPORT TimerBx
 	{
-		double m_start = 0.0;
+		int64_t m_start = 0;
 
 		void begin();
 		float end();
@@ -59,6 +59,7 @@ namespace mud
 		BgfxSystem(cstring resource_path);
 		~BgfxSystem();
 
+		virtual void begin_frame() override;
 		virtual bool next_frame() override;
 
 		virtual object_ptr<Context> create_context(cstring name, int width, int height, bool fullScreen) override;
@@ -77,7 +78,8 @@ namespace mud
 		float m_frame_time = 0.f;
 		float m_delta_time = 0.f;
 
-		bool m_profile = false;
+		bool m_capture = false;
+		size_t m_capture_every = 0;
 	};
 }
 

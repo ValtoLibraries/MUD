@@ -1,13 +1,13 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #pragma once
 
 #include <refl/Forward.h>
-#include <obj/Type.h>
-#include <obj/Var.h>
-#include <obj/Any.h>
+#include <type/Type.h>
+#include <type/Var.h>
+#include <type/Any.h>
 #include <infra/Array.h>
 #include <refl/Meta.h>
 

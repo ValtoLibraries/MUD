@@ -5,8 +5,7 @@
 #include <infra/Config.h>
 
 #include <infra/Forward.h>
-#include <obj/Forward.h>
-#include <srlz/Forward.h>
+#include <type/Forward.h>
 #include <math/Forward.h>
 #include <geom/Forward.h>
 #include <gfx/Forward.h>
@@ -68,13 +67,19 @@ namespace mud {
     enum class TonemapMode : unsigned int;
     
     
+	class BlockGeometry;
     class BlockLight;
     struct ReflectionRenderer;
-    struct MainRenderer;
+    struct ForwardRenderer;
+	struct DeferredRenderer;
     class BlockRadiance;
     struct ReflectionCubemap;
     class ReflectionAtlas;
     class ReflectionProbe;
+	class PassGeometry;
+	class PassLights;
+	class PassOpaque;
+	class PassAlpha;
     class PassProbes;
     class BlockReflection;
     struct ShadowCubemap;
@@ -94,6 +99,10 @@ namespace mud {
     class BlockDofBlur;
     struct Glow;
     struct GlowUniform;
+	class BlockGI;
+	class BlockGIBake;
+	class BlockGITrace;
+	class BlockLightmap;
     class BlockGlow;
     struct BCS;
     struct Tonemap;

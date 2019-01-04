@@ -1,10 +1,10 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #pragma once
 
-#include <obj/Ref.h>
+#include <type/Ref.h>
 #include <math/Vec.h>
 #include <gfx/Forward.h>
 
@@ -22,6 +22,7 @@ namespace mud
 	export_ MUD_GFX_EXPORT vec3 bxmul(const mat4& mat, const vec3& vec);
 	export_ MUD_GFX_EXPORT vec3 bxmulh(const mat4& mat, const vec3& vec);
 	export_ MUD_GFX_EXPORT mat4 bxlookat(const vec3& eye, const vec3& at);
+	export_ MUD_GFX_EXPORT void bxlookat(mat4& result, const vec3& eye, const vec3& at, const vec3& up);
 	export_ MUD_GFX_EXPORT mat4 bxlookat(const vec3& eye, const vec3& at, const vec3& up);
 	export_ MUD_GFX_EXPORT mat4 bxproj(float fov, float aspect, float near, float far, bool oglNdc);
 	export_ MUD_GFX_EXPORT mat4 bxortho(const vec4& rect, float near, float far, float offset, bool oglNdc);
@@ -36,25 +37,19 @@ namespace mud
 	public:
 		// @todo factor out scene management stuff from items, nodes, lights and add it to the graph / scene
 		Node3(Scene* scene = nullptr, Ref object = {});
+		Node3(const mat4& transform);
 
 		attr_ Scene* m_scene = nullptr;
 		attr_ uint16_t m_index = 0;
 
-		attr_ vec3 m_position = Zero3;
-		attr_ quat m_rotation = ZeroQuat;
-		attr_ vec3 m_scale = Unit3;
+		attr_ mat4 m_transform = bxidentity();
 		attr_ bool m_visible = true;
 
 		Ref m_object;
 		size_t m_last_updated = 0;
 
-		mat4 transformTRS() { return bxTRS(m_scale, m_rotation, m_position); }
-		mat4 transformSRT() { return bxSRT(m_scale, m_rotation, m_position); }
-		mat4 transform() { return transformTRS(); }
-
-		vec3 axis(const vec3& dir) { return normalize(rotate(m_rotation, dir)); }
-		vec3 direction() { return normalize(rotate(m_rotation, -Z3)); }
-
-		//std::vector<Item*> m_items;
+		vec3 position() const { return m_transform * vec4(Zero3, 1.f); }
+		vec3 axis(const vec3& dir) const { return normalize(m_transform * vec4(dir, 0.f)); }
+		vec3 direction() const { return normalize(m_transform * vec4(-Z3, 0.f)); }
 	};
 }

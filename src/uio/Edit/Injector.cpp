@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -9,7 +9,7 @@ module mud.uio;
 #else
 #include <refl/Class.h>
 #include <refl/System.h>
-#include <proto/Proto.h>
+#include <ecs/Proto.h>
 #include <ui/Structs/Container.h>
 #include <uio/Object.h>
 #include <uio/Edit/Injector.h>
@@ -29,7 +29,7 @@ namespace mud
 	struct CreatorState : public NodeState
 	{
 		CreatorState(Type& type) : m_type(0), m_injector(make_unique<Injector>(type)) {}
-		size_t m_type;
+		uint32_t m_type;
 		unique_ptr<Injector> m_injector;
 	};
 

@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -7,8 +7,8 @@
 #include <infra/Array.h>
 #include <infra/Strung.h>
 #include <refl/Forward.h>
-#include <obj/Type.h>
-#include <obj/Var.h>
+#include <type/Type.h>
+#include <type/Var.h>
 
 #ifndef MUD_CPP_20
 #include <functional>

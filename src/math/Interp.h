@@ -1,14 +1,14 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #pragma once
 
 #ifndef MUD_MODULES
-#include <obj/Var.h>
+#include <type/Var.h>
 #include <infra/Global.h>
-#include <obj/Dispatch.h>
-#include <refl/Meta.h>
+#include <type/Dispatch.h>
+//#include <refl/Meta.h>
 #endif
 #include <math/Forward.h>
 #include <math/VecOps.h>
@@ -86,9 +86,8 @@ namespace mud
 		return to_colour(va + (vb - va) * c);
 	}
 
-	export_ inline Var interpolate(Ref a, Ref b, float t) { Var result = meta(a).m_empty_var; Lerp::me().dispatch(result.m_ref, a, b, t); return result; }
-	export_ inline void interpolate(Var& result, Ref a, Ref b, float t) { Lerp::me().dispatch(result.m_ref, a, b, t); }
-	export_ inline Var interpolate(const Var& a, const Var& b, float t) { return interpolate(a.m_ref, b.m_ref, t); }
-	export_ inline void interpolate(Var& result, const Var& a, const Var& b, float t) { Lerp::me().dispatch(result.m_ref, a.m_ref, b.m_ref, t); }
-	export_ inline Var interpolate_cubic(const Var& a, const Var& b, const Var& d, const Var& e, float t) { UNUSED(e); UNUSED(d); return interpolate(a.m_ref, b.m_ref, t); }
+	export_ inline void interpolate(Ref result, Ref a, Ref b, float t) { Lerp::me().dispatch(result, a, b, t); }
+	//export_ inline Var interpolate(Ref a, Ref b, float t) { Var result = meta(a).m_empty_var; Lerp::me().dispatch(result.m_ref, a, b, t); return result; }
+	export_ inline void interpolate_cubic(Ref result, Ref a, Ref b, Ref d, Ref e, float t) { UNUSED(e); UNUSED(d); return interpolate(result, a, b, t); }
+	//export_ inline Var interpolate_cubic(Ref a, Ref b, Ref d, Ref e, float t) { UNUSED(e); UNUSED(d); return interpolate(a, b, t); }
 }

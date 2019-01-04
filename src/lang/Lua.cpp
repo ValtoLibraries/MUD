@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -17,16 +17,16 @@
 #include <stdlib.h>
 module mud.lang;
 #else
-#include <proto/Proto.h>
 #include <infra/NonCopy.h>
+#include <ecs/Proto.h>
 #include <refl/Meta.h>
 #include <refl/Enum.h>
 #include <refl/Sequence.h>
-#include <obj/Any.h>
+#include <type/Any.h>
 #include <infra/Vector.h>
 #include <refl/System.h>
-#include <obj/Dispatch.h>
-#include <obj/DispatchDecl.h>
+#include <type/Dispatch.h>
+#include <type/DispatchDecl.h>
 #include <infra/Global.h>
 #include <lang/Types.h>
 #include <lang/Lua.h>
@@ -667,7 +667,7 @@ namespace mud
 	{
 		if(!lua_isnumber(state, index) || fmod(lua_tonumber(state, index), 1.) != 0)
 			return;
-		result = enum_value(type, size_t(lua_tointeger(state, index)));
+		result = enum_value(type, uint32_t(lua_tointeger(state, index)));
 	}
 
 	inline void read_sequence(lua_State* state, int index, Type& sequence_type, Var& result)
@@ -771,9 +771,10 @@ namespace mud
 		function<void>([](Ref, lua_State* state) { return push_null(state); });
 
 		dispatch_branch<int>     (*this, [](int&      value, lua_State* state) { return push_integer(state, value); });
-		dispatch_branch<uint16_t>(*this, [](uint16_t& value, lua_State* state) { return push_integer(state, value); });
-		dispatch_branch<uint32_t>(*this, [](uint32_t& value, lua_State* state) { return push_integer(state, value); });
-		dispatch_branch<uint64_t>(*this, [](uint64_t& value, lua_State* state) { return push_integer(state, value); });
+		dispatch_branch<ushort>  (*this, [](ushort&   value, lua_State* state) { return push_integer(state, value); });
+		dispatch_branch<uint>    (*this, [](uint&     value, lua_State* state) { return push_integer(state, value); });
+		dispatch_branch<ulong>   (*this, [](ulong&    value, lua_State* state) { return push_integer(state, value); });
+		dispatch_branch<ulong2>  (*this, [](ulong2&   value, lua_State* state) { return push_integer(state, value); });
 		dispatch_branch<float>   (*this, [](float&    value, lua_State* state) { return push_scalar(state, value); });
 		dispatch_branch<double>  (*this, [](double&   value, lua_State* state) { return push_scalar(state, value); });
 		dispatch_branch<cstring> (*this, [](cstring   value, lua_State* state) { return push_cstring(state, value); });
@@ -847,7 +848,7 @@ namespace mud
 
 			for(size_t i = 0; i < enu.m_names.size(); ++i)
 			{
-				set_table(m_state, enu.m_names[i], enu.m_values[i]);
+				set_table(m_state, enu.m_names[i], enu.m_vars[i]);
 			}
 		}
 

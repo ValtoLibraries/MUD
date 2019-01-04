@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -41,11 +41,9 @@ namespace mud
 		, m_program(gfx_system.programs().fetch("picking_id"))
 		, m_data(target.m_size.x * target.m_size.y)
 	{
-		printf("Picker::Picker()\n");
-
 		u_picking_id = bgfx::createUniform("u_picking_id", bgfx::UniformType::Vec4);
 		
-		uint32_t flags = GFX_TEXTURE_POINT | BGFX_TEXTURE_MIP_POINT | GFX_TEXTURE_CLAMP;
+		uint64_t flags = GFX_TEXTURE_POINT | BGFX_SAMPLER_MIP_POINT | GFX_TEXTURE_CLAMP;
 
 		if((bgfx::getCaps()->supported & BGFX_CAPS_TEXTURE_BLIT) != 0 && (bgfx::getCaps()->supported & BGFX_CAPS_TEXTURE_READ_BACK) != 0)
 			m_readback_texture = bgfx::createTexture2D(uint16_t(m_size.y), uint16_t(m_size.y), false, 1, bgfx::TextureFormat::RGBA8, 0 | BGFX_TEXTURE_BLIT_DST | BGFX_TEXTURE_READ_BACK | flags);
@@ -118,25 +116,29 @@ namespace mud
 			vec4 unpacked = unpack4(index);
 			vec4 colour_id = { unpacked.w, unpacked.z, unpacked.y, unpacked.x }; // unpack4 gives reversed order from what we wnat
 
-			bgfx::setUniform(u_picking_id, value_ptr(colour_id));
+			bgfx::Encoder& encoder = *bgfx::begin();
+
+			encoder.setUniform(u_picking_id, value_ptr(colour_id));
 
 			if(item.m_model->m_items.empty())
-				bgfx::touch(view);
+				encoder.touch(view);
 
 			for(const ModelItem& model_item : item.m_model->m_items)
 			{
 				Material& material = model_item.m_mesh->m_material ? *model_item.m_mesh->m_material : *item.m_material;
 
 				ShaderVersion shader_version = { &m_program };
-				shader_version.set_option(0, BILLBOARD, item.m_flags & ITEM_BILLBOARD);
+				shader_version.set_option(0, BILLBOARD, item.m_flags & ItemFlag::Billboard);
 
 				uint64_t render_state = BGFX_STATE_DEFAULT;
 				material.state(render_state);
-				item.submit(render_state, model_item);
+				item.submit(encoder, render_state, model_item);
 
-				bgfx::setState(render_state);
-				bgfx::submit(view, m_program.version(shader_version));
+				encoder.setState(render_state);
+				encoder.submit(view, m_program.version(shader_version));
 			}
+
+			bgfx::end(&encoder);
 		}
 
 		// every time the blit to CPU texture is finished, we read the focused item

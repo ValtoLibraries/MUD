@@ -13,12 +13,14 @@ extern "C"
 #include <fpp.h>
 } // extern "C"
 
-#define BGFX_CHUNK_MAGIC_CSH BX_MAKEFOURCC('C', 'S', 'H', 0x3)
-#define BGFX_CHUNK_MAGIC_FSH BX_MAKEFOURCC('F', 'S', 'H', 0x5)
-#define BGFX_CHUNK_MAGIC_VSH BX_MAKEFOURCC('V', 'S', 'H', 0x5)
+#define BGFX_SHADER_BIN_VERSION 6
+#define BGFX_CHUNK_MAGIC_CSH BX_MAKEFOURCC('C', 'S', 'H', BGFX_SHADER_BIN_VERSION)
+#define BGFX_CHUNK_MAGIC_FSH BX_MAKEFOURCC('F', 'S', 'H', BGFX_SHADER_BIN_VERSION)
+#define BGFX_CHUNK_MAGIC_GSH BX_MAKEFOURCC('G', 'S', 'H', BGFX_SHADER_BIN_VERSION)
+#define BGFX_CHUNK_MAGIC_VSH BX_MAKEFOURCC('V', 'S', 'H', BGFX_SHADER_BIN_VERSION)
 
 #define BGFX_SHADERC_VERSION_MAJOR 1
-#define BGFX_SHADERC_VERSION_MINOR 12
+#define BGFX_SHADERC_VERSION_MINOR 16
 
 namespace bgfx
 {
@@ -112,8 +114,12 @@ namespace bgfx
 		"uint2",
 		"uint3",
 		"uint4",
+		"isampler2D",
+		"usampler2D",
 		"isampler3D",
 		"usampler3D",
+		"isamplerCube",
+		"usamplerCube",
 		NULL
 	};
 
@@ -140,6 +146,7 @@ namespace bgfx
 		NULL
 	};
 
+
 	Options::Options()
 		: shaderType(' ')
 		, disasm(false)
@@ -153,6 +160,7 @@ namespace bgfx
 		, preferFlowControl(false)
 		, backwardsCompatibility(false)
 		, warningsAreErrors(false)
+		, keepIntermediate(false)
 		, optimize(false)
 		, optimizationLevel(3)
 	{
@@ -177,6 +185,7 @@ namespace bgfx
 			"\t  preferFlowControl: %s\n"
 			"\t  backwardsCompatibility: %s\n"
 			"\t  warningsAreErrors: %s\n"
+			"\t  keepIntermediate: %s\n"
 			"\t  optimize: %s\n"
 			"\t  optimizationLevel: %d\n"
 
@@ -196,6 +205,7 @@ namespace bgfx
 			, preferFlowControl ? "true" : "false"
 			, backwardsCompatibility ? "true" : "false"
 			, warningsAreErrors ? "true" : "false"
+			, keepIntermediate ? "true" : "false"
 			, optimize ? "true" : "false"
 			, optimizationLevel
 			);
@@ -300,7 +310,7 @@ namespace bgfx
 					bx::snprintf(&hex[hexPos], sizeof(hex)-hexPos, "0x%02x, ", data[asciiPos]);
 					hexPos += 6;
 
-					ascii[asciiPos] = isprint(data[asciiPos]) && data[asciiPos] != '\\' ? data[asciiPos] : '.';
+					ascii[asciiPos] = isprint(data[asciiPos]) && data[asciiPos] != '\\'  && data[asciiPos] != '\t' ? data[asciiPos] : '.';
 					asciiPos++;
 
 					if (HEX_DUMP_WIDTH == asciiPos)
@@ -801,7 +811,7 @@ namespace bgfx
 			  "  -h, --help                    Help.\n"
 			  "  -v, --version                 Version information only.\n"
 			  "  -f <file path>                Input file path.\n"
-			  "  -i <include path>             Include path (for multiple paths use use -i multiple times).\n"
+			  "  -i <include path>             Include path (for multiple paths use -i multiple times).\n"
 			  "  -o <file path>                Output file path.\n"
 			  "      --bin2c <file path>       Generate C header file.\n"
 			  "      --depends                 Generate makefile style depends file.\n"
@@ -921,6 +931,7 @@ namespace bgfx
 
 		preprocessor.setDefaultDefine("BGFX_SHADER_TYPE_COMPUTE");
 		preprocessor.setDefaultDefine("BGFX_SHADER_TYPE_FRAGMENT");
+		preprocessor.setDefaultDefine("BGFX_SHADER_TYPE_GEOMETRY");
 		preprocessor.setDefaultDefine("BGFX_SHADER_TYPE_VERTEX");
 
 		char glslDefine[128];
@@ -990,6 +1001,10 @@ namespace bgfx
 
 		case 'f':
 			preprocessor.setDefine("BGFX_SHADER_TYPE_FRAGMENT=1");
+			break;
+			
+		case 'g':
+			preprocessor.setDefine("BGFX_SHADER_TYPE_GEOMETRY=1");
 			break;
 
 		case 'v':
@@ -1109,8 +1124,13 @@ namespace bgfx
 				// To avoid commented code being recognized as used feature,
 				// first preprocess pass is used to strip all comments before
 				// substituting code.
-				preprocessor.run(data);
+				bool ok = preprocessor.run(data);
 				delete [] data;
+
+				if (!ok)
+				{
+					return false;
+				}
 
 				size = (uint32_t)preprocessor.m_preprocessed.size();
 				data = new char[size+padding+1];
@@ -1152,24 +1172,28 @@ namespace bgfx
 			}
 		}
 
+		if('f' == _options.shaderType)
+		{
+			bx::write(_writer, BGFX_CHUNK_MAGIC_FSH);
+		}
+		else if('g' == _options.shaderType)
+		{
+			bx::write(_writer, BGFX_CHUNK_MAGIC_GSH);
+		}
+		else if('v' == _options.shaderType)
+		{
+			bx::write(_writer, BGFX_CHUNK_MAGIC_VSH);
+		}
+		else
+		{
+			bx::write(_writer, BGFX_CHUNK_MAGIC_CSH);
+		}
+
+		bx::write(_writer, inputHash);
+		bx::write(_writer, outputHash);
+
 		if (raw)
 		{
-			if ('f' == _options.shaderType)
-			{
-				bx::write(_writer, BGFX_CHUNK_MAGIC_FSH);
-				bx::write(_writer, inputHash);
-			}
-			else if ('v' == _options.shaderType)
-			{
-				bx::write(_writer, BGFX_CHUNK_MAGIC_VSH);
-				bx::write(_writer, outputHash);
-			}
-			else
-			{
-				bx::write(_writer, BGFX_CHUNK_MAGIC_CSH);
-				bx::write(_writer, outputHash);
-			}
-
 			if (0 != glsl)
 			{
 				bx::write(_writer, uint16_t(0) );
@@ -1290,9 +1314,6 @@ namespace bgfx
 					{
 						std::string code;
 
-						bx::write(_writer, BGFX_CHUNK_MAGIC_CSH);
-						bx::write(_writer, outputHash);
-
 						if (0 != glsl
 						||  0 != essl)
 						{
@@ -1360,6 +1381,218 @@ namespace bgfx
 				}
 			}
 		}
+		else if ('g' == _options.shaderType)
+        {
+            char* entry = strstr(input, "void main()");
+            if (NULL == entry)
+            {
+                fprintf(stderr, "Shader entry point 'void main()' is not found.\n");
+            }
+            else
+            {
+                if (0 != glsl
+                || 0 != essl
+                || 0 != metal)
+                {
+					preprocessor.writef("layout(triangles) in;\n");
+					preprocessor.writef("layout(triangle_strip, max_vertices = 3) out;\n");
+
+                    for (InOut::const_iterator it = shaderInputs.begin(), itEnd = shaderInputs.end(); it != itEnd; ++it)
+                    {
+                        VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
+                        if (varyingIt != varyingMap.end())
+                        {
+                            const Varying& var = varyingIt->second;
+                            const char* name = var.m_name.c_str();
+                            preprocessor.writef("%s in %s %s %s%s;\n"
+                                , var.m_interpolation.c_str()
+                                , var.m_precision.c_str()
+                                , var.m_type.c_str()
+                                , name
+                                , "[]"
+                                );
+                        }
+                    }
+
+                    for (InOut::const_iterator it = shaderOutputs.begin(), itEnd = shaderOutputs.end(); it != itEnd; ++it)
+                    {
+                        VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
+                        if (varyingIt != varyingMap.end())
+                        {
+                            const Varying& var = varyingIt->second;
+                            preprocessor.writef("%s out %s %s;\n"
+                                , var.m_interpolation.c_str()
+                                , var.m_type.c_str()
+                                , var.m_name.c_str()
+                                );
+                        }
+                    }
+                }
+                else
+                {
+					const char* brace = bx::strFind(entry, "{");
+					if(NULL != brace)
+					{
+						const char* end = bx::strmb(brace, '{', '}');
+						if(NULL != end)
+						{
+							strInsert(const_cast<char*>(end), "__RETURN__;\n");
+						}
+					}
+
+                    preprocessor.writef(
+                        "#define lowp\n"
+                        "#define mediump\n"
+                        "#define highp\n"
+                        "#define ivec2 int2\n"
+                        "#define ivec3 int3\n"
+                        "#define ivec4 int4\n"
+                        "#define uvec2 uint2\n"
+                        "#define uvec3 uint3\n"
+                        "#define uvec4 uint4\n"
+                        "#define vec2 float2\n"
+                        "#define vec3 float3\n"
+                        "#define vec4 float4\n"
+                        "#define mat2 float2x2\n"
+                        "#define mat3 float3x3\n"
+                        "#define mat4 float4x4\n"
+                        );
+
+                    int vertexCount = 3;
+
+                    preprocessor.writef(
+                        "struct GSOutput\n"
+                        "{\n"
+                        "\tvec4 gl_Position : SV_POSITION;\n");
+
+                    for (InOut::const_iterator it = shaderOutputs.begin(), itEnd = shaderOutputs.end(); it != itEnd; ++it)
+                    {
+                        VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
+                        if (varyingIt != varyingMap.end())
+                        {
+                            const Varying& var = varyingIt->second;
+                            preprocessor.writef("\t%s %s : %s;\n", var.m_type.c_str(), var.m_name.c_str(), var.m_semantics.c_str());
+                            preprocessor.writef("#define %s output.%s\n", var.m_name.c_str(), var.m_name.c_str());
+                        }
+                    }
+                    preprocessor.writef("};\n");
+
+                    preprocessor.writef(
+                        "struct GSInput\n"
+                        "{\n"
+						"\tvec4 gl_Position : SV_POSITION;");
+
+                    for (InOut::const_iterator it = shaderInputs.begin(), itEnd = shaderInputs.end(); it != itEnd; ++it)
+                    {
+                        VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
+                        if (varyingIt != varyingMap.end())
+                        {
+                            const Varying& var = varyingIt->second;
+                            preprocessor.writef("\t%s %s : %s;\n", var.m_type.c_str(), var.m_name.c_str(), var.m_semantics.c_str());
+                        }
+                    }
+                    preprocessor.writef("};\n");
+
+					entry[4] = '_';
+
+					preprocessor.writef("#define gl_Position output.gl_Position\n");
+                    preprocessor.writef("\n#define void_main()");
+                    preprocessor.writef(
+						" \\\n[maxvertexcount(3)]"
+						" \\\n\tvoid main("
+						" \\\n\ttriangle GSInput input[3],"
+						" \\\n\tinout TriangleStream<GSOutput> outputStream"
+                        " \\\n)"
+                        " \\\n{"
+                        " \\\n\tGSOutput output;"
+                        );
+
+					for(InOut::const_iterator it = shaderInputs.begin(), itEnd = shaderInputs.end(); it != itEnd; ++it)
+					{
+						VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
+						if(varyingIt != varyingMap.end())
+						{
+							const Varying& var = varyingIt->second;
+							preprocessor.writef(" \\\n\t%s %s[3];", var.m_type.c_str(), var.m_name.c_str());
+							for(size_t i = 0; i < 3; ++i)
+								preprocessor.writef(" \\\n\t%s[%i] = input[%i].%s;", var.m_name.c_str(), int(i), int(i), var.m_name.c_str());
+						}
+					}
+
+					preprocessor.writef(
+						"\n#define __RETURN__ \\\n"
+						"\t} \\\n\n"
+					);
+                }
+
+                if (preprocessor.run(input))
+                {
+                    //BX_TRACE("Input file: %s", filePath);
+                    //BX_TRACE("Output file: %s", outFilePath);
+
+					if(_options.preprocessOnly)
+					{
+						bx::write(_writer, preprocessor.m_preprocessed.c_str(), (int32_t)preprocessor.m_preprocessed.size());
+
+						return true;
+					}
+
+                    {
+						std::string code;
+
+                        if (0 != glsl
+                        ||  0 != essl
+                        ||  0 != metal)
+                        {
+							bx::stringPrintf(code, "#version %d\n", glsl == 0 ? 430 : glsl);
+
+							code += preprocessor.m_preprocessed;
+
+							bx::write(_writer, uint16_t(0));
+
+							uint32_t shaderSize = (uint32_t)code.size();
+							bx::write(_writer, shaderSize);
+							bx::write(_writer, code.c_str(), shaderSize);
+							bx::write(_writer, uint8_t(0));
+
+							compiled = true;
+                        }
+                        else
+                        {
+							code += _comment;
+							code += preprocessor.m_preprocessed;
+
+							if(0 != spirv)
+							{
+								compiled = compileSPIRVShader(_options, 0, code, _writer);
+							}
+							else if(0 != pssl)
+							{
+								compiled = compilePSSLShader(_options, 0, code, _writer);
+							}
+							else
+							{
+								compiled = compileHLSLShader(_options, d3d, code, _writer);
+							}
+                        }
+                    }
+
+					if(compiled)
+					{
+						if(_options.depends)
+						{
+							std::string ofp = _options.outputFilePath + ".d";
+							bx::FileWriter writer;
+							if(bx::open(&writer, ofp.c_str()))
+							{
+								writef(&writer, "%s : %s\n", _options.outputFilePath.c_str(), preprocessor.m_depends.c_str());
+								bx::close(&writer);
+							}
+						}
+					}
+                }
+            }
+        }
 		else // Vertex/Fragment
 		{
 			char* entry = const_cast<char*>(bx::strFind(input, "void main()") );
@@ -1560,18 +1793,27 @@ namespace bgfx
 								);
 						}
 
-						if (hasFrontFacing
-						&&  hlsl >= 3)
+						if (hasFrontFacing)
 						{
-							preprocessor.writef(
-								" \\\n\t%sfloat __vface : VFACE"
-								, arg++ > 0 ? ", " : "  "
-								);
+							if (hlsl == 3)
+							{
+								preprocessor.writef(
+									" \\\n\t%sfloat __vface : VFACE"
+									, arg++ > 0 ? ", " : "  "
+									);
+							}
+							else
+							{
+								preprocessor.writef(
+									" \\\n\t%sbool gl_FrontFacing : SV_IsFrontFace"
+									, arg++ > 0 ? ", " : "  "
+									);
+							}
 						}
 
 						if (hasPrimitiveId)
 						{
-							if (d3d > 9)
+							if (hlsl > 3)
 							{
 								preprocessor.writef(
 									" \\\n\t%suint gl_PrimitiveID : SV_PrimitiveID"
@@ -1591,16 +1833,10 @@ namespace bgfx
 
 						if (hasFrontFacing)
 						{
-							if (hlsl >= 3)
+							if (hlsl == 3)
 							{
 								preprocessor.writef(
-									"#define gl_FrontFacing (__vface <= 0.0)\n"
-									);
-							}
-							else
-							{
-								preprocessor.writef(
-									"#define gl_FrontFacing false\n"
+									"#define gl_FrontFacing (__vface >= 0.0)\n"
 									);
 							}
 						}
@@ -1773,22 +2009,6 @@ namespace bgfx
 
 					{
 						std::string code;
-
-						if ('f' == _options.shaderType)
-						{
-							bx::write(_writer, BGFX_CHUNK_MAGIC_FSH);
-							bx::write(_writer, inputHash);
-						}
-						else if ('v' == _options.shaderType)
-						{
-							bx::write(_writer, BGFX_CHUNK_MAGIC_VSH);
-							bx::write(_writer, outputHash);
-						}
-						else
-						{
-							bx::write(_writer, BGFX_CHUNK_MAGIC_CSH);
-							bx::write(_writer, outputHash);
-						}
 
 						if (0 != glsl
 						||  0 != essl
@@ -2080,6 +2300,7 @@ namespace bgfx
 									  "#define textureCubeLod    textureLod\n"
 									  "#define textureCubeGrad   textureGrad\n"
 									  "#define texture3D         texture\n"
+									  "#define texture3DLod      textureLod\n"
 									);
 
 								bx::stringPrintf(code, "#define attribute in\n");
@@ -2158,7 +2379,7 @@ namespace bgfx
 
 	char     _shaderErrorBuffer[UINT16_MAX];
 	uint16_t _shaderErrorBufferPos = 0;
-	
+
 	void compilerError(const char *_format, ...)
 	{
 		va_list args;
@@ -2243,14 +2464,15 @@ namespace bgfx
 			options.profile = profile;
 		}
 
-		{	// hlsl only
-			options.debugInformation = cmdLine.hasArg('\0', "debug");
-			options.avoidFlowControl = cmdLine.hasArg('\0', "avoid-flow-control");
-			options.noPreshader = cmdLine.hasArg('\0', "no-preshader");
-			options.partialPrecision = cmdLine.hasArg('\0', "partial-precision");
-			options.preferFlowControl = cmdLine.hasArg('\0', "prefer-flow-control");
+		{
+			options.debugInformation       = cmdLine.hasArg('\0', "debug");
+			options.avoidFlowControl       = cmdLine.hasArg('\0', "avoid-flow-control");
+			options.noPreshader            = cmdLine.hasArg('\0', "no-preshader");
+			options.partialPrecision       = cmdLine.hasArg('\0', "partial-precision");
+			options.preferFlowControl      = cmdLine.hasArg('\0', "prefer-flow-control");
 			options.backwardsCompatibility = cmdLine.hasArg('\0', "backwards-compatibility");
-			options.warningsAreErrors = cmdLine.hasArg('\0', "Werror");
+			options.warningsAreErrors      = cmdLine.hasArg('\0', "Werror");
+			options.keepIntermediate       = cmdLine.hasArg('\0', "keep-intermediate");
 
 			uint32_t optimization = 3;
 			if (cmdLine.hasArg(optimization, 'O') )

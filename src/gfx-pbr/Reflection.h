@@ -47,24 +47,25 @@ namespace mud
 
 		BlockReflection& m_block_reflection;
 
-		virtual void begin_render_pass(Render& render) final;
 		virtual void submit_render_pass(Render& render) final;
 	};
 
-	export_ class refl_ MUD_GFX_PBR_EXPORT BlockReflection : public GfxBlock
+	export_ class refl_ MUD_GFX_PBR_EXPORT BlockReflection : public DrawBlock
 	{
 	public:
 		BlockReflection(GfxSystem& gfx_system);
 
-		virtual void init_gfx_block() final;
+		virtual void init_block() override;
 
-		virtual void begin_gfx_block(Render& render) final;
-		virtual void submit_gfx_block(Render& render) final;
+		virtual void begin_render(Render& render) override;
+		virtual void begin_pass(Render& render) override;
 
-		virtual void begin_gfx_pass(Render& render) final;
-		virtual void submit_gfx_element(Render& render, Pass& render_pass, DrawElement& element) final;
+		virtual void begin_draw_pass(Render& render) override;
 
-		void upload_reflection_probes(Render& render, array<ReflectionProbe*> probes);
+		virtual void options(Render& render, ShaderVersion& shader_version) const final;
+		virtual void submit(Render& render, const Pass& render_pass) const final;
+
+		void upload_reflection_probes(Render& render, Pass& render_pass, array<ReflectionProbe*> probes);
 		void render_reflection_probe(Render& render, ReflectionProbe& reflection_probe);
 
 		ReflectionCubemap& find_cubemap(uint16_t size);
@@ -85,12 +86,12 @@ namespace mud
 			}
 
 			template <uint16_t size>
-			void setUniforms(ReflectionProbeArray<size>& data, uint16_t probe_count)
+			void setUniforms(bgfx::Encoder& encoder, ReflectionProbeArray<size>& data, uint16_t probe_count)
 			{
-				bgfx::setUniform(u_extents_intensity,	&data.extents_intensity,	probe_count);
-				bgfx::setUniform(u_ambient,				&data.ambient,				probe_count);
-				bgfx::setUniform(u_atlas_rect,			&data.atlas_rect,			probe_count);
-				bgfx::setUniform(u_matrix,				&data.matrix,				probe_count);
+				encoder.setUniform(u_extents_intensity,		&data.extents_intensity,	probe_count);
+				encoder.setUniform(u_ambient,				&data.ambient,				probe_count);
+				encoder.setUniform(u_atlas_rect,			&data.atlas_rect,			probe_count);
+				encoder.setUniform(u_matrix,				&data.matrix,				probe_count);
 			}
 
 			bgfx::UniformHandle u_extents_intensity;

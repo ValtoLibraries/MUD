@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -31,7 +31,7 @@ namespace mud
 
 		struct Vertex
 		{
-			static const size_t vertex_format = VertexAttribute::Position | VertexAttribute::Colour;
+			static const uint32_t vertex_format = VertexAttribute::Position | VertexAttribute::Colour;
 			vec3 m_position;
 			uint32_t m_colour;
 		};
@@ -50,15 +50,19 @@ namespace mud
 		std::vector<Batch> m_batches[2];
 		size_t m_cursor[2];
 
+		void begin();
+
+		Batch* batch(DrawMode draw_mode, size_t vertex_count);
+
 		void draw(const mat4& transform, const ProcShape& shapes);
 		void draw(const mat4& transform, array<ProcShape> shapes);
 		void draw(const mat4& transform, array<ProcShape> shapes, ShapeSize size, DrawMode draw_mode);
 
 		void draw(Batch& batch, const mat4& transform, array<ProcShape> shapes, ShapeSize size, DrawMode draw_mode);
 
-		void submit(uint8_t view, uint64_t bgfx_state);
-		void submit(uint8_t view, uint64_t bgfx_state, DrawMode draw_mode);
-		void submit(uint8_t view, uint64_t bgfx_state, DrawMode draw_mode, Batch& batch);
+		void submit(bgfx::Encoder& encoder, uint8_t view, uint64_t bgfx_state);
+		void submit(bgfx::Encoder& encoder, uint8_t view, uint64_t bgfx_state, DrawMode draw_mode);
+		void submit(bgfx::Encoder& encoder, uint8_t view, uint64_t bgfx_state, DrawMode draw_mode, Batch& batch);
 	};
 
 	export_ class refl_ MUD_GFX_EXPORT SymbolIndex : public NonCopy

@@ -17,6 +17,11 @@ newoption {
 }
 
 newoption {
+    trigger = "culling",
+    description = "Enable Occlusion Culling",
+}
+
+newoption {
     trigger = "webshaderc",
     description = "Use shaderc compiler on web",
 }
@@ -24,6 +29,11 @@ newoption {
 newoption {
     trigger = "sound",
     description = "Build mud library with Sound.",
+}
+
+newoption {
+    trigger = "profile",
+    description = "Integrated profiling.",
 }
 
 --newoption {
@@ -78,7 +88,7 @@ newoption {
 
 function default_options()
     if _OPTIONS["cpp-modules"] then
-        _OPTIONS["as-libs"] = ""
+        --_OPTIONS["as-libs"] = ""
     end
 
     if not _OPTIONS["renderer-gl"] and not _OPTIONS["renderer-bgfx"] then
@@ -86,7 +96,7 @@ function default_options()
     end
 
     if not _OPTIONS["context-native"] and not _OPTIONS["context-glfw"] and not _OPTIONS["context-ogre"] then
-        if _OPTIONS["vs"] ~= "asmjs" then
+        if _OPTIONS["vs"] ~= "asmjs" and _OPTIONS["gcc"] ~= "asmjs" then
             _OPTIONS["context-glfw"] = ""
         else
             _OPTIONS["context-wasm"] = ""
@@ -99,5 +109,10 @@ function default_options()
 
     if not _OPTIONS["vg-vg"] and not _OPTIONS["vg-nanovg"] then
         _OPTIONS["vg-vg"] = ""
+    end
+    
+    NO_SHARED_LIBS = false
+    if _OPTIONS["vs"] == "asmjs" or _OPTIONS["gcc"] == "asmjs" then
+        NO_SHARED_LIBS = true
     end
 end

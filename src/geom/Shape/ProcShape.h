@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -37,6 +37,6 @@ namespace mud
 	export_ MUD_GEOM_EXPORT ShapeSize symbol_line_size(const ProcShape& shape);
 	export_ MUD_GEOM_EXPORT ShapeSize symbol_triangle_size(const ProcShape& shape);
 
-	export_ MUD_GEOM_EXPORT void symbol_draw_lines(const ProcShape& shape, MeshData& data);
-	export_ MUD_GEOM_EXPORT void symbol_draw_triangles(const ProcShape& shape, MeshData& data);
+	export_ MUD_GEOM_EXPORT void symbol_draw_lines(const ProcShape& shape, MeshAdapter& writer);
+	export_ MUD_GEOM_EXPORT void symbol_draw_triangles(const ProcShape& shape, MeshAdapter& writer);
 }

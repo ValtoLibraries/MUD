@@ -1,11 +1,11 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #pragma once
 
 #ifndef MUD_MODULES
-#include <obj/Unique.h>
+#include <type/Unique.h>
 #endif
 #include <math/Vec.h>
 #include <math/Forward.h>
@@ -29,10 +29,9 @@ namespace mud
 		ImageAtlas(uvec2 size);
 		~ImageAtlas();
 
-		void create_atlas();
 		std::vector<unsigned char> generate_atlas(std::vector<Image*>& images);
 
-		void place_image(Image& image);
+		bool place_image(Image& image);
 		void blit_image(Image& image, std::vector<unsigned char>& data);
 
 	public:
@@ -45,6 +44,17 @@ namespace mud
 	protected:
 		//unique_ptr<GuillotineBinPack> m_rect_pack;
 		unique_ptr<StbRectPack> m_rect_pack;
+	};
+
+	export_ class refl_ MUD_MATH_EXPORT TextureAtlas : public ImageAtlas
+	{
+	public:
+		TextureAtlas(uvec2 size);
+
+		const Image& find_texture(cstring name) const;
+		Image* add_texture(cstring name, uvec2 size);
+
+		std::vector<Image> m_textures;
 	};
 
 	export_ class refl_ MUD_MATH_EXPORT Sprite : public Image

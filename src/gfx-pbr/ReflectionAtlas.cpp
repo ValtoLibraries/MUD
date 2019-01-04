@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -34,7 +34,7 @@ namespace mud
 
 		for(int i = 0; i < 6; i++)
 		{
-			bgfx::Attachment attachment = { m_color, 0, uint16_t(i) };
+			bgfx::Attachment attachment = { m_color, 0, uint16_t(i), BGFX_RESOLVE_AUTO_GEN_MIPS };
 			m_fbo[i] = bgfx::createFrameBuffer(1, &attachment, true);
 			// clear it ? 
 		}
@@ -73,7 +73,7 @@ namespace mud
 
 		Slot& slot = *vector_pop(m_free_slots);
 		slot.m_probe = &probe;
-		probe.m_atlas_index = slot.m_index;
+		probe.m_atlas_index = int(slot.m_index);
 		return slot.m_urect;
 	}
 }

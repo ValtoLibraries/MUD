@@ -26,9 +26,10 @@ namespace mud
 
 	enum CSMFilterMode : unsigned int
 	{
-		CSM_PCF,
-		CSM_PCF5,
-		CSM_PCF13
+		CSM_NO_PCF = 0,
+		CSM_HARD_PCF = 1,
+		CSM_PCF5 = 2,
+		CSM_PCF13 = 3
 	};
 
 	struct CSMShadow
@@ -52,7 +53,6 @@ namespace mud
 
 		virtual void next_draw_pass(Render& render, Pass& render_pass) final;
 		virtual void queue_draw_element(Render& render, DrawElement& element) final;
-		virtual void submit_draw_element(Pass& render_pass, DrawElement& element) final;
 	};
 
 	export_ class MUD_GFX_PBR_EXPORT PassShadowmap : public RenderPass
@@ -62,7 +62,6 @@ namespace mud
 
 		BlockShadow& m_block_shadow;
 
-		virtual void begin_render_pass(Render& render) final;
 		virtual void submit_render_pass(Render& render) final;
 	};
 
@@ -81,13 +80,17 @@ namespace mud
 	{
 		struct Slice
 		{
-			vec4 m_rect;
+			vec4 m_viewport_rect;
+			vec4 m_texture_rect;
 			mat4 m_projection;
 			mat4 m_transform;
 			mat4 m_shadow_matrix;
+			float m_bias_scale;
 
 			FrustumSlice m_frustum_slice;
 			LightBounds m_light_bounds;
+
+			std::vector<Item*> m_items;
 		};
 
 		std::vector<FrustumSlice> m_frustum_slices;
@@ -99,19 +102,27 @@ namespace mud
 	public:
 		BlockShadow(GfxSystem& gfx_system, BlockDepth& block_depth);
 
-		virtual void init_gfx_block() final;
+		virtual void init_block() override;
 
-		virtual void begin_gfx_block(Render& render) final;
-		virtual void submit_gfx_block(Render& render) final;
+		virtual void begin_render(Render& render) override;
+		virtual void begin_pass(Render& render) override;
 
-		virtual void begin_gfx_pass(Render& render) final;
-		virtual void submit_gfx_element(Render& render, Pass& render_pass, DrawElement& element) final;
+		virtual void begin_draw_pass(Render& render) override;
 
-		void render_directional(Render& render, Light& light, size_t num_directional, size_t index);
+		virtual void options(Render& render, ShaderVersion& shader_version) const override;
+		virtual void submit(Render& render, const Pass& render_pass) const override;
+
+		void update_shadows(Render& render);
+		void render_shadows(Render& render);
+
+		void update_direct(Render& render, Light& light, size_t num_direct, size_t index);
+		void render_direct(Render& render, Light& light, size_t index);
 
 		BlockDepth& m_block_depth;
 
-		Light* m_directional_light = nullptr;
+		DepthParams m_depth_params;
+
+		Light* m_direct_light = nullptr;
 
 		struct DirectionalShadowUniform
 		{
@@ -124,7 +135,7 @@ namespace mud
 			bgfx::UniformHandle s_csm_atlas;
 			bgfx::UniformHandle u_csm_params;
 
-		} u_directional_shadow;
+		} u_direct_shadow;
 
 		struct ShadowUniform
 		{
@@ -144,5 +155,11 @@ namespace mud
 		std::vector<LightShadow> m_shadows;
 
 		CSMShadow m_csm;
+
+#ifdef MUD_PLATFORM_EMSCRIPTEN
+		CSMFilterMode m_pcf_level = CSM_HARD_PCF; // @todo can't get true pcf working on WebGL so far
+#else
+		CSMFilterMode m_pcf_level = CSM_PCF5;
+#endif
 	};
 }

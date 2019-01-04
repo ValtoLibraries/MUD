@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -53,7 +53,7 @@ namespace mud
 	Item& rotate_gizmo(Gnode& parent, Axis axis, Colour colour, float ring_radius, uint32_t flags = 0U)
 	{
 		Gnode& node = gfx::transform(parent, {}, Zero3, ZeroQuat);
-		return gfx::shape(node, Torus(1.f, ring_radius, axis), Symbol(colour, Colour::None, true, true), flags);
+		return gfx::shape(node, Torus(1.f, ring_radius, axis), Symbol(colour, Colour::None, true, true), ItemFlag::Render | flags);
 	}
 
 	Gizmo RotateTool::rotation_gizmo(Axis axis, float hue)
@@ -63,7 +63,7 @@ namespace mud
 #else
 		auto grab_point = [this, axis](Viewer& viewer, const vec2& pos) { UNUSED(pos); return gizmo_grab_planar(viewer, m_transform, axis) - m_transform.m_position; };
 
-		auto draw_handle = [=](Gnode& parent) { return &rotate_gizmo(parent, axis, Colour::Invisible, 0.05f, ITEM_UI); };
+		auto draw_handle = [=](Gnode& parent) { return &rotate_gizmo(parent, axis, Colour::Invisible, 0.05f, ItemFlag::Ui); };
 		auto draw_gizmo = [=](Gnode& parent, bool active) { rotate_gizmo(parent, axis, gizmo_colour(hue, active), 0.01f); };
 
 		return { draw_handle, draw_gizmo, nullptr, false, grab_point };

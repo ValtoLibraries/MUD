@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -8,7 +8,7 @@
 module mud.uio;
 #else
 #include <infra/Vector.h>
-#include <obj/Any.h>
+#include <type/Any.h>
 #include <refl/System.h>
 #include <pool/ObjectPool.h>
 #include <lang/Script.h>
@@ -141,7 +141,7 @@ namespace mud
 
 	void script_edit_code(Widget& parent, TextScript& script, ActionList actions)
 	{
-		auto run = [&] { script({}); };
+		//auto run = [&] { script({}); };
 		auto reload = [&] { script.m_dirty = true; };
 		//actions.push_back({ "Run",  });
 		actions.push_back({ "Reload", reload });
@@ -158,21 +158,19 @@ namespace mud
 		if(edit.char_stroke(Key::S, InputMod::Ctrl))
 			reload();
 
-		if(ui::button(*self.m_toolbar, "Indent").activated())
-		{
+		if(edit.m_entered)
 			script.m_script = ui::auto_indent(edit);
-			edit.m_text.m_sections.clear();
-			edit.mark_dirty(0, script.m_script.size());
-		}
 
 		edit.m_text.m_markers.clear();
-		for(const Error& error : script.m_compile_errors)
+		for(const auto& line_error : script.m_compile_errors)
 		{
+			const Error& error = line_error.second;
 			edit.m_text.m_markers.push_back({ TextMarkerKind::Error, error.m_line, error.m_column, error.m_message, uint16_t(CodePalette::Error), uint16_t(CodePalette::ErrorMarker) });
 		}
 
-		for(const Error& error : script.m_runtime_errors)
+		for(const auto& line_error : script.m_runtime_errors)
 		{
+			const Error& error = line_error.second;
 			edit.m_text.m_markers.push_back({ TextMarkerKind::Error, error.m_line, error.m_column, error.m_message, uint16_t(CodePalette::Error), uint16_t(CodePalette::ErrorMarker) });
 		}
 

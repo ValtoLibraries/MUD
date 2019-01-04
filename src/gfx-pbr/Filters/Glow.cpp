@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -12,6 +12,7 @@ module mud.gfx.pbr;
 #include <gfx/RenderTarget.h>
 #include <gfx/Filter.h>
 #include <gfx/Pipeline.h>
+#include <gfx/Asset.h>
 #include <gfx/GfxSystem.h>
 #include <gfx-pbr/Types.h>
 #include <gfx-pbr/Filters/Glow.h>
@@ -28,8 +29,8 @@ namespace mud
 		, m_filter(filter)
 		, m_copy(copy)
 		, m_blur(blur)
-		, m_bleed_program("filter/glow_bleed")
-		, m_merge_program("filter/glow")
+		, m_bleed_program(gfx_system.programs().create("filter/glow_bleed"))
+		, m_merge_program(gfx_system.programs().create("filter/glow"))
 	{
 		static cstring options[1] = { "GLOW_FILTER_BICUBIC" };
 		m_shader_block->m_options = { options, 1 };
@@ -38,20 +39,27 @@ namespace mud
 		m_merge_program.register_block(*this);
 	}
 
-	void BlockGlow::init_gfx_block()
+	void BlockGlow::init_block()
 	{
 		u_uniform.createUniforms();
 	}
 
-	void BlockGlow::begin_gfx_block(Render& render)
+	void BlockGlow::begin_render(Render& render)
 	{
 		UNUSED(render);
-		//BlockCopy& copy = *m_gfx_system.m_pipeline->block<BlockCopy>();
-		//copy.debug_show_texture(*render.m_target, render.m_target->m_cascade.m_texture, false, false, false, 1);
-		//copy.debug_show_texture(*render.m_target, render.m_target->m_ping_pong.last());
+#ifdef DEBUG_GLOW
+		BlockCopy& copy = *m_gfx_system.m_pipeline->block<BlockCopy>();
+		copy.debug_show_texture(render, render.m_target->m_cascade.m_texture, vec4(0.f), false, false, false, 1);
+		copy.debug_show_texture(render, render.m_target->m_ping_pong.last(), vec4(0.f));
+#endif
 	}
 
-	void BlockGlow::submit_gfx_block(Render& render)
+	void BlockGlow::begin_pass(Render& render)
+	{
+		UNUSED(render);
+	}
+
+	void BlockGlow::submit_pass(Render& render)
 	{
 		if(render.m_filters && render.m_filters->m_glow.m_enabled)
 			this->render(render, render.m_filters->m_glow);
@@ -87,7 +95,7 @@ namespace mud
 
 		size_t max_level = 0;
 
-		for(size_t i = 0; i < 8; ++i)
+		for(vec4::length_type i = 0; i < 8; ++i)
 			if((i < 4 && glow.m_levels_1_4[i]) || (i >= 4 && glow.m_levels_5_8[i - 4]))
 				max_level = i;
 

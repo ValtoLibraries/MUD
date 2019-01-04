@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -192,6 +192,8 @@ namespace ui
 		Viewer& viewer = parent.subi<Viewer, Scene&>(&type<Viewer>(), scene);
 		viewer.m_scene = &scene;
 		viewer.m_viewport.m_scene = &scene;
+		//if(MouseEvent mouse_event = viewer.mouse_event(DeviceType::MouseLeft, EventType::Stroked, InputMod::None, false))
+		//	viewer.take_focus();
 		return viewer;
 	}
 
@@ -223,7 +225,7 @@ namespace ui
 		FreeOrbitController& controller = as<FreeOrbitController>(*viewer.m_controller);
 		controller.process(viewer);
 		
-		if(MouseEvent mouse_event = viewer.mouse_event(DeviceType::MouseLeft, EventType::Stroked))
+		if(MouseEvent mouse_event = viewer.mouse_event(DeviceType::MouseLeft, EventType::Stroked, InputMod::None, false))
 			viewer.take_focus();
 
 		struct KeyMove { Key key; vec3 velocity; };
@@ -274,18 +276,27 @@ namespace ui
 		return orbit;
 	}
 
-	OrbitController& hybrid_controller(Viewer& viewer, OrbitMode mode, Transform& entity, bool& aiming, vec2& angles)
+	OrbitController& hybrid_controller(Viewer& viewer, OrbitMode mode, Transform& entity, bool& aiming, vec2& angles, bool modal)
 	{
+		UNUSED(modal);
 		using Mode = OrbitMode;
 		OrbitController& orbit = mode == Mode::Isometric ? ui::isometric_controller(viewer)
 														 : ui::orbit_controller(viewer);
 
 		orbit.set_target(entity.m_position + Y3 * 2.f);
 
-		if(mode == Mode::ThirdPerson || mode == Mode::PseudoIsometric)
+		if(MouseEvent mouse_event = viewer.mouse_event(DeviceType::MouseLeft, EventType::Stroked, InputMod::None, false))
 		{
-			if(!viewer.ui_window().m_context.m_mouse_lock)
-				viewer.ui_window().m_context.lock_mouse(true);
+			if(!viewer.modal())
+			{
+				viewer.take_modal();
+
+				if(mode == Mode::ThirdPerson || mode == Mode::PseudoIsometric)
+				{
+					if(!viewer.ui_window().m_context.m_mouse_lock)
+						viewer.ui_window().m_context.lock_mouse(true);
+				}
+			}
 		}
 
 		if(MouseEvent mouse_event = viewer.mouse_event(DeviceType::Mouse, EventType::Moved))
@@ -327,6 +338,16 @@ namespace ui
 			orbit.update_eye();
 		}
 
+		if(viewer.key_event(Key::Escape, EventType::Stroked))
+		{
+			viewer.yield_modal();
+			if(mode == Mode::ThirdPerson || mode == Mode::PseudoIsometric)
+			{
+				if(viewer.ui_window().m_context.m_mouse_lock)
+					viewer.ui_window().m_context.lock_mouse(false);
+			}
+		}
+
 		return orbit;
 	}
 
@@ -336,13 +357,14 @@ namespace ui
 
 		auto velocity_key = [](Widget& widget, vec3& linear, vec3& angular, const KeyMove& move, float speed)
 		{
+			UNUSED(angular);
 			if(widget.key_event(move.key, EventType::Pressed))
 				linear += move.velocity * speed;
 			if(widget.key_event(move.key, EventType::Released))
 				linear -= move.velocity * speed;
 		};
 
-		bool shift = viewer.ui().m_keyboard.m_shift;
+		//bool shift = viewer.ui().m_keyboard.m_shift;
 
 		const KeyMove moves[8] =
 		{

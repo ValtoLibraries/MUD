@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -12,7 +12,7 @@ module mud.uio;
 #include <refl/Member.h>
 #include <refl/Sequence.h>
 #include <refl/Enum.h>
-#include <obj/DispatchDecl.h>
+#include <type/DispatchDecl.h>
 #include <math/VecOps.h>
 #include <math/Curve.h>
 #include <ui/Input.h>
@@ -81,7 +81,7 @@ namespace mud
 
 		bool changed = false;
 		TrackMode mode = track.m_mode;
-		changed |= ui::dropdown_input(self, { modes, 4 }, (size_t&)mode, true);
+		changed |= ui::dropdown_input(self, { modes, 4 }, (uint32_t&)mode, true);
 		if(changed)
 			track.set_mode(mode);
 
@@ -141,7 +141,7 @@ namespace mud
 		//dispatch_branch<Image256>([](Image256& image, Wedge& parent) -> object_ptr<Widget> { return make_object<Figure>(Widget::Input{ &parent }, image); });
 	}
 
-	bool type_selector(Widget& parent, size_t& type, array<Type*> types)
+	bool type_selector(Widget& parent, uint32_t& type, array<Type*> types)
 	{
 		std::vector<cstring> type_names;
 		for(size_t i = 0; i < types.size(); ++i)
@@ -174,7 +174,7 @@ namespace mud
 
 	bool enum_edit(Widget& parent, Ref& value)
 	{
-		size_t index = enum_index(value);
+		uint32_t index = enum_index(value);
 		//ui::radio_switch(parent, meta(value).m_enum_names, index);
 		if(ui::dropdown_input(parent, to_array(enu(value).m_names), index))
 		{
@@ -234,7 +234,7 @@ namespace mud
 		//if(is_struct(*value.m_type) && !nullable && !value)
 		//	return object_creator(parent, *value.m_type);
 
-		if(value == Ref() || type(value).is<Type>())
+		if(value == Ref() || value == Var() || type(value).is<Type>())
 			return false;
 		else if(DispatchInput::me.check(value))
 			return DispatchInput::me.dispatch(value, parent);
@@ -242,8 +242,6 @@ namespace mud
 			return object_creator(parent, val<Creator>(value));
 		else if(type(value).is<Call>())
 			return call_edit(parent, val<Call>(value));
-		else if(is_none(type(value)))
-			return none_edit(parent, value);
 		else if(is_base_type(type(value)))
 			return value_edit(parent, value);
 		else if(is_sequence(type(value)))

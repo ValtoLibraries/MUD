@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -12,12 +12,12 @@ module mud.refl;
 #include <refl/Class.h>
 #include <refl/Enum.h>
 #include <refl/Convert.h>
-#include <obj/Types.h>
-#include <obj/Any.h>
+#include <type/Types.h>
+#include <type/Any.h>
 #include <infra/StringConvert.h>
 #include <refl/Injector.h>
-//#include <proto/Proto.h>
-//#include <proto/Complex.h>
+//#include <ecs/Proto.h>
+//#include <ecs/Entity.h>
 #include <infra/Vector.h>
 //#include <srlz/Serial.h>
 #endif
@@ -53,29 +53,30 @@ namespace mud
 			return val<string>(member.get(value));
 	}
 
-	Meta::Meta(Type& type, Namespace* location, cstring name, size_t size, TypeClass type_class)
+	Meta::Meta(Type& type, Namespace* location, cstring name, size_t size, TypeClass type_class, bool is_array)
 		: m_type(&type)
 		, m_namespace(location)
 		, m_name(name)
 		, m_size(size)
 		, m_type_class(type_class)
+		, m_is_array(is_array)
 	{
 		type.m_name = m_name;
 		g_meta[type.m_id] = this;
 	}
 
-	Enum::Enum(Type& type, bool scoped, const std::vector<cstring>& names, const std::vector<size_t>& indices, const std::vector<Var>& values)
+	Enum::Enum(Type& type, bool scoped, const std::vector<cstring>& names, const std::vector<uint32_t>& values, const std::vector<Var>& vars)
 		: m_type(type)
 		, m_scoped(scoped)
 		, m_names(names)
-		, m_indices(indices)
 		, m_values(values)
+		, m_vars(vars)
 	{
 		g_enu[type.m_id] = this;
 
 		for(size_t i = 0; i < m_names.size(); ++i)
 		{
-			size_t index = m_indices[i];
+			size_t index = m_values[i];
 			m_map.resize(index + 1);
 			m_map[index] = m_names[i];
 		}
@@ -83,16 +84,26 @@ namespace mud
 
 	uint32_t Enum::value(cstring name)
 	{
-		for(size_t i = 0; i < m_names.size(); ++i)
+		for(uint32_t i = 0; i < uint32_t(m_names.size()); ++i)
 			if(strcmp(name, m_names[i]) == 0)
-				return m_indices[i];
+				return m_values[i];
 		printf("WARNING: fetching unknown Enum %s value : %s\n", m_type.m_name, name);
-		return m_indices[0];
+		return m_values[0];
 	}
 
-	size_t Enum::index(cstring name)
+	uint32_t Enum::value(const Var& value)
 	{
-		for(size_t i = 0; i < m_names.size(); ++i)
+		size_t size = meta(m_type).m_size;
+		for(uint32_t i = 0; i < uint32_t(m_vars.size()); ++i)
+			if(memcmp(value.m_ref.m_value, m_vars[i].m_ref.m_value, size) == 0)
+				return m_values[i];
+		printf("WARNING: fetching unknown Enum %s index : %s\n", m_type.m_name, to_string(value).c_str());
+		return 0;
+	}
+
+	uint32_t Enum::index(cstring name)
+	{
+		for(uint32_t i = 0; i < uint32_t(m_names.size()); ++i)
 			if(strcmp(name, m_names[i]) == 0)
 				return i;
 		printf("WARNING: fetching unknown Enum %s index : %s\n", m_type.m_name, name);
@@ -141,7 +152,7 @@ namespace mud
 		this->inherit(m_bases);
 
 		for(size_t i = 0; i < m_members.size(); ++i)
-			m_members[i].m_index = i;
+			m_members[i].m_index = int(i);
 
 		for(size_t i = 0; i < m_constructors.size(); ++i)
 			m_constructors[i].m_index = i;
@@ -349,19 +360,25 @@ namespace mud
 	{
 		this->default_converter<float, double>();
 		this->default_converter<float, int>();
-		this->default_converter<float, uint16_t>();
-		this->default_converter<float, uint32_t>();
-		this->default_converter<float, size_t>();
+		this->default_converter<float, ushort>();
+		this->default_converter<float, uint>();
+		this->default_converter<float, ulong>();
+		this->default_converter<float, ulong2>();
 		this->default_converter<double, int>();
-		this->default_converter<double, uint16_t>();
-		this->default_converter<double, uint32_t>();
-		this->default_converter<double, size_t>();
-		this->default_converter<int, uint16_t>();
-		this->default_converter<int, uint32_t>();
-		this->default_converter<int, size_t>();
-		this->default_converter<uint16_t, size_t>();
-		this->default_converter<uint16_t, uint32_t>();
-		this->default_converter<uint32_t, size_t>();
+		this->default_converter<double, ushort>();
+		this->default_converter<double, uint>();
+		this->default_converter<double, ulong>();
+		this->default_converter<double, ulong2>();
+		this->default_converter<int, ushort>();
+		this->default_converter<int, uint>();
+		this->default_converter<int, ulong>();
+		this->default_converter<int, ulong2>();
+		this->default_converter<ushort, uint>();
+		this->default_converter<ushort, ulong>();
+		this->default_converter<ushort, ulong2>();
+		this->default_converter<uint, ulong>();
+		this->default_converter<uint, ulong2>();
+		this->default_converter<ulong, ulong2>();
 	}
 
 	bool TypeConverter::check(Type& input, Type& output)

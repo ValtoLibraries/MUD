@@ -1,4 +1,9 @@
-#include <mud/mud.h>
+#include <ui/Api.h>
+//#include <uio/Api.h>
+#include <gfx/Api.h>
+#include <gfx-ui/Api.h>
+#include <mud/Shell.h>
+
 #include <03_materials/03_materials.h>
 
 using namespace mud;
@@ -178,7 +183,7 @@ void ex_03_materials(Shell& app, Widget& parent, Dockbar& dockbar)
 	Gnode& ground_node = gfx::node(scene, {}, vec3{ 0.f, -1.f, 0.f });
 	gfx::shape(ground_node, Rect(vec2{ -50.f, -50.f }, vec2{ 100.f }), Symbol(), 0U, &milky_white(viewer.m_gfx_system));
 
-	gfx::directional_light_node(scene);
+	gfx::direct_light_node(scene);
 	gfx::radiance(scene, "radiance/tiber_1_1k.hdr", BackgroundMode::Radiance);
 
 	GfxSystem& gfx_system = scene.m_scene->m_gfx_system;
@@ -192,18 +197,20 @@ void ex_03_materials(Shell& app, Widget& parent, Dockbar& dockbar)
 	//roughness_spheres(scene);
 	material_spheres(scene, materials);
 
+#if 0
 	if(MouseEvent mouse_event = viewer.mouse_event(DeviceType::MouseLeft, EventType::Stroked))
 	{
 		auto callback = [&](Item* item)
 		{
-			if(!item->m_node.m_object) return;
-			edited = &val<Material>(item->m_node.m_object);
+			if(!item->m_node->m_object) return;
+			edited = &val<Material>(item->m_node->m_object);
 			float center = float(materials.size()) * 4.f / 2.f;
 			size_t index = edited->m_index - materials[0]->m_index;
 			controller.m_position = vec3{ -center + index * 4.f, 0.f, 0.f };
 		};
-		viewer.picker(0).pick_point(viewer.m_viewport, mouse_event.m_relative, callback, ITEM_SELECTABLE);
+		viewer.picker(0).pick_point(viewer.m_viewport, mouse_event.m_relative, callback, ItemFlag::Default | ItemFlag::Selectable);
 	}
+#endif
 
 	if(Widget* dock = ui::dockitem(dockbar, "Game", carray<uint16_t, 1>{ 1U }))
 	{
@@ -212,16 +219,18 @@ void ex_03_materials(Shell& app, Widget& parent, Dockbar& dockbar)
 		ui::label(sheet, "Environment :");
 		ui::number_field<float>(sheet, "Ambient", { viewer.m_environment.m_radiance.m_ambient, { 0.f, 100.f, 0.01f } });
 
-		if(edited)
-			object_edit(*dock, Ref(edited)); // "Particle Editor" // identity = edited
+		//if(edited)
+		//	object_edit(*dock, Ref(edited)); // "Particle Editor" // identity = edited
 	}
 }
 
 #ifdef _03_MATERIALS_EXE
 void pump(Shell& app)
 {
-	edit_context(app.m_ui->begin(), app.m_editor, true);
+	shell_context(app.m_ui->begin(), app.m_editor);
 	ex_03_materials(app, *app.m_editor.m_screen, *app.m_editor.m_dockbar);
+	//edit_context(app.m_ui->begin(), app.m_editor, true);
+	//ex_03_materials(app, *app.m_editor.m_screen, *app.m_editor.m_dockbar);
 }
 
 int main(int argc, char *argv[])

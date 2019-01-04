@@ -1,11 +1,11 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #pragma once
 
 #ifndef MUD_MODULES
-#include <obj/Unique.h>
+#include <type/Unique.h>
 #include <infra/Array.h>
 #include <infra/NonCopy.h>
 #endif
@@ -55,6 +55,7 @@ namespace mud
 		meth_ T_Asset& fetch(cstring name);
 		meth_ T_Asset& file_at(cstring path, cstring name);
 		meth_ T_Asset* file(cstring name);
+		meth_ void destroy(cstring name);
 
 		void load_files(cstring path);
 

@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -21,19 +21,19 @@ namespace mud
 	{
 		if(MouseEvent mouse_event = widget.mouse_event(DeviceType::Mouse, EventType::Moved, InputMod::None, false))
 		{
-			auto callback = [&](Item* item) { viewer.m_hovered = item != nullptr ? item->m_node.m_object : Ref(); };
-			viewer.picker(0).pick_point(viewer.m_viewport, mouse_event.m_relative, callback, ITEM_SELECTABLE);
+			auto callback = [&](Item* item) { viewer.m_hovered = item; };
+			viewer.picker(0).pick_point(viewer.m_viewport, mouse_event.m_relative, callback, ItemFlag::Selectable);
 		}
 
 		if(MouseEvent mouse_event = widget.mouse_event(DeviceType::MouseLeft, EventType::Stroked))
 		{
 			if(viewer.m_hovered)
-				vector_select(selection, viewer.m_hovered);
+				vector_select(selection, viewer.m_hovered->m_node->m_object);
 		}
 
 		if(MouseEvent mouse_event = widget.mouse_event(DeviceType::MouseRight, EventType::Stroked))
 		{
-			//Entity* entity = pick_entity(viewer, mouse_event.m_relative, ITEM_SELECTABLE | ITEM_WORLD_GEOMETRY);
+			//Entity* entity = pick_entity(viewer, mouse_event.m_relative, ItemFlag::Selectable | ItemFlag::Static);
 			//context_menu(viewer.m_vision.m_user.m_selector, *entity);
 		}
 	}

@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -37,7 +37,7 @@ namespace mud
 	export_ using std::cos;
 
 	export_ template <typename T>
-	inline T sign(T val) { return (T(0) < val) - (val < T(0)); }
+	inline T sign(T val) { return T(T(0) < val) - (val < T(0)); }
 
 	export_ template <class T>
 	inline T min(T a, T b) { return (b < a) ? b : a; }

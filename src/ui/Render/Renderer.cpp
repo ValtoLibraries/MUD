@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -24,7 +24,7 @@ module mud.ui;
 
 namespace mud
 {
-	using std::clamp;
+	//using std::clamp;
 	using string = std::string;
 
 	inline Colour offset_colour(const Colour& colour, float delta)
@@ -52,11 +52,11 @@ namespace mud
 
 		m_impl->m_font_sources["dejavu"] = string(resource_path) + "interface/fonts/DejaVuSans.ttf";
 		m_impl->m_font_sources["consolas"] = string(resource_path) + "interface/fonts/Consolas.ttf";
-		m_impl->m_font_sources["consolas-bold"] = string(resource_path) + "interface/fonts/Consolas-Bold.ttf";
-		m_impl->m_font_sources["inconsolata"] = string(resource_path) + "interface/fonts/Inconsolata-Regular.ttf";
-		m_impl->m_font_sources["inconsolata-bold"] = string(resource_path) + "interface/fonts/Inconsolata-Bold.ttf";
-		m_impl->m_font_sources["veramono"] = string(resource_path) + "interface/fonts/VeraMono.ttf";
-		m_impl->m_font_sources["veramono-bold"] = string(resource_path) + "interface/fonts/VeraMono-Bold.ttf";
+		//m_impl->m_font_sources["consolas-bold"] = string(resource_path) + "interface/fonts/Consolas-Bold.ttf";
+		//m_impl->m_font_sources["inconsolata"] = string(resource_path) + "interface/fonts/Inconsolata-Regular.ttf";
+		//m_impl->m_font_sources["inconsolata-bold"] = string(resource_path) + "interface/fonts/Inconsolata-Bold.ttf";
+		//m_impl->m_font_sources["veramono"] = string(resource_path) + "interface/fonts/VeraMono.ttf";
+		//m_impl->m_font_sources["veramono-bold"] = string(resource_path) + "interface/fonts/VeraMono-Bold.ttf";
 	}
 
 	Vg::~Vg()
@@ -387,7 +387,7 @@ namespace mud
 			vec4 sections[ImageSkin::Count];
 			image_skin.stretch_coords(rect_offset(skin_rect), rect_size(skin_rect), { sections, ImageSkin::Count });
 
-			for(size_t s = 0; s < ImageSkin::Count; ++s)
+			for(int s = 0; s < ImageSkin::Count; ++s)
 				this->draw_skin_image(frame, s, sections[s]);
 		}
 
@@ -496,6 +496,7 @@ namespace mud
 		double time = m_clock.read();
 		if(time - prevtime >= 4.f)
 		{
+			printf("INFO: frame %.2f\n", ((time - prevtime) / frames) * 1000.f);
 			printf("INFO: fps %f\n", (frames / (time - prevtime)));
 			prevtime = time;
 			frames = 0;

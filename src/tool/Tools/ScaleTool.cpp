@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -78,7 +78,7 @@ namespace mud
 #else
 		auto grab_point = [this, axis](Viewer& viewer, const vec2& pos) { UNUSED(pos); return inverse(m_transform.m_rotation) * gizmo_grab_linear(viewer, m_transform, axis); };
 
-		auto draw_handle = [=](Gnode& parent) { return &scale_1d_gizmo(parent, axis, Colour::Invisible, ITEM_UI); };
+		auto draw_handle = [=](Gnode& parent) { return &scale_1d_gizmo(parent, axis, Colour::Invisible, ItemFlag::Ui); };
 		auto draw_gizmo = [=](Gnode& parent, bool active) { scale_1d_gizmo(parent, axis, gizmo_colour(hue, active)); };
 		return { draw_handle, draw_gizmo, nullptr, false, grab_point };
 #endif
@@ -91,7 +91,7 @@ namespace mud
 #else
 		auto grab_point = [this, normal](Viewer& viewer, const vec2& pos) { UNUSED(pos); return inverse(m_transform.m_rotation) * gizmo_grab_planar(viewer, m_transform, normal); };
 
-		auto draw_handle = [=](Gnode& parent) { return &scale_2d_gizmo(parent, normal, Colour::Invisible, ITEM_UI); };
+		auto draw_handle = [=](Gnode& parent) { return &scale_2d_gizmo(parent, normal, Colour::Invisible, ItemFlag::Ui); };
 		auto draw_gizmo = [=](Gnode& parent, bool active) { scale_2d_gizmo(parent, normal, gizmo_colour(hue, active)); };
 		return { draw_handle, draw_gizmo, nullptr, false, grab_point };
 #endif
@@ -108,7 +108,7 @@ namespace mud
 			return fabs(delta.x) > fabs(delta.y) ? vec3(delta.x) : vec3(delta.y);
 		};
 
-		auto draw_handle = [=](Gnode& parent) { return &scale_3d_gizmo(parent, Colour::Invisible, ITEM_UI); };
+		auto draw_handle = [=](Gnode& parent) { return &scale_3d_gizmo(parent, Colour::Invisible, ItemFlag::Ui); };
 		auto draw_gizmo = [=](Gnode& parent, bool active) { scale_3d_gizmo(parent, active ? Colour::White : Colour::AlphaWhite); };
 		return { draw_handle, draw_gizmo, nullptr, false, grab_point };
 #endif

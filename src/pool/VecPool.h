@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -6,8 +6,8 @@
 
 #include <infra/NonCopy.h>
 #include <infra/Vector.h>
-#include <obj/Unique.h>
-#include <obj/TypeUtils.h>
+#include <type/Unique.h>
+#include <type/TypeUtils.h>
 
 namespace mud
 {
@@ -17,8 +17,6 @@ namespace mud
 	public:
 		VecPool(size_t size = 256)
 			: m_size(size)
-			, m_available()
-			, m_objects()
 			, m_chunk(operator new(size * sizeof(T)))
 			, m_memory((T*)m_chunk)
 			, m_last(m_memory + size - 1)

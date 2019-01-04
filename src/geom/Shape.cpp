@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -7,7 +7,7 @@
 #ifdef MUD_MODULES
 module mud.geom;
 #else
-#include <obj/DispatchDecl.h>
+#include <type/DispatchDecl.h>
 #include <math/VecOps.h>
 #include <math/Math.h>
 #include <math/Random.h>
@@ -233,8 +233,8 @@ namespace mud
 	Box::Box(const Cube& cube) : Shape(type<Box>()) { box_vertices(cube.m_center, cube.m_extents, m_vertices); }
 
 	Symbol::Symbol(Colour fill, Colour outline, bool overlay, bool double_sided, SymbolDetail detail)
-		: m_fill(fill)
-		, m_outline(outline)
+		: m_outline(outline)
+		, m_fill(fill)
 		, m_overlay(overlay)
 		, m_double_sided(double_sided)
 		, m_detail(detail)

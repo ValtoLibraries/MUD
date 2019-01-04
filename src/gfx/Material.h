@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -62,10 +62,10 @@ namespace mud
 		attr_ DepthDraw m_depth_draw_mode = DepthDraw::Enabled;
 		attr_ DepthTest m_depth_test = DepthTest::Enabled;
 
+		attr_ vec2 m_uv0_scale = { 1.f, 1.f };
+		attr_ vec2 m_uv0_offset = { 0.f, 0.f };
 		attr_ vec2 m_uv1_scale = { 1.f, 1.f };
 		attr_ vec2 m_uv1_offset = { 0.f, 0.f };
-		attr_ vec2 m_uv2_scale = { 1.f, 1.f };
-		attr_ vec2 m_uv2_offset = { 0.f, 0.f };
 
 		attr_ bool m_is_alpha = false;
 		attr_ bool m_screen_filter = false;
@@ -142,7 +142,8 @@ namespace mud
 		ANISOTROPY,
 		AMBIENT_OCCLUSION,
 		DEPTH_MAPPING,
-		DEEP_PARALLAX
+		DEEP_PARALLAX,
+		LIGHTMAP
 	};
 
 	export_ struct refl_ MUD_GFX_EXPORT PbrMaterialBlock
@@ -159,7 +160,7 @@ namespace mud
 		attr_ float m_specular = 0.5f;
 		attr_ MaterialParam<float> m_metallic = { 0.f, nullptr, TextureChannel::Red };
 		attr_ MaterialParam<float> m_roughness = { 1.f, nullptr, TextureChannel::Red };
-		attr_ MaterialParam<Colour> m_emissive = { Colour::Black, nullptr };
+		attr_ MaterialParam<Colour> m_emissive = { Colour::None, nullptr };
 		attr_ float m_emissive_energy = 0.f;
 		attr_ MaterialParam<float> m_normal = { 1.f, nullptr };
 
@@ -187,10 +188,10 @@ namespace mud
 	{
 		PbrBlock(GfxSystem& gfx_system);
 
-		virtual void init_gfx_block() final {}
+		virtual void init_block() override {}
 
-		virtual void begin_gfx_block(Render& render) final { UNUSED(render); }
-		virtual void submit_gfx_block(Render& render) final { UNUSED(render); }
+		virtual void begin_render(Render& render) override { UNUSED(render); }
+		virtual void begin_pass(Render& render) override { UNUSED(render); }
 	};
 
 	export_ PbrBlock& pbr_block(GfxSystem& gfx_system);
@@ -216,8 +217,34 @@ namespace mud
 		attr_ FresnelMaterialBlock m_fresnel_block;
 
 		void state(uint64_t& bgfx_state) const;
-		void submit(uint64_t& bgfx_state, const Skin* skin = nullptr) const;
-		ShaderVersion shader_version() const;
+		ShaderVersion shader_version(const Program& program) const;
+		ShaderVersion shader_version(const Program& program, const Item& item, const ModelItem& model_item) const;
+
+		void submit(bgfx::Encoder& encoder, uint64_t& bgfx_state, const Skin* skin = nullptr) const;
+
+		struct BaseMaterialUniform
+		{
+			BaseMaterialUniform() {}
+			BaseMaterialUniform(GfxSystem& gfx_system)
+				: u_uv0_scale_offset(bgfx::createUniform("u_material_params_0", bgfx::UniformType::Vec4))
+				, u_uv1_scale_offset(bgfx::createUniform("u_material_params_1", bgfx::UniformType::Vec4))
+				, s_skeleton(bgfx::createUniform("s_skeleton", bgfx::UniformType::Int1))
+			{
+				UNUSED(gfx_system);
+			}
+
+			void upload(bgfx::Encoder& encoder, const BaseMaterialBlock& data) const
+			{
+				encoder.setUniform(u_uv0_scale_offset, &data.m_uv0_scale.x);
+				//encoder.setUniform(u_uv1_scale_offset, &data.m_uv1_scale.x);
+			}
+
+			bgfx::UniformHandle u_uv0_scale_offset;
+			bgfx::UniformHandle u_uv1_scale_offset;
+			bgfx::UniformHandle s_skeleton;
+		};
+
+		static BaseMaterialUniform s_base_uniform;
 
 		static GfxSystem* ms_gfx_system;
 	};

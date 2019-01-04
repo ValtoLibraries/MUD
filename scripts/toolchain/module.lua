@@ -73,7 +73,7 @@ function mud_module(namespace, name, rootpath, subpath, decl, self_decl, usage_d
 end
 
 function mud_refl(m, force_project)
-    deps = { mud.infra, mud.obj, mud.pool, mud.refl }
+    deps = { mud.infra, mud.type, mud.pool, mud.refl }
     table.extend(deps, m.deps)
     table.extend(deps, { m })
     for _, m in ipairs(m.deps) do
@@ -88,7 +88,7 @@ function mud_refl(m, force_project)
 end
 
 function mud_links(lib, dep)
-    print("    links " .. dep.name)
+    --print("    links " .. dep.name)
     table.insert(lib.links, dep)
     links(dep.name)
     
@@ -99,7 +99,8 @@ function mud_links(lib, dep)
     end
     
     for _, deplink in ipairs(dep.links) do
-        if dep.kind ~= "StaticLib" and deplink.kind == "StaticLib" then
+        local dyntostatic = dep.kind ~= "StaticLib" and deplink.kind == "StaticLib"
+        if dyntostatic and not NO_SHARED_LIBS then
             table.insert(lib.links, deplink)
         end
     end
@@ -152,7 +153,7 @@ function mud_refl_decl(m, as_project)
     mud_module_decl(m, as_project or m.force_project)
 end
 
-function mud_project(lib, name, modules, libkind, optdeps)
+function mud_project(lib, name, modules, libkind, optdeps, norefl)
     print("lib " .. name)
     lib.project = project(name)
     kind(libkind)
@@ -166,7 +167,7 @@ function mud_project(lib, name, modules, libkind, optdeps)
         table.insert(lib.modules, m)
         m.lib = lib
         m.decl(m)
-        if m.refl then
+        if m.refl and not norefl then
             table.insert(lib.modules, m.refl)
             m.refl.lib = lib
             m.refl.decl(m.refl)
@@ -181,15 +182,15 @@ function mud_project(lib, name, modules, libkind, optdeps)
     end
 end
 
-function mud_lib(name, modules, libkind, deps)
+function mud_lib(name, modules, libkind, deps, norefl)
     local lib = {}
-    mud_project(lib, name, modules, libkind, deps)
+    mud_project(lib, name, modules, libkind, deps, norefl)
     return lib
 end
 
 function mud_libs(modules, libkind, deps)
     for k, m  in pairs(modules) do
-        m.lib = mud_lib(m.idname, { m }, libkind, deps)
+        m.lib = mud_lib(m.idname, { m }, libkind, deps, true)
         if m.refl then
             m.refl.lib = mud_lib(m.refl.idname, { m.refl }, libkind, deps)
             table.insert(modules, m.refl)

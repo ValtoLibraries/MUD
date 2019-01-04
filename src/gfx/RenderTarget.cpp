@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -16,6 +16,7 @@ module mud.gfx;
 #endif
 
 #define MUD_GL_NO_MRT
+//#define MUD_GFX_DEFERRED
 
 namespace mud
 {
@@ -72,8 +73,8 @@ namespace mud
 
 	void SwapBuffer::create(uvec2 size, bgfx::TextureFormat::Enum color_format)
 	{
-		m_one = bgfx::createFrameBuffer(uint16_t(size.x), uint16_t(size.y), color_format, GFX_TEXTURE_CLAMP | GFX_TEXTURE_POINT);
-		m_two = bgfx::createFrameBuffer(uint16_t(size.x), uint16_t(size.y), color_format, GFX_TEXTURE_CLAMP | GFX_TEXTURE_POINT);
+		m_one = bgfx::createFrameBuffer(uint16_t(size.x), uint16_t(size.y), color_format, GFX_TEXTURE_CLAMP);// | GFX_TEXTURE_POINT);
+		m_two = bgfx::createFrameBuffer(uint16_t(size.x), uint16_t(size.y), color_format, GFX_TEXTURE_CLAMP);// | GFX_TEXTURE_POINT);
 	}
 
 	SwapBuffer::~SwapBuffer()
@@ -86,8 +87,8 @@ namespace mud
 
 	void Cascade::create(uvec2 size, bgfx::TextureFormat::Enum color_format)
 	{
-		//uint32_t flags = BGFX_TEXTURE_BLIT_DST | GFX_TEXTURE_CLAMP;
-		uint32_t flags = BGFX_TEXTURE_RT | GFX_TEXTURE_CLAMP;
+		//uint64_t flags = BGFX_TEXTURE_BLIT_DST | GFX_TEXTURE_CLAMP;
+		uint64_t flags = BGFX_TEXTURE_RT | GFX_TEXTURE_CLAMP;
 
 		if(bgfx::isTextureValid(1, true, 1, color_format, flags))
 		{
@@ -95,7 +96,7 @@ namespace mud
 
 			for(uint16_t i = 1; size.x > 1 && i < 9; ++i)
 			{
-				bgfx::Attachment attachment = { m_texture, i, 0 };
+				bgfx::Attachment attachment = { m_texture, i, 0, BGFX_RESOLVE_NONE };
 				m_mips[i] = make_unique<FrameBuffer>(uvec2(size.x >> i, size.y >> i), bgfx::createFrameBuffer(1, &attachment, false));
 			}
 		}
@@ -111,19 +112,21 @@ namespace mud
 		: FrameBuffer(size)
 		//, m_msaa(MSAA::X16)
 	{
-		static const uint32_t msaa_value[] = { BGFX_TEXTURE_RT, BGFX_TEXTURE_RT_MSAA_X2, BGFX_TEXTURE_RT_MSAA_X4, BGFX_TEXTURE_RT_MSAA_X8, BGFX_TEXTURE_RT_MSAA_X16 };
-		uint32_t render_target_flags = msaa_value[size_t(m_msaa)];
+		static const uint64_t msaa_value[] = { BGFX_TEXTURE_RT, BGFX_TEXTURE_RT_MSAA_X2, BGFX_TEXTURE_RT_MSAA_X4, BGFX_TEXTURE_RT_MSAA_X8, BGFX_TEXTURE_RT_MSAA_X16 };
+		
+		bgfx::TextureFormat::Enum color_format = bgfx::TextureFormat::RGBA16F;
 
+		if(!bgfx::isTextureValid(0, false, 1, color_format, 0))
+			color_format = bgfx::TextureFormat::RGB10A2;
+		if(!bgfx::isTextureValid(0, false, 1, color_format, 0))
+			color_format = bgfx::TextureFormat::RGBA8;
+		if(!bgfx::isTextureValid(0, false, 1, color_format, msaa_value[size_t(m_msaa)]))
+			m_msaa = MSAA::Disabled;
+
+		uint64_t render_target_flags = msaa_value[size_t(m_msaa)];
 #if defined MUD_PLATFORM_EMSCRIPTEN && !defined MUD_WEBGL2
 		render_target_flags |= GFX_TEXTURE_CLAMP;
 #endif
-
-		bgfx::TextureFormat::Enum color_format = bgfx::TextureFormat::RGBA16F;
-
-		if(!bgfx::isTextureValid(0, false, 1, color_format, render_target_flags))
-			color_format = bgfx::TextureFormat::RGB10A2;
-		if(!bgfx::isTextureValid(0, false, 1, color_format, render_target_flags))
-			color_format = bgfx::TextureFormat::RGBA8;
 
 		m_depth = bgfx::createTexture2D(uint16_t(size.x), uint16_t(size.y), false, 1, bgfx::TextureFormat::D24S8, render_target_flags);
 
@@ -143,16 +146,17 @@ namespace mud
 			m_mrt = false;
 #endif
 
+		m_mrt = false;
 		if(m_mrt)
 		{
 			m_specular = bgfx::createTexture2D(uint16_t(size.x), uint16_t(size.y), false, 1, color_format, render_target_flags);
 
 			m_normal_rough = bgfx::createTexture2D(uint16_t(size.x), uint16_t(size.y), false, 1, bgfx::TextureFormat::RGBA8, render_target_flags);
 
-			m_sss = bgfx::createTexture2D(uint16_t(size.x), uint16_t(size.y), false, 1, bgfx::TextureFormat::R8, render_target_flags);
+			//m_sss = bgfx::createTexture2D(uint16_t(size.x), uint16_t(size.y), false, 1, bgfx::TextureFormat::R8, render_target_flags);
 
-			bgfx::TextureHandle textures[5] = { m_depth, m_diffuse, m_specular, m_normal_rough, m_sss };
-			m_fbo = bgfx::createFrameBuffer(5, textures, true);
+			bgfx::TextureHandle textures[4] = { m_depth, m_diffuse, m_specular, m_normal_rough };
+			m_fbo = bgfx::createFrameBuffer(4, textures, true);
 		}
 		else
 		{
@@ -166,6 +170,23 @@ namespace mud
 #if !defined MUD_PLATFORM_EMSCRIPTEN || defined MUD_WEBGL2
 		m_cascade.create(size, color_format);
 #endif
+
+#ifdef MUD_GFX_DEFERRED
+		m_deferred = true;
+#else
+		m_deferred = false;
+#endif
+		if(m_deferred)
+		{
+			m_gbuffer.m_depth		= bgfx::createTexture2D(uint16_t(size.x), uint16_t(size.y), false, 1, bgfx::TextureFormat::D24S8,	render_target_flags);
+			m_gbuffer.m_position	= bgfx::createTexture2D(uint16_t(size.x), uint16_t(size.y), false, 1, color_format,					render_target_flags);
+			m_gbuffer.m_normal		= bgfx::createTexture2D(uint16_t(size.x), uint16_t(size.y), false, 1, color_format,					render_target_flags);
+			m_gbuffer.m_albedo		= bgfx::createTexture2D(uint16_t(size.x), uint16_t(size.y), false, 1, color_format,					render_target_flags);
+			m_gbuffer.m_surface		= bgfx::createTexture2D(uint16_t(size.x), uint16_t(size.y), false, 1, bgfx::TextureFormat::RGBA8,	render_target_flags);
+
+			bgfx::TextureHandle textures[5] = { m_gbuffer.m_depth, m_gbuffer.m_position, m_gbuffer.m_normal, m_gbuffer.m_albedo, m_gbuffer.m_surface };
+			m_gbuffer.m_fbo = bgfx::createFrameBuffer(5, textures, true);
+		}
 	}
 
 	RenderTarget::~RenderTarget()

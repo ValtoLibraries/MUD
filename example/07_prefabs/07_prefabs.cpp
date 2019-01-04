@@ -24,7 +24,7 @@ PrefabNode& add_node(Prefab& prefab, PrefabType type, Function& function, Ref ob
 	node.m_object = object;
 	node.m_call = { function };
 	node.m_call.m_arguments[1] = object;
-	node.m_call.m_arguments[2] = var(uint32_t(ITEM_SELECTABLE));
+	node.m_call.m_arguments[2] = var(uint32_t(ItemFlag::Default | ItemFlag::Selectable));
 	prefab.m_node.m_nodes.push_back(node);
 	return prefab.m_node.m_nodes.back();
 }
@@ -66,7 +66,7 @@ void ex_07_prefabs(Shell& app, Widget& parent, Dockbar& dockbar)
 	Gnode& scene = viewer.m_scene->begin();
 	prefab.m_node.draw(scene);
 
-	gfx::directional_light_node(scene, sun_rotation(c_pi / 4.f, c_pi / 4.f));
+	gfx::direct_light_node(scene, sun_rotation(c_pi / 4.f, c_pi / 4.f));
 	//gfx::radiance(scene, "radiance/tiber_1_1k.hdr", BackgroundMode::None);
 	gfx::radiance(scene, "radiance/tiber_1_1k.hdr", BackgroundMode::Radiance);
 
@@ -89,8 +89,8 @@ void ex_07_prefabs(Shell& app, Widget& parent, Dockbar& dockbar)
 
 	if(MouseEvent mouse_event = viewer.mouse_event(DeviceType::MouseLeft, EventType::Stroked))
 	{
-		auto select = [&](Item* item) { selected = &val<PrefabNode>(item->m_node.m_object); };
-		viewer.picker(0).pick_point(viewer.m_viewport, mouse_event.m_relative, select, ITEM_SELECTABLE);
+		auto select = [&](Item* item) { selected = &val<PrefabNode>(item->m_node->m_object); };
+		viewer.picker(0).pick_point(viewer.m_viewport, mouse_event.m_relative, select, ItemFlag::Default | ItemFlag::Selectable);
 	}
 
 	if(Widget* dock = ui::dockitem(dockbar, "Game", carray<uint16_t, 1>{ 1U }))

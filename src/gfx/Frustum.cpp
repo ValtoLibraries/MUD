@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -14,6 +14,14 @@ module mud.gfx;
 #include <gfx/Frustum.h>
 #include <gfx/Camera.h>
 #include <gfx/Item.h>
+#endif
+
+#include <cstddef>
+#include <cstdint>
+
+#if defined WIN32
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
 #endif
 
 namespace mud
@@ -33,13 +41,13 @@ namespace mud
 		Plane6 planes;
 
 		planes.m_right = bounding_plane(mat, Axis::X, -1.f);
-		planes.m_left = bounding_plane(mat, Axis::X, 1.f);
+		planes.m_left  = bounding_plane(mat, Axis::X,  1.f);
 
-		planes.m_up = bounding_plane(mat, Axis::Y, -1.f);
-		planes.m_down = bounding_plane(mat, Axis::Y, 1.f);
+		planes.m_up    = bounding_plane(mat, Axis::Y, -1.f);
+		planes.m_down  = bounding_plane(mat, Axis::Y,  1.f);
 
-		planes.m_near = bounding_plane(mat, Axis::Z, -1.f);
-		planes.m_far = bounding_plane(mat, Axis::Z, 1.f);
+		planes.m_near  = bounding_plane(mat, Axis::Z, -1.f);
+		planes.m_far   = bounding_plane(mat, Axis::Z,  1.f);
 
 		for(size_t i = 0; i < 6; ++i)//Plane& plane : planes)
 			planes[i] = normalize(Plane{ -planes[i].m_normal, planes[i].m_distance });
@@ -50,6 +58,18 @@ namespace mud
 	Plane6 frustum_planes(const mat4& projection, const mat4& transform)
 	{
 		return bounding_planes(projection * transform);
+	}
+
+	Plane6 frustum_planes(const mat4& view, float fov, float aspect, float near, float far)
+	{
+		mat4 projection = bxproj(fov, aspect, near, far, bgfx::getCaps()->homogeneousDepth);
+		return frustum_planes(projection, view);
+	}
+
+	Plane6 frustum_planes(const mat4& view, const vec2& rect, float near, float far)
+	{
+		mat4 projection = bxortho(-rect.x / 2.f, rect.x / 2.f, -rect.y / 2.f, rect.y / 2.f, near, far, 0.0f, bgfx::getCaps()->homogeneousDepth);
+		return frustum_planes(projection, view);
 	}
 
 	Point8 frustum_corners(const Plane6& planes)
@@ -80,17 +100,8 @@ namespace mud
 		return frustum_corners(planes);
 	}
 
-	Point8 frustum_corners(float near, float far, float fov, float aspect, const mat4& view)
+	Point8 frustum_corners(float nw, float nh, float fw, float fh, float near, float far, const mat4& view)
 	{
-		const float proj_height = bx::tan(bx::toRad(fov) * 0.5f);
-		const float proj_width = proj_height * aspect;
-
-		// Frustum corners in view space.
-		const float nw = near * proj_width;
-		const float nh = near * proj_height;
-		const float fw = far  * proj_width;
-		const float fh = far  * proj_height;
-
 		Point8 corners =
 		{
 			{ -nw,  nh, -near },
@@ -111,6 +122,25 @@ namespace mud
 		return corners;
 	}
 
+	Point8 frustum_corners(const vec2& size, float near, float far, const mat4& view)
+	{
+		return frustum_corners(size.x / 2.f, size.y / 2.f, size.x / 2.f, size.y / 2.f, near, far, view);
+	}
+
+	Point8 frustum_corners(float fov, float aspect, float near, float far, const mat4& view)
+	{
+		const float proj_height = bx::tan(bx::toRad(fov) * 0.5f);
+		const float proj_width = proj_height * aspect;
+
+		// Frustum corners in view space.
+		const float nw = near * proj_width;
+		const float nh = near * proj_height;
+		const float fw = far  * proj_width;
+		const float fh = far  * proj_height;
+
+		return frustum_corners(nw, nh, fw, fh, near, far, view);
+	}
+
 	vec2 frustum_viewport_size(const mat4& projection)
 	{
 		Plane6 planes = bounding_planes(projection);
@@ -121,11 +151,22 @@ namespace mud
 	Frustum::Frustum()
 	{}
 
-	Frustum::Frustum(const mat4& projection, const mat4& transform, float near, float far, float fov, float aspect)
+	Frustum::Frustum(const mat4& transform, float fov, float aspect, float near, float far)
+		: m_fov(fov)
+		, m_aspect(aspect)
+		, m_near(near)
+		, m_far(far)
+		, m_planes(frustum_planes(transform, fov, aspect, near, far))
+		, m_corners(frustum_corners(fov, aspect, near, far, transform))
+	{
+		this->compute();
+	}
+
+	Frustum::Frustum(const mat4& transform, const vec2& rect, float near, float far)
 		: m_near(near)
 		, m_far(far)
-		, m_planes(frustum_planes(projection, transform))
-		, m_corners(frustum_corners(near, far, fov, aspect, transform))
+		, m_planes(frustum_planes(transform, rect, near, far))
+		, m_corners(frustum_corners(rect, near, far, transform))
 	{
 		this->compute();
 	}
@@ -146,16 +187,16 @@ namespace mud
 	Frustum optimized_frustum(Camera& camera, array<Item*> items)
 	{
 		if(!camera.m_optimize_ends)
-			return Frustum { camera.m_projection, camera.m_transform, camera.m_near, camera.m_far, camera.m_fov, camera.m_aspect };
+			return Frustum{ camera.m_transform, camera.m_fov, camera.m_aspect, camera.m_near, camera.m_far };
 
-		Plane base = camera.near_plane();
+		Plane near_plane = camera.near_plane();
 
 		float z_max = -1e20f;
 		float z_min = 1e20f;
 
 		for(Item* item : items)
 		{
-			vec2 min_max = project_aabb_in_plane(base, item->m_aabb);
+			vec2 min_max = project_aabb_in_plane(near_plane, item->m_aabb);
 
 			z_min = min(min_max.x, z_min);
 			z_max = max(min_max.y, z_max);
@@ -164,7 +205,7 @@ namespace mud
 		float near = max(camera.m_near, z_min);
 		float far = min(camera.m_far, z_max);
 
-		return Frustum{ camera.m_projection, camera.m_transform, near, far, camera.m_fov, camera.m_aspect };
+		return Frustum{ camera.m_transform, camera.m_fov, camera.m_aspect, near, far };
 	}
 
 	void split_frustum_slices(Camera& camera, array<FrustumSlice> slices, uint8_t num_splits, float near, float far, float split_distribution)
@@ -179,7 +220,17 @@ namespace mud
 			const float slice_near = i == 0 ? near : slices[i - 1].m_frustum.m_far * 1.005f;
 			const float slice_far = i == num_splits - 1 ? far : split;
 
-			Frustum frustum{ camera.projection(slice_near, slice_far), camera.m_transform, slice_near, slice_far, camera.m_fov, camera.m_aspect };
+			Frustum frustum;
+			if(camera.m_orthographic)
+			{
+				vec2 rect = { camera.m_height * camera.m_aspect, camera.m_height };
+				frustum = { camera.m_transform, rect, slice_near, slice_far };
+			}
+			else
+			{
+				frustum = { camera.m_transform, camera.m_fov, camera.m_aspect, slice_near, slice_far };
+			}
+
 			slices[i] = { i, frustum };
 		}
 	}

@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -29,7 +29,7 @@ namespace mud
 
 		for(int i = 0; i < 6; i++)
 		{
-			bgfx::Attachment attachment = { m_cubemap, 0, uint16_t(i) };
+			bgfx::Attachment attachment = { m_cubemap, 0, uint16_t(i), BGFX_RESOLVE_AUTO_GEN_MIPS };
 			m_fbos[i] = bgfx::createFrameBuffer(1, &attachment, true);
 		}
 	}
@@ -58,7 +58,7 @@ namespace mud
 	ShadowCubemap& ShadowAtlas::light_cubemap(Light& light, uint16_t shadow_size)
 	{
 		UNUSED(light);
-		for(int i = m_cubemaps.size() - 1; i >= 0; i--)
+		for(int i = int(m_cubemaps.size()) - 1; i >= 0; i--)
 			if(m_cubemaps[i].m_size > shadow_size * 2)
 			{
 				return m_cubemaps[i];
@@ -138,15 +138,15 @@ namespace mud
 
 		if(light.m_type == LightType::Point)
 		{
-			points[0] = light.m_node.m_position;
-			points[1] = light.m_node.m_position + light.m_node.axis(X3) * light.m_range;
+			points[0] = light.m_node.position();
+			points[1] = light.m_node.position() + light.m_node.axis(X3) * light.m_range;
 		}
 		else if(light.m_type == LightType::Spot)
 		{
 			float w = light.m_range * std::sin(light.m_spot_angle);
 			float d = light.m_range * std::cos(light.m_spot_angle);
 
-			vec3 base = light.m_node.m_position + light.m_node.direction() * d;
+			vec3 base = light.m_node.position() + light.m_node.direction() * d;
 
 			points[0] = base;
 			points[1] = base + light.m_node.axis(X3) * w;
@@ -156,10 +156,10 @@ namespace mud
 		{
 			for(int j = 0; j < 2; j++)
 			{
-				if(plane_distance_to(camera_near_plane, points[j]) < 0.f)
+				if(distance(camera_near_plane, points[j]) < 0.f)
 					points[j].z = -render.m_camera.m_near; //small hack to keep size constant when hitting the screen
 
-				points[j] = plane_segment_intersection(camera_near_plane, { light.m_node.m_position, points[j] });
+				points[j] = plane_segment_intersection(camera_near_plane, { light.m_node.position(), points[j] });
 			}
 		}
 

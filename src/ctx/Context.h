@@ -1,4 +1,4 @@
-//  Copyright (c) 2018 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -7,7 +7,7 @@
 #ifndef MUD_MODULES
 #include <infra/NonCopy.h>
 #include <infra/Strung.h>
-#include <obj/Unique.h>
+#include <type/Unique.h>
 #include <math/Vec.h>
 #endif
 #include <ctx/Forward.h>
@@ -20,6 +20,7 @@ namespace mud
 		RenderSystem(cstring resource_path, bool manual_render);
 		virtual ~RenderSystem() {}
 
+		virtual void begin_frame() = 0;
 		virtual bool next_frame() = 0;
 
 		virtual object_ptr<Context> create_context(cstring name, int width, int height, bool fullScreen) = 0;

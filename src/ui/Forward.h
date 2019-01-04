@@ -5,9 +5,7 @@
 #include <infra/Config.h>
 
 #include <infra/Forward.h>
-#include <obj/Forward.h>
-#include <refl/Forward.h>
-#include <srlz/Forward.h>
+#include <type/Forward.h>
 #include <math/Forward.h>
 #include <ctx/Forward.h>
 
