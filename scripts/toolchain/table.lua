@@ -1,5 +1,7 @@
--- mud toolchain
+-- two toolchain
 -- table
+
+null = {}
 
 function table.extend(dest, source)
     for _, v in ipairs(source) do

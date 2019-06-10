@@ -4,10 +4,13 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.ui;
+#ifdef TWO_MODULES
+module two.ui;
 #else
+#include <stl/algorithm.h>
+#include <infra/StringConvert.h>
 #include <infra/Reverse.h>
+#include <math/Vec.hpp>
 #include <ui/Style/Style.h>
 #include <ui/Style/Layout.h>
 #include <ui/Style/Skin.h>
@@ -16,30 +19,47 @@ module mud.ui;
 #include <ui/UiWindow.h>
 #endif
 
-namespace mud
+#include <cstdio>
+
+namespace two
 {
-	ImageSkin::ImageSkin(Image& image, int left, int top, int right, int bottom, int margin, Dim stretch)
+	template <> inline void to_string(const two::WidgetState& val, string& str)
+	{
+		if(val == NOSTATE) str = "NOSTATE";
+		else if(val == CREATED) str = "CREATED";
+		else if(val == HOVERED) str = "HOVERED";
+		else if(val == PRESSED) str = "PRESSED";
+		else if(val == ACTIVATED) str = "ACTIVATED";
+		else if(val == ACTIVE) str = "ACTIVE";
+		else if(val == SELECTED) str = "SELECTED";
+		else if(val == DISABLED) str = "DISABLED";
+		else if(val == DRAGGED) str = "DRAGGED";
+		else if(val == FOCUSED) str = "FOCUSED";
+		else if(val == CLOSED) str = "CLOSED";
+	};
+
+	ImageSkin::ImageSkin(Image& image, int left, int top, int right, int bottom, int margin, Axis stretch)
 		: d_image(&image)
 		, d_left(left), d_top(top), d_right(right), d_bottom(bottom)
 		, m_margin(margin)
 		, d_stretch(stretch)
 		, d_size(image.d_size)
 		, d_solid_size(image.d_size - uvec2(uint(margin + margin)))
-		, d_fill_size(image.d_size.x - d_left - d_right, image.d_size.y - d_top - d_bottom)
+		, d_fill_size(uvec2(image.d_size.x - d_left - d_right, image.d_size.y - d_top - d_bottom))
 		, d_images()
 	{
 		for(Image& subimage : d_images)
 			subimage = *d_image;
 
-		m_min_size.x = d_stretch == DIM_X ? float(d_solid_size.x) : 0.f;
-		m_min_size.y = d_stretch == DIM_Y ? float(d_solid_size.y) : 0.f;
+		m_min_size.x = d_stretch == Axis::X ? float(d_solid_size.x) : 0.f;
+		m_min_size.y = d_stretch == Axis::Y ? float(d_solid_size.y) : 0.f;
 
 		vec4 coords[Count] = {};
-		this->stretch_coords(Zero2, vec2(image.d_size), array<vec4>{ coords, Count });
+		this->stretch_coords(vec2(0.f), vec2(image.d_size), span<vec4>{ coords, Count });
 		for(size_t s = 0; s < Count; ++s)
 		{
-			this->d_images[s].d_coord = this->d_image->d_coord + uvec2(rect_offset(coords[s]));
-			this->d_images[s].d_size = uvec2(rect_size(coords[s]));
+			this->d_images[s].d_coord = this->d_image->d_coord + uvec2(coords[s].pos);
+			this->d_images[s].d_size = uvec2(coords[s].size);
 		}
 	}
 
@@ -51,7 +71,7 @@ namespace mud
 		: d_image(nullptr)
 	{}
 
-	void ImageSkin::stretch_coords(vec2 offset, vec2 size, array<vec4> coords) const
+	void ImageSkin::stretch_coords(vec2 offset, vec2 size, span<vec4> coords) const
 	{
 		vec2 fill = { size.x - d_left - d_right, size.y - d_top - d_bottom };
 
@@ -70,36 +90,32 @@ namespace mud
 
 	Styles& styles() { static Styles styles; return styles; }
 
-	struct Style::Impl
+	void register_styles(span<Style*> styles)
 	{
-		string m_name;
-		Layout m_layout;
-		InkStyle m_skin;
-		std::vector<InkStyle> m_skins;
-	};
+		for(Style* style : styles)
+			g_styles[style->m_name] = style;
+	}
 
-	Style::Style(cstring name, Style* base, LayoutDef layout, InkStyleDef skin, StyleDef style)
+	Style::Style()
+		: Style("Unnamed", nullptr, {})
+	{}
+
+	Style::Style(const string& name, Style* base, LayoutDef layout, InkStyleDef skin, StyleDef style)
 		: m_base(base)
-		, m_impl(make_unique<Impl>())
+		, m_name(name)
+		, m_layout(name)
+		, m_skin(name)
 	{
-		if(UiWindow::s_styles[name] == nullptr)
-			UiWindow::s_styles[name] = this;
-
-		m_impl->m_name = name;
-		m_impl->m_layout = { name };
-		m_impl->m_skin = { name };
-		m_impl->m_skins = {};
-
 		if(m_base)
 		{
-			m_impl->m_layout = m_base->m_impl->m_layout;
-			m_impl->m_layout.m_name = name;
+			m_layout = m_base->m_layout;
+			m_layout.m_name = name;
 		}
 
 		if(layout)
-			layout(m_impl->m_layout);
+			layout(m_layout);
 		if(skin)
-			skin(m_impl->m_skin);
+			skin(m_skin);
 		if(style)
 			style(*this);
 	}
@@ -107,54 +123,41 @@ namespace mud
 	Style::~Style()
 	{}
 
-	Style::Style(const Style& other)
-		: m_base(other.m_base)
-		, m_impl(make_unique<Impl>())
-	{
-		*this = other;
-	}
-
-	Style& Style::operator=(const Style& other)
-	{
-		m_impl->m_layout = other.m_impl->m_layout;
-		m_impl->m_skin = other.m_impl->m_skin;
-		m_impl->m_skins = other.m_impl->m_skins;
-		return *this;
-	}
-
-	cstring Style::name() { return m_impl->m_name.c_str(); }
-	Layout& Style::layout() { return m_impl->m_layout; }
-	InkStyle& Style::skin() { return m_impl->m_skin; }
-
 	void Style::prepare()
 	{
-		m_impl->m_skin.prepare();
-		for(InkStyle& skin : m_impl->m_skins)
-			skin.prepare();
+		m_skin.prepare();
+		for(Subskin& subskin : m_skins)
+		{
+			subskin.skin.prepare();
+			subskin.skin.m_name = m_name + ":" + to_lower(flags_to_string<WidgetState, 9>(subskin.state));
+		}
 	}
 
 	InkStyle& Style::state_skin(WidgetState state)
 	{
 		// turn off non-skinnable state flags
 		state = static_cast<WidgetState>(state & ~(CREATED | ACTIVATED | CLOSED));
-		for(InkStyle& skin : reverse_adapt(m_impl->m_skins))
-			if(state == skin.m_state) // exact match
-				return skin;
-		for(InkStyle& skin : reverse_adapt(m_impl->m_skins))
-			if(state & skin.m_state) // partial match
-				return skin;
-		return m_impl->m_skin;
+		for(Subskin& subskin : reverse_adapt(m_skins))
+			if(state == subskin.state) // exact match
+				return subskin.skin;
+		for(Subskin& subskin : reverse_adapt(m_skins))
+			if(state & subskin.state) // partial match
+				return subskin.skin;
+		return m_skin;
 	}
 
-	InkStyle& Style::decline_skin(WidgetState state)
+	InkStyle& Style::decline_skin(WidgetState state, bool inherit)
 	{
-		for(InkStyle& skin : m_impl->m_skins)
-			if(state == skin.m_state)
-				return skin;
+		for(Subskin& subskin : m_skins)
+			if(state == subskin.state)
+			{
+				return subskin.skin;
+			}
 
-		m_impl->m_skins.emplace_back(m_impl->m_skin);
-		m_impl->m_skins.back().m_name = (string(m_impl->m_name) + ":" + to_lower(flags_to_string<WidgetState, 9>(state))).c_str();
-		m_impl->m_skins.back().m_state = state;
-		return m_impl->m_skins.back();
+		Subskin& subskin = push(m_skins);
+		subskin.state = state;
+		subskin.skin = m_skin;
+		subskin.skin.m_name = m_name + ":" + to_lower(flags_to_string<WidgetState, 9>(state));
+		return subskin.skin;
 	}
 }

@@ -3,20 +3,22 @@
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #include <gfx/Cpp20.h>
-#ifndef MUD_CPP_20
-#include <algorithm>
-#endif
 
-#ifdef MUD_MODULES
-module mud.gfx;
+#ifdef TWO_MODULES
+module two.gfx;
 #else
-#include <jobs/JobLoop.h>
+#include <stl/algorithm.h>
+#include <infra/Sort.h>
+#include <math/Vec.hpp>
+#include <jobs/JobLoop.hpp>
 #include <gfx/Types.h>
 #include <gfx/Renderer.h>
 #include <gfx/Pipeline.h>
+#include <gfx/Draw.h>
 #include <gfx/Shot.h>
 #include <gfx/Program.h>
 #include <gfx/Viewport.h>
+#include <gfx/Camera.h>
 #include <gfx/Scene.h>
 #include <gfx/Item.h>
 #include <gfx/Mesh.h>
@@ -31,31 +33,32 @@ module mud.gfx;
 
 #include <Tracy.hpp>
 
-//#define MUD_GFX_JOBS
+//#define TWO_GFX_JOBS
 
-namespace mud
+namespace two
 {
-	uint8_t GfxBlock::s_block_index = 0;
-
 	struct RenderUniform
 	{
 		RenderUniform() {}
 		RenderUniform(int)
-			: u_render_params(bgfx::createUniform("u_render_params", bgfx::UniformType::Vec4))
+			: u_render_p0(bgfx::createUniform("u_render_p0", bgfx::UniformType::Vec4, 1U, bgfx::UniformSet::View))
+			, u_viewport_p0(bgfx::createUniform("u_viewport_p0", bgfx::UniformType::Vec4, 1U, bgfx::UniformSet::View))
+			, u_camera_p0(bgfx::createUniform("u_camera_p0", bgfx::UniformType::Vec4, 1U, bgfx::UniformSet::View))
 		{}
 
-		bgfx::UniformHandle u_render_params;
+		bgfx::UniformHandle u_render_p0;
+		bgfx::UniformHandle u_viewport_p0;
+		bgfx::UniformHandle u_camera_p0;
 	};
 
 	static RenderUniform s_render_uniform;
 
 	Render::Render(Shading shading, Viewport& viewport, RenderTarget& target, RenderFrame& frame)
-		: m_shading(shading), m_scene(*viewport.m_scene), m_target(&target), m_target_fbo(target.m_fbo), m_viewport(viewport)
-		, m_camera(*viewport.m_camera), m_frame(frame), m_filters(viewport.m_filters), m_lighting(viewport.m_lighting)
+		: m_shading(shading), m_scene(viewport.m_scene), m_target(&target), m_fbo(&target), m_viewport(&viewport), m_rect(viewport.m_rect)
+		, m_camera(viewport.m_camera), m_frame(&frame), m_env(&viewport.m_scene->m_env)
+		, m_filters(viewport), m_lighting(viewport.m_lighting)
 		, m_pass_index(frame.m_render_pass)
-		, m_shot(make_unique<Shot>())
 	{
-		m_debug_pass_index = 245;
 		static bool init_uniform = true;
 		if(init_uniform)
 		{
@@ -64,143 +67,75 @@ namespace mud
 		}
 	}
 
-	Render::Render(Shading shading, Viewport& viewport, bgfx::FrameBufferHandle& target_fbo, RenderFrame& frame)
-		: m_shading(shading), m_scene(*viewport.m_scene), m_target(nullptr), m_target_fbo(target_fbo), m_viewport(viewport)
-		, m_camera(*viewport.m_camera), m_frame(frame), m_filters(viewport.m_filters), m_lighting(viewport.m_lighting)
+	Render::Render(Shading shading, Viewport& viewport, RenderTarget& target, FrameBuffer& target_fbo, RenderFrame& frame)
+		: m_shading(shading), m_scene(viewport.m_scene), m_target(&target), m_fbo(&target_fbo), m_viewport(&viewport), m_rect(viewport.m_rect)
+		, m_camera(viewport.m_camera), m_frame(&frame), m_env(&viewport.m_scene->m_env)
+		, m_filters(viewport), m_lighting(viewport.m_lighting)
 		, m_pass_index(frame.m_render_pass)
-		, m_shot(make_unique<Shot>())
-	{
-		m_debug_pass_index = 245;
-	}
+	{}
 
 	Render::~Render()
 	{}
 
-	Pass Render::next_pass(const char* name, bool subpass)
+	void Render::subrender(const Render& render)
 	{
-		if(!subpass)
-			m_sub_pass_index = 0;
-
-		Pass render_pass;
-		render_pass.m_target = m_target;
-		render_pass.m_bgfx_state = 0;
-		render_pass.m_fbo = m_target_fbo;
-		render_pass.m_viewport = &m_viewport;
-		render_pass.m_use_mrt = m_needs_mrt;
-		render_pass.m_index = m_pass_index++;
-		render_pass.m_sub_pass = m_sub_pass_index++;
-
-		render_pass.m_encoder = bgfx::begin();
-
-		//printf("INFO: render pass %s\n", name.c_str());
-		m_viewport.render_pass(name, render_pass);
-
-		bgfx::setViewName(render_pass.m_index, name);
-
-		return render_pass;
+		m_shot = render.m_shot;
 	}
 
-	void Render::set_uniforms(bgfx::Encoder& encoder) const
+	Pass Render::next_pass(cstring name, PassType type)
 	{
-		vec4 render_params = { m_frame.m_time, float(bgfx::getCaps()->originBottomLeft), 0.f, 0.f };
-		encoder.setUniform(s_render_uniform.u_render_params, &render_params);
+		Pass pass;
+		pass.m_name = name;
+		pass.m_target = m_target;
+		pass.m_bgfx_state = 0;
+		pass.m_fbo = m_fbo;
+		pass.m_viewport = m_viewport;
+		pass.m_rect = m_rect;
+		pass.m_use_mrt = m_needs_mrt;
+		pass.m_index = m_pass_index++;
+		pass.m_pass_type = type;
+
+		pass.m_encoder = bgfx::begin();
+
+		bgfx::setViewName(pass.m_index, name);
+
+		//printf("[info] render pass %s\n", name.c_str());
+		m_viewport->pass(pass);
+
+		this->set_uniforms(pass);
+
+		return pass;
 	}
 
-	struct Renderer::Impl
+	Pass Render::composite_pass(cstring name)
 	{
-		std::vector<GfxBlock*> m_gfx_blocks;
-		std::vector<unique_ptr<RenderPass>> m_render_passes;
-	};
-
-	Renderer::Renderer(GfxSystem& gfx_system, Pipeline& pipeline, Shading shading)
-		: m_gfx_system(gfx_system)
-		, m_pipeline(pipeline)
-		, m_shading(shading)
-		, m_impl(make_unique<Impl>())
-	{}
-
-	Renderer::~Renderer()
-	{}
-
-	void Renderer::init()
-	{
-		for(auto& render_pass : m_impl->m_render_passes)
-			for(GfxBlock* gfx_block : render_pass->m_gfx_blocks)
-			{
-				if(!has_block(*gfx_block))
-					add_block(*gfx_block);
-			}
+		return this->next_pass(name, PassType::PostProcess);
 	}
 
-	bool Renderer::has_block(GfxBlock& block)
+	Pass Render::composite_pass(cstring name, FrameBuffer& fbo, const vec4& rect)
 	{
-		return std::find(m_impl->m_gfx_blocks.begin(), m_impl->m_gfx_blocks.end(), &block) != m_impl->m_gfx_blocks.end();
+		Pass pass = this->next_pass(name, PassType::PostProcess);
+		pass.m_fbo = &fbo;
+		pass.m_rect = rect;
+		return pass;
 	}
 
-	void Renderer::add_block(GfxBlock& block)
+	void Render::set_uniforms(const Pass& pass) const
 	{
-		m_impl->m_gfx_blocks.push_back(&block);
-	}
+		vec4 render_p0 = { m_frame->m_time, float(bgfx::getCaps()->originBottomLeft), 0.f, 0.f };
+		bgfx::setViewUniform(pass.m_index, s_render_uniform.u_render_p0, &render_p0);
 
-	RenderPass& Renderer::add_pass(unique_ptr<RenderPass> render_pass)
-	{ 
-		m_impl->m_render_passes.emplace_back(std::move(render_pass));
-		return *m_impl->m_render_passes.back();
-	}
-
-	void Renderer::render(Render& render)
-	{
-		//render.m_needs_depth_prepass = true;
-
-		for(GfxBlock* block : m_impl->m_gfx_blocks)
-			block->begin_render(render);
-
-		// @todo this temporarily fixes the MRT GL bug by forcing MRT in the shader even if not needed by any effects
-		render.m_is_mrt = render.m_target && render.m_target->m_mrt;
-		//render.m_is_mrt = render.m_needs_mrt && render.m_target && render.m_target->m_mrt;
-
-		for(auto& pass : m_impl->m_render_passes)
+		if(m_target)
 		{
-			ZoneScopedNC(pass->m_name, tracy::Color::Cyan);
-
-			pass->blocks_begin_pass(render);
-			pass->submit_render_pass(render);
+			vec4 screen_p0 = { vec2(m_target->m_size), 1.0f / vec2(m_target->m_size) };
+			bgfx::setViewUniform(pass.m_index, s_render_uniform.u_viewport_p0, &screen_p0);
 		}
 
-		render.m_frame.m_render_pass = render.m_pass_index;
-
-		render.m_frame.m_num_draw_calls += render.m_num_draw_calls;
-		render.m_frame.m_num_vertices += render.m_num_vertices;
-		render.m_frame.m_num_triangles += render.m_num_triangles;
-	}
-	
-	void Renderer::subrender(Render& render, Render& sub)
-	{
-		this->render(sub);
-		render.m_pass_index = sub.m_pass_index;
+		vec4 camera_p0 = { m_camera->m_near, m_camera->m_far, m_camera->m_fov, m_camera->m_aspect };
+		bgfx::setViewUniform(pass.m_index, s_render_uniform.u_camera_p0, &camera_p0);
 	}
 
-	GfxBlock::GfxBlock(GfxSystem& gfx_system, Type& type)
-		: m_gfx_system(gfx_system), m_type(type), m_index(s_block_index++)
-		, m_shader_block(make_unique<ShaderBlock>())
-	{}
-
-	GfxBlock::~GfxBlock()
-	{}
-
-	RenderPass::RenderPass(GfxSystem& gfx_system, const char* name, PassType pass_type)
-		: m_gfx_system(gfx_system)
-		, m_name(name)
-		, m_pass_type(pass_type)
-		, m_gfx_blocks(gfx_system.m_pipeline->pass_blocks(pass_type))
-	{}
-
-	DrawElement::DrawElement(Item& item, const Program& program, const ModelItem& model, const Material& material, const Skin* skin)
-		: m_item(&item), m_program(&program), m_model(&model), m_material(&material), m_skin(skin)
-		, m_shader_version(material.shader_version(program, item, model))
-	{}
-
-	struct DrawList : public std::vector<DrawElement>
+	struct DrawList : public vector<DrawElement>
 	{
 		struct SortByKey
 		{
@@ -208,96 +143,203 @@ namespace mud
 		};
 
 		DrawList(size_t size)
-			: std::vector<DrawElement>(size)
+			: vector<DrawElement>(size)
 		{}
 
-		array<DrawElement> elements() { return{ this->first(), this->size() }; }
+		span<DrawElement> elements() { return{ this->first(), this->size() }; }
 
 		DrawElement* first() { return &(*this)[0]; }
 
 		DrawElement& add_element() { this->resize(this->size() + 1); return this->back(); }
 
-		void sort() { std::sort(this->begin(), this->end(), SortByKey()); }
+		void sort() { quicksort<DrawElement>(*this, SortByKey()); }
 	};
 
-	struct DrawPass::Impl
+	struct Renderer::Impl
 	{
-		Impl() : m_draw_elements(0) {}
-		DrawList m_draw_elements;
-		std::vector<DrawBlock*> m_draw_blocks;
+		Impl() : m_draw_list(UINT16_MAX) {}
+		DrawList m_draw_list;
 	};
 
-	DrawPass::DrawPass(GfxSystem& gfx_system, const char* name, PassType type)
-		: RenderPass(gfx_system, name, type)
+	Renderer::Renderer(GfxSystem& gfx)
+		: m_gfx(gfx)
 		, m_impl(make_unique<Impl>())
-	{
-		this->init_blocks();
-	}
-
-	DrawPass::~DrawPass()
 	{}
 
-	void DrawPass::init_blocks()
-	{
-		for(GfxBlock* block : m_gfx_blocks)
-			if(block->m_draw_block)
-				m_impl->m_draw_blocks.push_back(&as<DrawBlock>(*block));
+	Renderer::~Renderer()
+	{}
 
-		m_draw_blocks = m_impl->m_draw_blocks;
+	void Renderer::gather(Render& render)
+	{
+		m_gather_func(*render.m_scene, render);
+
+		render.m_viewport->render(render);
+		render.m_viewport->cull(render);
 	}
 
-	void DrawPass::add_element(Render& render, DrawElement element)
+	void Renderer::submit(Render& render, RenderFunc renderer)
 	{
-		for(DrawBlock* block : m_impl->m_draw_blocks)
-			block->options(render, element.m_shader_version);
+		this->gather(render);
 
-		element.m_shader_version.set_option(0, INSTANCING, !element.m_item->m_instances.empty());
-		element.m_shader_version.set_option(0, BILLBOARD, element.m_item->m_flags & ItemFlag::Billboard);
-		element.m_shader_version.set_option(0, SKELETON, element.m_skin != nullptr);
-		element.m_shader_version.set_option(0, QNORMALS, element.m_model->m_mesh->m_qnormals);
+#ifdef DEBUG_ITEMS
+		scene.debug_items(render);
+#endif
 
-		element.m_bgfx_program = const_cast<Program*>(element.m_program)->version(element.m_shader_version);
+		if(render.m_viewport->m_rect.width != 0 && render.m_viewport->m_rect.height != 0)
+			this->render(render, renderer);
 
-		m_impl->m_draw_elements.add_element() = element;
+		//m_gfx.m_copy->debug_show_texture(render, *render.m_env->m_background.m_texture, vec4(0.f), 0);
+		//m_gfx.m_copy->debug_show_texture(render, *render.m_env->m_radiance.m_texture, vec4(0.f), 0);
+		//if(render.m_env->m_radiance.m_filtered)
+		//	m_gfx.m_copy->debug_show_texture(render, *render.m_env->m_radiance.m_filtered, vec4(0.f), 1);
+		//copy.debug_show_texture(render, render.m_env->m_radiance.m_filtered, vec4(0.f), false, false, false, 1);
+		//copy.debug_show_texture(render, bgfx::getTexture(render.m_target->m_effects.last()), vec4(0.f));
+
+		if(render.m_viewport->m_autoflip)
+		{
+			Pass flip = render.next_pass("flip", PassType::Flip);
+			m_gfx.m_copy->quad(flip, render.m_target->m_backbuffer, render.m_target->m_diffuse);
+		}
 	}
 
-	bool mask_draw_mode(uint32_t mask, DrawMode check)
+	void Renderer::render(Render& render, RenderFunc renderer)
 	{
-		return (mask & 1 << check) == 0;
+		this->begin(render);
+		renderer(m_gfx, render);
+		this->end(render);
 	}
 
-	inline Material& item_material(const Item& item, const ModelItem& model_item, Material& fallback)
+	void Renderer::begin(Render& render)
+	{
+		this->block<BlockMaterial>()->begin_render(render);
+
+		//for(const auto& block : m_gfx_blocks)
+		//	block->begin_render(render);
+
+		// @todo this temporarily fixes the MRT GL bug by forcing MRT in the shader even if not needed by any effects
+		render.m_is_mrt = render.m_target && render.m_target->m_mrt;
+		//render.m_is_mrt = render.m_needs_mrt && render.m_target && render.m_target->m_mrt;
+	}
+
+	void Renderer::end(Render& render)
+	{
+		render.m_frame->m_render_pass = render.m_pass_index;
+
+		render.m_frame->m_num_draw_calls += render.m_num_draw_calls;
+		render.m_frame->m_num_vertices += render.m_num_vertices;
+		render.m_frame->m_num_triangles += render.m_num_triangles;
+	}
+	
+	void Renderer::subrender(Render& render, Render& sub, RenderFunc renderer)
+	{
+		this->render(sub, renderer);
+		render.m_pass_index = sub.m_pass_index;
+	}
+
+	GfxBlock::GfxBlock(GfxSystem& gfx, Type& type)
+		: ShaderBlock()
+		, m_gfx(gfx), m_type(type)
+	{}
+
+	GfxBlock::~GfxBlock()
+	{}
+
+	DrawElement::DrawElement(Item& item, const Program& program, const ModelElem& elem, const Material& material, const Skin* skin, uint64_t sort_key)
+		: m_item(&item), m_elem(&elem), m_material(&material), m_skin(skin)
+		, m_sort_key(sort_key)
+	{
+		this->set_program(program);
+	}
+
+	void DrawElement::set_program(const Program& program)
+	{
+		m_program = m_material->program(program, *m_item, *m_elem);
+	}
+
+	struct DrawPass
+	{
+		DrawList m_draw_elements;
+	};
+
+	void Renderer::shader_options(Render& render, Pass& pass, ProgramVersion& version) const
+	{
+		//for(GfxBlock* block : m_gfx.m_renderer.m_pass_blocks[pass.m_pass_type])
+		//	if(block->m_draw_block)
+		//		((DrawBlock*)block)->options(render, version);
+	}
+
+	void Renderer::element_options(Render& render, Pass& pass, DrawElement& element)
+	{
+		this->shader_options(render, pass, element.m_program);
+
+		element.m_program.set_option(0, VFLIP, render.m_vflip && bgfx::getCaps()->originBottomLeft);
+		element.m_program.set_option(0, MRT, render.m_is_mrt);
+
+		element.m_program.set_option(0, INSTANCING, element.m_item->m_batch != nullptr);
+		element.m_program.set_option(0, BILLBOARD, element.m_item->m_flags & ItemFlag::Billboard);
+		element.m_program.set_option(0, SKELETON, element.m_skin != nullptr);
+		element.m_program.set_option(0, MORPHTARGET, element.m_item->m_rig && !element.m_item->m_rig->m_morphs.empty());
+		element.m_program.set_option(0, QNORMALS, element.m_elem->m_mesh->m_qnormals);
+
+		Program& program = *const_cast<Program*>(element.m_program.m_program);
+		element.m_bgfx_program = program.version(element.m_program);
+	}
+
+	void Renderer::add_element(Render& render, Pass& pass, DrawElement element)
+	{
+		this->element_options(render, pass, element);
+		m_impl->m_draw_list.add_element() = element;
+	}
+
+	bool mask_primitive(uint32_t mask, PrimitiveType check)
+	{
+		uint32_t filter = 1 << uint(check);
+		return (mask & filter) == 0;
+	}
+
+	inline Material& item_material(const Item& item, const ModelElem& elem, Material& fallback)
 	{
 		if(item.m_material)
 			return *item.m_material;
-		else if(model_item.m_material)
-			return *model_item.m_material;
-		else if(model_item.m_mesh->m_material)
-			return *model_item.m_mesh->m_material;
+		else if(elem.m_material)
+			return *elem.m_material;
+		else if(elem.m_mesh->m_material)
+			return *elem.m_mesh->m_material;
 		else
 			return fallback;
 	}
 
-	void DrawPass::gather_draw_elements(Render& render)
+	DrawElement Renderer::draw_element(Item& item, const ModelElem& elem) const
 	{
-		Material& fallback_material = m_gfx_system.debug_material();
+		static Material& fallback_material = m_gfx.debug_material();
 
-		for(Item* item : render.m_shot->m_items)
-			for(const ModelItem& model_item : item->m_model->m_items)
+		const Material& material = item_material(item, elem, fallback_material);
+		const Program& program = *material.m_program;
+
+		//if(mask_primitive(material.m_base.m_geometry_filter, elem.m_mesh->m_primitive))
+		//	continue;
+
+		const Skin* skin = (elem.m_skin > -1 && item.m_rig) ? &item.m_rig->m_skins[elem.m_skin] : nullptr;
+
+		const uint64_t sort_key = uint64_t(material.m_index) << 0
+								| uint64_t(elem.m_mesh->m_index) << 16;
+
+		return { item, program, elem, material, skin, sort_key };
+	}
+
+	void Renderer::clear_draw_elements(Render& render, Pass& pass)
+	{
+		UNUSED(render); UNUSED(pass);
+		m_impl->m_draw_list.clear();
+	}
+
+	void Renderer::gather_draw_elements(Render& render, Pass& pass)
+	{
+		for(Item* item : render.m_shot.m_items)
+			for(const ModelElem& elem : item->m_model->m_items)
 			{
-				Material& material = item_material(*item, model_item, fallback_material);
-				Program& program = *material.m_program;
-
-				if(mask_draw_mode(material.m_base_block.m_geometry_filter, model_item.m_mesh->m_draw_mode))
-					continue;
-
-				Skin* skin = (model_item.m_skin > -1 && item->m_rig) ? &item->m_rig->m_skins[model_item.m_skin] : nullptr;
-
-				DrawElement element = { *item, program, model_item, material, skin };
-				element.m_sort_key |= uint64_t(element.m_material->m_index) << 0;
-				element.m_sort_key |= uint64_t(element.m_model->m_mesh->m_index) << 16;
-
-				this->queue_draw_element(render, element);
+				DrawElement element = this->draw_element(*item, elem);
+				this->add_element(render, pass, element);
 			}
 	}
 
@@ -319,73 +361,121 @@ namespace mud
 		return b;
 	}
 
-	void DrawPass::submit_draw_elements(bgfx::Encoder& encoder, Render& render, Pass& pass, size_t first, size_t count) const
+	void Renderer::submit_draw_elements(bgfx::Encoder& encoder, Render& render, Pass& pass, Submit submit, size_t first, size_t count) const
 	{
 		//printf("submit_draw_elements %i to %i\n", int(first), int(first + count));
 
-		Pass render_pass = pass;
-		render_pass.m_encoder = &encoder;
+		Pass thread_pass = pass;
+		pass.m_encoder = &encoder;
 
 		for(size_t i = first; i < first + count; ++i)
 		{
-			const DrawElement& element = m_impl->m_draw_elements[i];
-
-			for(DrawBlock* block : m_impl->m_draw_blocks)
-				block->submit(render, element, render_pass);
-			
-			uint64_t render_state = 0 | render_pass.m_bgfx_state | element.m_bgfx_state;
-			element.m_material->submit(encoder, render_state, element.m_skin);
-			element.m_item->submit(encoder, render_state, *element.m_model);
-
-			render.set_uniforms(encoder);
-
-			encoder.setState(render_state);
-
-			encoder.submit(render_pass.m_index, element.m_bgfx_program, depth_to_bits(element.m_item->m_depth));
-
-			render.m_num_draw_calls += 1;
-			render.m_num_vertices += element.m_model->m_mesh->m_vertex_count;
-			render.m_num_triangles += element.m_model->m_mesh->m_index_count / 3;
+			const DrawElement& element = m_impl->m_draw_list[i];
+			this->submit(encoder, render, thread_pass, submit, element);
 		}
 	}
 
-	void DrawPass::submit_render_pass(Render& render)
+	void Renderer::submit(bgfx::Encoder& encoder, Render& render, Pass& pass, Submit submit, const DrawElement& element) const
 	{
-		this->blocks_begin_draw_pass(render);
+		//for(GfxBlock* block : m_gfx.m_renderer.m_pass_blocks[pass.m_pass_type])
+		//	if(block->m_draw_block)
+		//		((DrawBlock*)block)->submit(render, element, pass);
 
-		m_impl->m_draw_elements.clear();
-		this->gather_draw_elements(render);
+		if(submit)
+			submit(m_gfx, render, pass, element);
 
-		uint8_t num_sub_passes = this->num_draw_passes(render);
+		uint64_t render_state = 0 | pass.m_bgfx_state | element.m_bgfx_state;
+		element.m_material->submit(*element.m_program.m_program, encoder, render_state, element.m_skin);
+		element.m_item->submit(encoder, render_state, *element.m_elem);
 
-		for(PassJob& job : render.m_scene.m_pass_jobs->m_jobs[size_t(m_pass_type)])
+		encoder.setGroup(bgfx::UniformSet::Group, element.m_material->m_index);
+		encoder.setState(render_state);
+
+		encoder.submit(pass.m_index, element.m_bgfx_program, depth_to_bits(element.m_item->m_depth));
+
+		render.m_num_draw_calls += 1;
+		render.m_num_vertices += element.m_elem->m_mesh->m_vertex_count;
+		render.m_num_triangles += element.m_elem->m_mesh->m_index_count / 3;
+	}
+
+	void Renderer::begin_render_pass(Render& render, PassType pass_type)
+	{
+		//this->clear_draw_elements(render);
+		//this->gather_draw_elements(render);
+
+		for(PassJob& job : render.m_scene->m_pass_jobs->m_jobs[pass_type])
 		{
-			Pass render_pass = render.next_pass(m_name);
-			render.set_uniforms(*render_pass.m_encoder);
-			job(render_pass);
+			Pass pass = render.next_pass("job", pass_type); // pass.m_name);
+			job(m_gfx, render, pass);
 		}
+	}
 
-		for(uint8_t sub_pass = 0; sub_pass < num_sub_passes; ++sub_pass)
+	void Renderer::submit_render_pass(Render& render, Pass& pass, Submit submit)
+	{
+		render.m_viewport->pass(pass);
+
+		m_gfx.m_renderer.block<BlockMaterial>()->submit(render, pass);
+
+		//for(GfxBlock* block : m_gfx.m_renderer.m_pass_blocks[pass.m_pass_type])
+		//	if(block->m_draw_block)
+		//		((DrawBlock*)block)->submit(render, pass);
+
+#ifdef TWO_GFX_JOBS
+		auto submit = [&](JobSystem& js, Job* job, size_t start, size_t count)
 		{
-			Pass render_pass = render.next_pass(m_name, sub_pass > 0);
-			this->next_draw_pass(render, render_pass);
-			render.m_viewport.render_pass(m_name, render_pass);
+			UNUSED(job);
+			bgfx::Encoder& encoder = *m_gfx.m_encoders[js.thread()];
+			this->submit_draw_elements(encoder, render, pass, start, count);
+		};
 
-#ifdef MUD_GFX_JOBS
-			auto submit = [&](JobSystem& js, Job* job, size_t start, size_t count)
-			{
-				UNUSED(job);
-				bgfx::Encoder& encoder = *m_gfx_system.m_encoders[js.thread()];
-				this->submit_draw_elements(encoder, render, render_pass, start, count);
-			};
-
-			JobSystem& js = *m_gfx_system.m_job_system;
-			Job* job = split_jobs<16>(js, nullptr, 0, uint32_t(m_impl->m_draw_elements.size()), submit);
-			js.complete(job);
+		JobSystem& js = *m_gfx.m_job_system;
+		Job* job = split_jobs<16>(js, nullptr, 0, uint32_t(m_impl->m_draw_elements.size()), submit);
+		js.complete(job);
 #else
-			bgfx::Encoder& encoder = *render_pass.m_encoder;
-			this->submit_draw_elements(encoder, render, render_pass, 0, m_impl->m_draw_elements.size());
+		bgfx::Encoder& encoder = *pass.m_encoder;
+		this->submit_draw_elements(encoder, render, pass, submit, 0, m_impl->m_draw_list.size());
 #endif
-		}
+	}
+
+	void Renderer::pass(Render& render, Pass& pass, Enqueue enqueue, Submit submit, bool sorted)
+	{
+		sorted = true;
+		if(sorted)
+			this->sorted_pass(render, pass, enqueue, submit);
+		else
+			this->direct_pass(render, pass, enqueue, submit);
+	}
+
+	void Renderer::sorted_pass(Render& render, Pass& pass, Enqueue enqueue, Submit submit)
+	{
+		this->begin_render_pass(render, pass.m_pass_type);
+
+		this->clear_draw_elements(render, pass);
+
+		for(Item* item : render.m_shot.m_items)
+			for(const ModelElem& elem : item->m_model->m_items)
+			{
+				DrawElement element = this->draw_element(*item, elem);
+				if(enqueue(m_gfx, render, pass, element))
+					this->add_element(render, pass, element);
+			}
+
+		this->submit_render_pass(render, pass, submit);
+	}
+
+	void Renderer::direct_pass(Render& render, Pass& pass, Enqueue enqueue, Submit submit)
+	{
+		this->begin_render_pass(render, pass.m_pass_type);
+
+		for(Item* item : render.m_shot.m_items)
+			for(const ModelElem& elem : item->m_model->m_items)
+			{
+				DrawElement element = this->draw_element(*item, elem);
+				if(enqueue(m_gfx, render, pass, element))
+				{
+					this->element_options(render, pass, element);
+					this->submit(*pass.m_encoder, render, pass, submit, element);
+				}
+			}
 	}
 }

@@ -4,20 +4,22 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.lang;
+#ifdef TWO_MODULES
+module two.lang;
 #else
-#include <infra/StringConvert.h>
+#include <infra/ToString.h>
+#include <stl/algorithm.h>
+#include <type/Types.h>
 #include <refl/Sequence.h>
 #include <refl/Convert.h>
-#include <infra/Vector.h>
 #include <refl/Meta.h>
 #include <lang/Stream.h>
 #endif
 
-namespace mud
+namespace two
 {
-	StreamBranch::StreamBranch(Stream* stream, Var value, StreamIndex index)
+	StreamBranch::StreamBranch() {}
+	StreamBranch::StreamBranch(Stream* stream, const Var& value, StreamIndex index)
 		: m_stream(stream)
 		, m_index(index)
 		, m_depth(index.size() - 1)
@@ -28,7 +30,7 @@ namespace mud
 	{
 		StreamIndex branch_index = m_index;
 		branch_index.push_back(m_branches.size());
-		m_branches.emplace_back(m_stream, m_stream->m_default, branch_index);
+		m_branches.push_back({ m_stream, m_stream->m_default, branch_index });
 		return m_branches.back();
 	}
 
@@ -54,15 +56,6 @@ namespace mud
 		{
 			*this = source;
 		}
-	}
-
-	void StreamBranch::visit(bool leafs, const Visitor& visitor)
-	{
-		for(auto& branch : m_branches)
-			branch.visit(leafs, visitor);
-
-		if(!leafs || m_branches.size() == 0)
-			visitor(*this);
 	}
 
 	StreamBranch& StreamBranch::branch(const StreamIndex& index)
@@ -94,12 +87,11 @@ namespace mud
 	{
 		if(multiplex && !(value == Ref()) && is_sequence(type(value)))
 		{
-			unique_ptr<Iterable> iterable = cls(value).m_iterable(value.m_ref);
-			this->resize(iterable->size());
+			Iterable& it = iter(value);
+			this->resize(it.size(value));
 
-			size_t index = 0;
-			iterable->iterate([&](Ref element) {
-				m_branches[index++].m_value = element;
+			it.iteratei(value, [&](size_t i, Ref element) {
+				m_branches[i].m_value = element;
 			});
 		}
 		else
@@ -108,7 +100,7 @@ namespace mud
 		}
 	}
 
-	bool StreamBranch::read(Var& value, Type* expected_type, bool ref)
+	bool StreamBranch::read(Var& value, const Type* expected_type, bool ref)
 	{
 		if(!expected_type)
 		{
@@ -118,7 +110,7 @@ namespace mud
 		bool result = convert(m_value, *expected_type, value, ref);
 #if 0
 		if(!result)
-			printf("WARNING: No conversion possible from %s to %s : dest set to None\n", type(source).m_name, output.m_name);
+			printf("[warning] No conversion possible from %s to %s : dest set to None\n", type(source).m_name, output.m_name);
 #endif
 		return result;
 	}
@@ -127,7 +119,7 @@ namespace mud
 		: StreamBranch(this, Var(), { 0 })
 	{}
 
-	Stream::Stream(Var value, bool nullable, bool reference)
+	Stream::Stream(const Var& value, bool nullable, bool reference)
 		: StreamBranch(this, value, { 0 })
 		, m_default(value)
 		, m_type(value == Ref() ? &type<Ref>() : &type(value))
@@ -151,7 +143,7 @@ namespace mud
 	bool compare_tip(const Topology& topology, const Topology& other)
 	{
 		size_t depth = other.size();
-		return std::equal(topology.end() - depth, topology.end(), other.begin(), other.end());
+		return equal(topology.end() - depth, topology.end(), other.begin(), other.end());
 	}
 
 	StreamBranch* Stream::match_branch(const StreamLocation& source)
@@ -174,7 +166,7 @@ namespace mud
 		if(m_branches.size() == 0)
 			return;
 
-		m_topology.insert(m_topology.begin(), 100, SIZE_MAX);
+		m_topology.resize(100, SIZE_MAX);
 
 		this->visit(false, [&](StreamBranch& branch) {
 			if(branch.m_branches.size() == 0)
@@ -186,7 +178,7 @@ namespace mud
 				m_topology[branch.m_depth] = 0;
 		});
 
-		vector_remove_if(m_topology, [](size_t& val) { return val == 0 || val == SIZE_MAX; });
+		remove_if(m_topology, [](size_t& val) { return val == 0 || val == SIZE_MAX; });
 	}
 
 	void Stream::flatten(Stream& source)
@@ -197,23 +189,23 @@ namespace mud
 		m_branches.clear();
 
 		m_value = meta(*m_type).m_empty_var;
-		unique_ptr<Sequence> sequence = cls(*m_type).m_sequence(m_value);
-		Var element = meta(*cls(*m_type).m_content).m_empty_var;
+		Sequence& seq = sequence(m_value);
+		Var element = meta(*iter(*m_type).m_element_type).m_empty_var;
 
 		source.visit(true, [&](StreamBranch& branch)
 		{
-			branch.read(element, cls(*m_type).m_content, m_reference);
-			sequence->add(element);
+			branch.read(element, iter(*m_type).m_element_type, m_reference);
+			seq.add(m_value, element);
 		});
 	}
 
 	void Stream::graft(Stream& source)
 	{
-		unique_ptr<Sequence> sequence = cls(source.m_value).m_sequence(source.m_value);
-		this->resize(sequence->size());
+		Iterable& iterable = iter(source.m_value);
+		this->resize(iterable.size(source.m_value));
 
 		size_t index = 0;
-		sequence->iterate([&](Ref element)
+		iterable.iterate(source.m_value, [&](Ref element)
 		{
 			m_branches[index++].m_value = element;
 		});

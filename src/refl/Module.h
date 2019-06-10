@@ -4,25 +4,32 @@
 
 #pragma once
 
+#include <stl/vector.h>
 #include <refl/Forward.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#include <functional>
-#endif
+#include <stdint.h>
 
-namespace mud
+namespace two
 {
 	export_ using cstring = const char*;
-	
-	export_ class refl_ MUD_REFL_EXPORT Module
+
+	export_ struct refl_ TWO_REFL_EXPORT Alias
+	{
+		Type* m_type;
+		Namespace* m_namespace;
+		cstring m_name;
+	};
+
+	export_ class refl_ TWO_REFL_EXPORT Module
 	{
 	public:
-		Module(cstring name);
+		Module(cstring name, vector<Module*> deps);
 
 		attr_ cstring m_name;
-		attr_ std::vector<Type*> m_types;
-		attr_ std::vector<Function*> m_functions;
+		attr_ vector<Module*> m_deps;
+		attr_ vector<Type*> m_types;
+		attr_ vector<Alias*> m_aliases;
+		attr_ vector<Function*> m_functions;
 
 		attr_ cstring m_path;
 		void* m_handle;

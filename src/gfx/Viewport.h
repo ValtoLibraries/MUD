@@ -4,18 +4,18 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
+#include <stl/function.h>
 #include <math/Vec.h>
 #include <math/Colour.h>
+#include <ecs/Entity.h>
 #endif
 #include <gfx/Forward.h>
 #include <gfx/Renderer.h>
+#include <gfx/Culling.h>
+#include <gfx/Froxel.h>
 
-#ifndef MUD_CPP_20
-#include <functional>
-#endif
-
-namespace mud
+namespace two
 {
 	using cstring = const char*;
 
@@ -26,12 +26,13 @@ namespace mud
 		X4,
 		X8,
 		X16,
+		Count
 	};
 
 	export_ enum class refl_ Shading : unsigned int
 	{
 		Wireframe,
-		Unshaded,
+		Solid,
 		Shaded,
 		Volume,
 		Voxels,
@@ -41,35 +42,45 @@ namespace mud
 		Count
 	};
 
-	struct RenderFilters;
+	export_ extern TWO_GFX_EXPORT GridECS* g_viewer_ecs;
 
-	export_ class refl_ MUD_GFX_EXPORT Viewport
+	export_ class refl_ TWO_GFX_EXPORT Viewport : public OEntt
 	{
 	public:
-		Viewport(Camera& camera, Scene& scene, uvec4 rect = {}, bool scissor = false);
+		constr_ Viewport() {}
+		constr_ Viewport(Camera& camera, Scene& scene, const vec4& rect = vec4(0.f), bool scissor = false);
 		~Viewport();
+
+		Viewport(Viewport&& other) = default;
+		Viewport& operator=(Viewport&& other) = default;
 
 		attr_ Camera* m_camera;
 		attr_ Scene* m_scene;
 
 		attr_ uint16_t m_index = 0;
-		attr_ bool m_active = true;
-		attr_ uvec4 m_rect = {};
+		attr_ bool m_autorender = true;
+		attr_ bool m_autoflip = false;
+		attr_ vec4 m_rect = vec4(0.f);
 		attr_ bool m_scissor = false;
 		attr_ Colour m_clear_colour = Colour::Black;
 		attr_ Shading m_shading = Shading::Shaded;
 		attr_ Lighting m_lighting = Lighting::Clustered;
-		/*attr_ mut_*/ RenderFilters* m_filters = nullptr;
+		attr_ bool m_clustered = false;
+		attr_ bool m_to_gamma = false;
 
-		std::function<uvec4()> m_get_size;
-		std::function<void(Render&)> m_render;
+		using RenderTask = function<void(Render&)>;
+		vector<RenderTask> m_tasks;
+		
+		unique<Culler> m_culler;
 
-		unique_ptr<Culler> m_culler;
+		unique<Froxelizer> m_clusters;
 
-		void render_pass(cstring name, const Pass& render_pass);
+		void pass(const Pass& pass);
 
-		void cull(Render& render);
-		void render(Render& render);
+		meth_ void cull(Render& render);
+		meth_ void render(Render& render);
+
+		meth_ void set_clustered(GfxSystem& gfx);
 
 		Ray ray(const vec2& pos);
 		vec3 raycast(const Plane& plane, const vec2& pos);

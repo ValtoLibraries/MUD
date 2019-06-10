@@ -4,15 +4,15 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.tool;
+#ifdef TWO_MODULES
+module two.tool;
 #else
 #include <gfx/Camera.h>
 #include <tool/Types.h>
 #include <tool/Tools/ViewTool.h>
 #endif
 
-namespace mud
+namespace two
 {
 	ViewAction::ViewAction(Camera& camera, const vec3& eye, const vec3& target)
 		: m_camera(camera)
@@ -39,9 +39,9 @@ namespace mud
 	void FrameViewTool::activate()
 	{
 		vec3 vision = m_context.m_camera->m_target - m_context.m_camera->m_eye;
-		std::vector<Transform*> transforms = gather_transforms(*m_context.m_selection);
+		vector<Transform*> transforms = gather_transforms(*m_context.m_selection);
 		Transform transform = average_transforms(transforms);
-		this->commit(make_object<ViewAction>(*m_context.m_camera, transform.m_position - vision, transform.m_position));
+		this->commit(oconstruct<ViewAction>(*m_context.m_camera, transform.m_position - vision, transform.m_position));
 		m_state = ToolState::Done;
 	}
 
@@ -53,7 +53,7 @@ namespace mud
 	void ViewTool::activate()
 	{
 		vec3 target = m_context.m_camera->m_target;
-		this->commit(make_object<ViewAction>(*m_context.m_camera, target + m_offset, target));
+		this->commit(oconstruct<ViewAction>(*m_context.m_camera, target + m_offset, target));
 		m_state = ToolState::Done;
 	}
 }

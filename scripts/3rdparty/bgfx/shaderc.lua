@@ -1,8 +1,16 @@
 
 --dofile(path.join(BGFX_DIR, "scripts/shaderc.lua"))
-dofile(path.join(MUD_DIR, "scripts/3rdparty/bgfx/shaderc_bgfx.lua"))
+dofile(path.join(TWO_DIR, "scripts/3rdparty/bgfx/shaderc_bgfx.lua"))
 
 project "glsl-optimizer"
+    removeflags {
+        "Cpp17"
+    }
+    
+    flags {
+        "Cpp14"
+    }
+    
     configuration { "asmjs" }
         defines {
             "HAVE___BUILTIN_FFS",
@@ -11,6 +19,13 @@ project "glsl-optimizer"
 
     configuration {}
     
+project "spirv-opt"
+    configuration { "vs*", "not asmjs" }
+        buildoptions {
+            "/wd4996", -- warning C4996: warning STL4015: The std::iterator class template (used as a base class to provide typedefs) is deprecated in C++17.
+        }
+
+    configuration {}
     
 project "shaderc"
 	kind "StaticLib"
@@ -21,16 +36,7 @@ project "shaderc"
         "bgfx",
 	}
     
-    files {
-        path.join(MUD_DIR, "scripts/3rdparty/bgfx/shaderc_spirv.cpp"),
-        path.join(MUD_DIR, "scripts/3rdparty/bgfx/shaderc.cpp"),
-        path.join(MUD_DIR, "scripts/3rdparty/bgfx/shaderc.h"),
-    }
-    
     removefiles {
-        path.join(BGFX_DIR, "tools/shaderc/shaderc_spirv.cpp"),
-        path.join(BGFX_DIR, "tools/shaderc/shaderc.cpp"),
-        path.join(BGFX_DIR, "tools/shaderc/shaderc.h"),
         path.join(BGFX_DIR, "src/**.h"),
         path.join(BGFX_DIR, "src/**.cpp"),
     }

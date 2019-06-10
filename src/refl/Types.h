@@ -1,70 +1,55 @@
 #pragma once
 
+#include <stdint.h>
+#include <stl/string.h>
+#include <stl/vector.h>
 #include <refl/Forward.h>
 
-#if !defined MUD_MODULES || defined MUD_TYPE_LIB
+#if !defined TWO_MODULES || defined TWO_TYPE_LIB
 #include <type/Type.h>
-#include <type/Vector.h>
 #endif
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
 #include <infra/Types.h>
 #include <type/Types.h>
 #include <pool/Types.h>
 #endif
 
-#ifndef MUD_CPP_20
-#include <string>
-#include <cstdint>
-#include <vector>
-#endif
 
-
-namespace mud
+namespace two
 {
     // Exported types
-    export_ template <> MUD_REFL_EXPORT Type& type<mud::ConstructorIndex>();
-    export_ template <> MUD_REFL_EXPORT Type& type<mud::TypeClass>();
+    export_ template <> TWO_REFL_EXPORT Type& type<two::TypeClass>();
     
-    export_ template <> MUD_REFL_EXPORT Type& type<mud::Call>();
-    export_ template <> MUD_REFL_EXPORT Type& type<mud::Callable>();
-    export_ template <> MUD_REFL_EXPORT Type& type<mud::Class>();
-    export_ template <> MUD_REFL_EXPORT Type& type<mud::Convert>();
-    export_ template <> MUD_REFL_EXPORT Type& type<mud::Creator>();
-    export_ template <> MUD_REFL_EXPORT Type& type<mud::Enum>();
-    export_ template <> MUD_REFL_EXPORT Type& type<mud::Member>();
-    export_ template <> MUD_REFL_EXPORT Type& type<mud::Meta>();
-    export_ template <> MUD_REFL_EXPORT Type& type<mud::Module>();
-    export_ template <> MUD_REFL_EXPORT Type& type<mud::Namespace>();
-    export_ template <> MUD_REFL_EXPORT Type& type<mud::Param>();
-    export_ template <> MUD_REFL_EXPORT Type& type<mud::Signature>();
-    export_ template <> MUD_REFL_EXPORT Type& type<mud::Static>();
-    export_ template <> MUD_REFL_EXPORT Type& type<mud::System>();
-    export_ template <> MUD_REFL_EXPORT Type& type<mud::Constructor>();
-    export_ template <> MUD_REFL_EXPORT Type& type<mud::CopyConstructor>();
-    export_ template <> MUD_REFL_EXPORT Type& type<mud::Destructor>();
-    export_ template <> MUD_REFL_EXPORT Type& type<mud::Function>();
-    export_ template <> MUD_REFL_EXPORT Type& type<mud::Method>();
-    export_ template <> MUD_REFL_EXPORT Type& type<mud::Injector>();
+    export_ template <> TWO_REFL_EXPORT Type& type<stl::span<two::Type*>>();
+    export_ template <> TWO_REFL_EXPORT Type& type<stl::vector<two::Var>>();
+    export_ template <> TWO_REFL_EXPORT Type& type<stl::vector<void*>>();
+    export_ template <> TWO_REFL_EXPORT Type& type<stl::vector<two::Module*>>();
+    export_ template <> TWO_REFL_EXPORT Type& type<stl::vector<two::Type*>>();
+    export_ template <> TWO_REFL_EXPORT Type& type<stl::vector<two::Alias*>>();
+    export_ template <> TWO_REFL_EXPORT Type& type<stl::vector<two::Function*>>();
     
-	export_ template struct MUD_REFL_EXPORT Typed<std::vector<mud::Call*>>;
-	export_ template struct MUD_REFL_EXPORT Typed<std::vector<mud::Callable*>>;
-	export_ template struct MUD_REFL_EXPORT Typed<std::vector<mud::Class*>>;
-	export_ template struct MUD_REFL_EXPORT Typed<std::vector<mud::Convert*>>;
-	export_ template struct MUD_REFL_EXPORT Typed<std::vector<mud::Creator*>>;
-	export_ template struct MUD_REFL_EXPORT Typed<std::vector<mud::Enum*>>;
-	export_ template struct MUD_REFL_EXPORT Typed<std::vector<mud::Member*>>;
-	export_ template struct MUD_REFL_EXPORT Typed<std::vector<mud::Meta*>>;
-	export_ template struct MUD_REFL_EXPORT Typed<std::vector<mud::Module*>>;
-	export_ template struct MUD_REFL_EXPORT Typed<std::vector<mud::Namespace*>>;
-	export_ template struct MUD_REFL_EXPORT Typed<std::vector<mud::Param*>>;
-	export_ template struct MUD_REFL_EXPORT Typed<std::vector<mud::Signature*>>;
-	export_ template struct MUD_REFL_EXPORT Typed<std::vector<mud::Static*>>;
-	export_ template struct MUD_REFL_EXPORT Typed<std::vector<mud::System*>>;
-	export_ template struct MUD_REFL_EXPORT Typed<std::vector<mud::Constructor*>>;
-	export_ template struct MUD_REFL_EXPORT Typed<std::vector<mud::CopyConstructor*>>;
-	export_ template struct MUD_REFL_EXPORT Typed<std::vector<mud::Destructor*>>;
-	export_ template struct MUD_REFL_EXPORT Typed<std::vector<mud::Function*>>;
-	export_ template struct MUD_REFL_EXPORT Typed<std::vector<mud::Method*>>;
-	export_ template struct MUD_REFL_EXPORT Typed<std::vector<mud::Injector*>>;
+    export_ template <> TWO_REFL_EXPORT Type& type<two::QualType>();
+    export_ template <> TWO_REFL_EXPORT Type& type<two::Param>();
+    export_ template <> TWO_REFL_EXPORT Type& type<two::Signature>();
+    export_ template <> TWO_REFL_EXPORT Type& type<two::Callable>();
+    export_ template <> TWO_REFL_EXPORT Type& type<two::Function>();
+    export_ template <> TWO_REFL_EXPORT Type& type<two::Operator>();
+    export_ template <> TWO_REFL_EXPORT Type& type<two::Method>();
+    export_ template <> TWO_REFL_EXPORT Type& type<two::Constructor>();
+    export_ template <> TWO_REFL_EXPORT Type& type<two::CopyConstructor>();
+    export_ template <> TWO_REFL_EXPORT Type& type<two::Destructor>();
+    export_ template <> TWO_REFL_EXPORT Type& type<two::Meta>();
+    export_ template <> TWO_REFL_EXPORT Type& type<two::Convert>();
+    export_ template <> TWO_REFL_EXPORT Type& type<two::Static>();
+    export_ template <> TWO_REFL_EXPORT Type& type<two::Member>();
+    export_ template <> TWO_REFL_EXPORT Type& type<two::Class>();
+    export_ template <> TWO_REFL_EXPORT Type& type<two::Enum>();
+    export_ template <> TWO_REFL_EXPORT Type& type<two::Call>();
+    export_ template <> TWO_REFL_EXPORT Type& type<two::Injector>();
+    export_ template <> TWO_REFL_EXPORT Type& type<two::Creator>();
+    export_ template <> TWO_REFL_EXPORT Type& type<two::Namespace>();
+    export_ template <> TWO_REFL_EXPORT Type& type<two::Alias>();
+    export_ template <> TWO_REFL_EXPORT Type& type<two::Module>();
+    export_ template <> TWO_REFL_EXPORT Type& type<two::System>();
 }

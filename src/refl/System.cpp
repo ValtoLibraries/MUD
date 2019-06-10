@@ -3,15 +3,13 @@
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #include <infra/Cpp20.h>
-#ifndef MUD_CPP_20
-#include <fstream>
-#include <string>
-#endif
 
-#ifdef MUD_MODULES
-module mud.refl;
+#ifdef TWO_MODULES
+module two.refl;
 #else
-#include <infra/Vector.h>
+#include <stl/string.h>
+#include <stl/algorithm.h>
+#include <infra/File.h>
 #include <refl/System.h>
 #include <refl/Module.h>
 #include <refl/Class.h>
@@ -33,29 +31,23 @@ module mud.refl;
 	#define BUILD_SUFFIX ""
 #endif
 
-namespace mud
+#include <cstdio>
+#include <cstring>
+
+namespace two
 {
-	using string = std::string;
-
-	void copyfile(const string& source, const string& dest)
-	{
-		std::ifstream file(source, std::ios::binary);
-		std::ofstream destFile(dest, std::ios::binary);
-		destFile << file.rdbuf();
-	}
-
 	Module* load_module(cstring path)
 	{
 		string module_path = string(path) + BUILD_SUFFIX + MODULE_EXT;
 		string loaded_path = string(path) + BUILD_SUFFIX + "_loaded" + MODULE_EXT;
 		
-		if(!std::ifstream(module_path, std::ios::binary).good())
+		if(!file_exists(module_path))
 		{
-			printf("ERROR: Module %s not found\n", module_path.c_str());
+			printf("[ERROR] refl - module %s not found\n", module_path.c_str());
 			return nullptr;
 		}
 
-		copyfile(module_path, loaded_path);
+		copy_file(module_path, loaded_path);
 
 #ifdef _WIN32
 		HMODULE module_handle = LoadLibraryA(loaded_path.c_str());
@@ -131,7 +123,7 @@ namespace mud
 		PROCESS_INFORMATION processInfo = {};
 
 		string cmd = string(path) + " " + string(args);
-		std::vector<char> mutcmd(cmd.c_str(), cmd.c_str() + cmd.length() + 1);
+		vector<char> mutcmd(cmd.c_str(), cmd.c_str() + cmd.size() + 1);
 
 		CreateProcess(path, mutcmd.data(), NULL, NULL, FALSE, 0, NULL, NULL, &startupInfo, &processInfo);
 
@@ -143,45 +135,58 @@ namespace mud
 #endif
 	}
 
-	void System::load_modules(std::vector<Module*> modules)
+	void System::load_modules(span<Module*> modules)
 	{
 		for(Module* m : modules)
 			this->load_module(*m);
 	}
 
+	bool System::has_module(Module& m)
+	{
+		return has(m_modules, &m);
+	}
+
 	Module* System::open_module(cstring path)
 	{
-		return mud::load_module(path);
+		return two::load_module(path);
 	}
 
 	void System::load_module(Module& m)
 	{
+		if(has(m_modules, &m))
+			return;
+
 		m_modules.push_back(&m);
+
+		for(Module* dep : m.m_deps)
+			load_module(*dep);
 
 		for(Type* type : m.m_types)
 			m_types.push_back(type);
+		for(Alias* alias : m.m_aliases)
+			m_aliases.push_back(alias);
 
 		for(Function* function : m.m_functions)
 			m_functions.push_back(function);
 
-		//for(Module* depend : m_modules)
-		//	depend->handle_load(m);
+		for(Type* type : m.m_types)
+			if(g_class[type->m_id])
+				cls(*type).setup_class();
 	}
 
 	void System::unload_module(Module& m)
 	{
-		//for(Module* depend : m_modules)
-		//	depend->handle_unload(m);
-
-		vector_remove(m_modules, &m);
+		remove(m_modules, &m);
 
 		for(Type* type : m.m_types)
-			vector_remove(m_types, type);
+			remove(m_types, type);
+		for(Alias* alias : m.m_aliases)
+			remove(m_aliases, alias);
 
 		for(Function* function : m.m_functions)
-			vector_remove(m_functions, function);
+			remove(m_functions, function);
 
-		mud::unload_module(m);
+		two::unload_module(m);
 	}
 
 	Module& System::reload_module(Module& m)
@@ -224,13 +229,13 @@ namespace mud
 			{
 				return *func;
 			}
-		printf("ERROR: retrieving function\n");
+		printf("[ERROR] retrieving function\n");
 		return *m_functions[0];
 	}
 
-	std::vector<cstring> System::meta_symbols()
+	vector<cstring> System::meta_symbols()
 	{
-		std::vector<cstring> symbols;
+		vector<cstring> symbols;
 
 		for(Function* function : System::instance().m_functions)
 			symbols.push_back(function->m_name);
@@ -244,11 +249,11 @@ namespace mud
 	void System::dump_meta_info()
 	{
 		for(Function* function : System::instance().m_functions)
-			printf("INFO: Meta function %s\n", function->m_name);
+			printf("[info] Meta function %s\n", function->m_name);
 
 		for(Type* type : System::instance().m_types)
 		{
-			printf("INFO: Meta type %s\n", type->m_name);
+			printf("[info] Meta type %s\n", type->m_name);
 
 			if(!g_class[type->m_id])
 				continue;
@@ -278,18 +283,18 @@ namespace mud
 		}
 	}
 
-	bool compare(const std::vector<cstring>& first, const std::vector<cstring>& second)
+	Namespace& System::get_namespace(span<cstring> path)
 	{
-		if(first.size() != second.size())
-			return false;
-		for(size_t i = 0; i < first.size(); ++i)
-			if(strcmp(first[i], second[i]) != 0)
+		auto compare = [](span<cstring> first, span<cstring> second)
+		{
+			if(first.size() != second.size())
 				return false;
-		return true;
-	}
+			for(size_t i = 0; i < first.size(); ++i)
+				if(strcmp(first[i], second[i]) != 0)
+					return false;
+			return true;
+		};
 
-	Namespace& System::get_namespace(std::vector<cstring> path)
-	{
 		for(Namespace& location : m_namespaces)
 			if(compare(location.m_path, path))
 			{
@@ -301,11 +306,11 @@ namespace mud
 
 		if(!path.empty())
 		{
-			name = vector_pop(path);
-			parent = &namspc(path);
+			name = path[path.size() - 1];
+			parent = &namspc({ path.data(), path.size() - 1 });
 		}
 
-		m_namespaces.push_back(Namespace{ name, parent });
+		m_namespaces.push_back({ name, parent });
 		return m_namespaces.back();
 	}
 }

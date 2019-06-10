@@ -4,21 +4,28 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <infra/Strung.h>
+#ifndef TWO_MODULES
+#include <stl/string.h>
+#include <stl/table.h>
+#include <stl/function.h>
 #include <math/Vec.h>
 #include <math/Colour.h>
 #include <geom/Primitive.h>
 #endif
 #include <gfx/Forward.h>
+#include <gfx/Texture.h>
 #include <gfx/Renderer.h>
 
-#include <bgfx/bgfx.h>
+namespace bgfx
+{
+	struct Encoder;
+}
 
-namespace mud
+namespace two
 {
 	export_ enum class refl_ BlendMode : unsigned int
 	{
+		None,
 		Mix,
 		Add,
 		Sub,
@@ -33,7 +40,8 @@ namespace mud
 	{
 		None,
 		Front,
-		Back
+		Back,
+		Count
 	};
 
 	export_ enum class refl_ DepthDraw : unsigned int
@@ -55,26 +63,24 @@ namespace mud
 		Count
 	};
 
-	export_ struct refl_ MUD_GFX_EXPORT BaseMaterialBlock
+	export_ enum class refl_ ShaderColor : unsigned int
 	{
-		attr_ BlendMode m_blend_mode = BlendMode::Mix;
-		attr_ CullMode m_cull_mode = CullMode::Back;
-		attr_ DepthDraw m_depth_draw_mode = DepthDraw::Enabled;
-		attr_ DepthTest m_depth_test = DepthTest::Enabled;
+		Shader,
+		Vertex,
+		Face
+	};
 
-		attr_ vec2 m_uv0_scale = { 1.f, 1.f };
-		attr_ vec2 m_uv0_offset = { 0.f, 0.f };
-		attr_ vec2 m_uv1_scale = { 1.f, 1.f };
-		attr_ vec2 m_uv1_offset = { 0.f, 0.f };
+	export_ enum ShaderOptionBase : unsigned int
+	{
+		VERTEX_COLOR,
+		DOUBLE_SIDED,
+		FLAT_SHADED,
+	};
 
-		attr_ bool m_is_alpha = false;
-		attr_ bool m_screen_filter = false;
-
-		uint m_geometry_filter = (1 << OUTLINE) | (1 << PLAIN);
-
-#if 0
-		BillboardMode m_billboard_mode;
-#endif		
+	export_ enum ShaderOptionAlpha : unsigned int
+	{
+		ALPHA_MAP,
+		ALPHA_TEST,
 	};
 
 	export_ enum class refl_ TextureChannel : unsigned int
@@ -86,35 +92,127 @@ namespace mud
 		All
 	};
 
-	export_ template <class T_Param>
+	export_ template <class T>
 	struct refl_ struct_ MaterialParam
 	{
 		MaterialParam() {}
-		MaterialParam(T_Param value, Texture* texture = nullptr, TextureChannel channel = TextureChannel::All) : m_value(value), m_texture(texture), m_channel(channel) {}
-		attr_ T_Param m_value = {};
+		MaterialParam(T value, Texture* texture = nullptr, TextureChannel channel = TextureChannel::All) : m_value(value), m_texture(texture), m_channel(channel) {}
+		//MaterialParam(Texture& texture, TextureChannel channel = TextureChannel::All) : m_value(T()), m_texture(texture), m_channel(channel) {}
+		MaterialParam& operator=(const T& value) { m_value = value; return *this; }
+		MaterialParam& operator=(Texture* texture) { m_texture = texture; return *this; }
+		attr_ gpu_ T m_value = {};
 		attr_ Texture* m_texture = nullptr;
 		attr_ TextureChannel m_channel = TextureChannel::All;
 	};
 
-	export_ template struct refl_ struct_ MUD_GFX_EXPORT MaterialParam<Colour>;
-	export_ template struct refl_ struct_ MUD_GFX_EXPORT MaterialParam<float>;
+	export_ extern template struct refl_ MaterialParam<Colour>;
+	export_ extern template struct refl_ MaterialParam<float>;
+	export_ extern template struct refl_ MaterialParam<vec4>;
 
-	export_ struct refl_ MUD_GFX_EXPORT UnshadedMaterialBlock
+	export_ struct refl_ TWO_GFX_EXPORT MaterialBase
 	{
-		attr_ bool m_enabled = false;
+		attr_ BlendMode m_blend_mode = BlendMode::None;
+		attr_ CullMode m_cull_mode = CullMode::Back;
+		attr_ DepthDraw m_depth_draw = DepthDraw::Enabled;
+		attr_ DepthTest m_depth_test = DepthTest::Enabled;
 
-		attr_ MaterialParam<Colour> m_colour = { Colour::White, nullptr };
+		attr_ gpu_ vec2 m_uv0_scale = { 1.f, 1.f };
+		attr_ gpu_ vec2 m_uv0_offset = { 0.f, 0.f };
+		attr_ gpu_ vec2 m_uv1_scale = { 1.f, 1.f };
+		attr_ gpu_ vec2 m_uv1_offset = { 0.f, 0.f };
+
+		attr_ ShaderColor m_shader_color = ShaderColor::Shader;
+		attr_ bool m_flat_shaded = false;
+
+		attr_ bool m_screen_filter = false;
+		attr_ float m_anisotropy;
+
+		uint32_t m_geometry_filter = UINT32_MAX;
+
+#if 0
+		BillboardMode m_billboard_mode;
+#endif
+		
+		static ShaderBlock s_block;
 	};
 
-	export_ struct refl_ MUD_GFX_EXPORT FresnelMaterialBlock
+	export_ struct refl_ TWO_GFX_EXPORT MaterialUser
 	{
-		attr_ bool m_enabled = false;
+		attr_ Texture* m_tex0 = nullptr;
+		attr_ Texture* m_tex1 = nullptr;
+		attr_ Texture* m_tex2 = nullptr;
+		attr_ Texture* m_tex3 = nullptr;
+		attr_ Texture* m_tex4 = nullptr;
+		attr_ Texture* m_tex5 = nullptr;
 
-		attr_ MaterialParam<Colour> m_value = { Colour::White, nullptr };
+		attr_ vec4 m_attr0 = vec4(0.f);
+		attr_ vec4 m_attr1 = vec4(0.f);
+		attr_ vec4 m_attr2 = vec4(0.f);
+		attr_ vec4 m_attr3 = vec4(0.f);
+		attr_ vec4 m_attr4 = vec4(0.f);
+		attr_ vec4 m_attr5 = vec4(0.f);
 
-		attr_ float m_fresnel_scale = 1.f;
-		attr_ float m_fresnel_bias = 0.01f;
-		attr_ float m_fresnel_power = 5.f;
+		static ShaderBlock s_block;
+	};
+
+	export_ struct refl_ TWO_GFX_EXPORT MaterialAlpha
+	{
+		attr_ gpu_ MaterialParam<float> m_alpha = { 1.f, nullptr };
+		attr_ gpu_ float m_alpha_scissor = 0.5f;
+
+		attr_ bool m_alpha_test = false;
+		attr_ bool m_is_alpha = false;
+
+		static ShaderBlock s_block;
+	};
+
+	export_ struct refl_ TWO_GFX_EXPORT MaterialSolid
+	{
+		attr_ MaterialParam<Colour> m_colour = { Colour::White, nullptr };
+
+		static ShaderBlock s_block;
+	};
+
+	export_ enum ShaderOptionSolid : unsigned int
+	{
+		COLOR_MAP,
+	};
+
+	export_ enum ShaderOptionLine : unsigned int
+	{
+		DASH,
+	};
+
+	export_ struct refl_ TWO_GFX_EXPORT MaterialPoint
+	{
+		attr_ gpu_ float m_point_size = 1.f;
+		attr_ gpu_ bool m_project = false;
+
+		static ShaderBlock s_block;
+	};
+
+	export_ struct refl_ TWO_GFX_EXPORT MaterialLine
+	{
+		attr_ gpu_ float m_line_width = 1.f;
+
+		attr_ bool m_dashed = false;
+		attr_ gpu_ float m_dash_scale = 1.f;
+		attr_ gpu_ float m_dash_size = 1.f;
+		attr_ gpu_ float m_dash_gap = 1.f;
+		// resolution
+
+		static ShaderBlock s_block;
+	};
+
+	export_ struct refl_ TWO_GFX_EXPORT MaterialFresnel
+	{
+		attr_ gpu_ MaterialParam<Colour> m_value = { Colour::White, nullptr };
+
+		attr_ gpu_ float m_fresnel_scale = 1.f;
+		attr_ gpu_ float m_fresnel_bias = 0.01f;
+		attr_ gpu_ float m_fresnel_power = 5.f;
+
+		static ShaderBlock s_block;
 	};
 
 	export_ enum class refl_ PbrDiffuseMode : unsigned int
@@ -135,117 +233,175 @@ namespace mud
 		Disabled,
 	};
 
-	export_ enum PbrShaderOption : unsigned int
+	export_ enum ShaderOptionLit : unsigned int
 	{
 		NORMAL_MAP,
 		EMISSIVE,
-		ANISOTROPY,
 		AMBIENT_OCCLUSION,
-		DEPTH_MAPPING,
-		DEEP_PARALLAX,
-		LIGHTMAP
+		LIGHTMAP,
+		DISPLACEMENT
 	};
 
-	export_ struct refl_ MUD_GFX_EXPORT PbrMaterialBlock
+	export_ enum ShaderOptionPbr : unsigned int
 	{
-		constr_ PbrMaterialBlock() {}
-		constr_ PbrMaterialBlock(const Colour& albedo, float metallic = 0.f, float roughness = 1.f) : m_enabled(true), m_albedo(albedo, nullptr), m_metallic(metallic, nullptr, TextureChannel::Red), m_roughness(roughness, nullptr, TextureChannel::Red) {}
+		ALBEDO_MAP,
+		ROUGHNESS_MAP,
+		METALLIC_MAP,
+		//REFRACTION,
+		//ANISOTROPY,
+		DEPTH_MAPPING,
+		DEEP_PARALLAX,
+	};
 
-		PbrMaterialBlock& operator=(const PbrMaterialBlock&) = default; // @kludge because clang-modules bug doesn't have copy-assign with member arrays ?
+	export_ enum ShaderModePbr : unsigned int
+	{
+		DIFFUSE_MODE,
+		SPECULAR_MODE,
+	};
 
-		attr_ bool m_enabled = false;
+	export_ enum ShaderOptionPhong : unsigned int
+	{
+		DIFFUSE_MAP,
+		SPECULAR_MAP,
+		SHININESS_MAP,
+		REFRACTION,
+		TOON,
+	};
+
+	export_ enum ShaderModePhong : unsigned int
+	{
+		ENV_BLEND,
+	};
+
+	export_ struct refl_ TWO_GFX_EXPORT MaterialLit
+	{
+		attr_ gpu_ MaterialParam<Colour> m_emissive = { rgba(0x00000000), nullptr };
+		attr_ gpu_ float m_emissive_energy = 0.f;
+
+		attr_ gpu_ MaterialParam<float> m_normal = { 1.f, nullptr };
+		attr_ gpu_ MaterialParam<float> m_bump = { 1.f, nullptr };
+		attr_ gpu_ MaterialParam<float> m_displace = { 1.f, nullptr };
+		attr_ gpu_ float m_displace_bias = 0.f;
+
+		attr_ gpu_ MaterialParam<float> m_occlusion;
+		attr_ gpu_ MaterialParam<float> m_lightmap;
+
+		attr_ bool m_no_envmap = false;
+
+		static ShaderBlock s_block;
+	};
+
+	export_ struct refl_ TWO_GFX_EXPORT MaterialPbr
+	{
+		constr_ MaterialPbr() {}
+		constr_ MaterialPbr(const Colour& albedo, float metallic = 0.f, float roughness = 1.f) : m_albedo(albedo, nullptr), m_metallic(metallic, nullptr, TextureChannel::Red), m_roughness(roughness, nullptr, TextureChannel::Red) {}
+
+		MaterialPbr& operator=(const MaterialPbr&) = default; // @kludge because clang-modules bug doesn't have copy-assign with member arrays ?
 
 		// basic
-		attr_ MaterialParam<Colour> m_albedo = { Colour::White, nullptr };
-		attr_ float m_specular = 0.5f;
-		attr_ MaterialParam<float> m_metallic = { 0.f, nullptr, TextureChannel::Red };
-		attr_ MaterialParam<float> m_roughness = { 1.f, nullptr, TextureChannel::Red };
-		attr_ MaterialParam<Colour> m_emissive = { Colour::None, nullptr };
-		attr_ float m_emissive_energy = 0.f;
-		attr_ MaterialParam<float> m_normal = { 1.f, nullptr };
+		attr_ gpu_ MaterialParam<Colour> m_albedo = { Colour::White, nullptr };
+		attr_ gpu_ float m_specular = 0.5f;
+		attr_ gpu_ MaterialParam<float> m_metallic = { 0.f, nullptr, TextureChannel::Red };
+		attr_ gpu_ MaterialParam<float> m_roughness = { 1.f, nullptr, TextureChannel::Red };
 
 		// advanced
-		attr_ MaterialParam<float> m_rim;
-		attr_ float m_rim_tint;
-		attr_ MaterialParam<float> m_clearcoat;
-		attr_ float m_clearcoat_gloss;
-		attr_ MaterialParam<float> m_anisotropy;
-		attr_ MaterialParam<float> m_subsurface;
-		attr_ MaterialParam<Colour> m_transmission;
-		attr_ MaterialParam<float> m_refraction;
-		attr_ MaterialParam<float> m_ambient_occlusion;
-		attr_ MaterialParam<float> m_depth = { -0.02f, nullptr };
+		attr_ gpu_ MaterialParam<float> m_rim;
+		attr_ gpu_ float m_rim_tint;
+		attr_ gpu_ MaterialParam<float> m_clearcoat;
+		attr_ gpu_ float m_clearcoat_gloss;
+		attr_ gpu_ MaterialParam<float> m_anisotropy;
+		attr_ gpu_ MaterialParam<float> m_subsurface;
+		attr_ gpu_ MaterialParam<float> m_refraction;
+		attr_ gpu_ MaterialParam<float> m_depth = { -0.02f, nullptr };
+		attr_ gpu_ MaterialParam<Colour> m_transmission;
 
 		attr_ bool m_deep_parallax = false;
 
 		attr_ PbrDiffuseMode m_diffuse_mode = PbrDiffuseMode::Burley;
 		attr_ PbrSpecularMode m_specular_mode = PbrSpecularMode::SchlickGGX;
 
-		bool m_flags[size_t(MaterialFlag::Count)];
+		table<MaterialFlag, bool> m_flags;
+
+		static ShaderBlock s_block;
 	};
 
-	export_ struct PbrBlock : public GfxBlock
+	export_ enum class refl_ PhongEnvBlendMode : unsigned int
 	{
-		PbrBlock(GfxSystem& gfx_system);
-
-		virtual void init_block() override {}
-
-		virtual void begin_render(Render& render) override { UNUSED(render); }
-		virtual void begin_pass(Render& render) override { UNUSED(render); }
+		Mul,
+		Mix,
+		Add,
 	};
 
-	export_ PbrBlock& pbr_block(GfxSystem& gfx_system);
+	export_ struct refl_ TWO_GFX_EXPORT MaterialPhong
+	{
+		attr_ gpu_ MaterialParam<Colour> m_diffuse = { rgb(0xffffff), nullptr };
+		attr_ gpu_ MaterialParam<Colour> m_specular = { rgb(0x111111), nullptr };
+		attr_ gpu_ MaterialParam<float> m_shininess = { 30.f, nullptr };
 
-	export_ MUD_GFX_EXPORT void load_material(Material& material, Program& program);
+		attr_ gpu_ MaterialParam<float> m_reflectivity = { 1.f, nullptr };
+		attr_ gpu_ MaterialParam<float> m_refraction = { 0.f, nullptr }; // 0.98f if active
 
-	export_ class refl_ MUD_GFX_EXPORT Material
+		attr_ PhongEnvBlendMode m_env_blend = PhongEnvBlendMode::Mul;
+
+		attr_ bool m_toon = false;
+
+		static ShaderBlock s_block;
+	};
+
+	export_ class refl_ TWO_GFX_EXPORT BlockMaterial : public GfxBlock
+	{
+	public:
+		BlockMaterial(GfxSystem& gfx);
+
+		virtual void init_block() override;
+
+		virtual void begin_render(Render& render) override;
+
+		virtual void submit(Render& render, const Pass& pass);
+
+		// only reason for this split hack is bgfx/webgl precision mismatch issue
+		bgfx::UniformHandle u_state = BGFX_INVALID_HANDLE;
+		bgfx::UniformHandle u_state_vertex = BGFX_INVALID_HANDLE;
+
+		bgfx::UniformHandle s_materials = BGFX_INVALID_HANDLE;
+		GpuTexture m_materials_texture = {};
+	};
+
+	export_ TWO_GFX_EXPORT void load_material(Material& material, Program& program);
+
+	export_ class refl_ TWO_GFX_EXPORT Material
 	{
 	public:
 		Material() {}
-		Material(cstring name);
+		Material(const string& name);
 
 		Material& operator=(const Material&) = default; // @kludge because clang-modules bug doesn't have copy-assign with member arrays ?
 
 		attr_ uint16_t m_index = 0;
-		/*attr_ mut_*/ string m_name;
+		attr_ string m_name;
 		attr_ bool m_builtin = false;
 		attr_ Program* m_program = nullptr;
 
-		attr_ BaseMaterialBlock m_base_block;
-		attr_ UnshadedMaterialBlock m_unshaded_block;
-		attr_ PbrMaterialBlock m_pbr_block;
-		attr_ FresnelMaterialBlock m_fresnel_block;
+		attr_ MaterialBase m_base;
+		attr_ MaterialAlpha m_alpha;
+		attr_ MaterialSolid m_solid;
+		attr_ MaterialPoint m_point;
+		attr_ MaterialLine m_line;
+		attr_ MaterialLit m_lit;
+		attr_ MaterialPbr m_pbr;
+		attr_ MaterialPhong m_phong;
+		attr_ MaterialFresnel m_fresnel;
+		attr_ MaterialUser m_user;
+
+		function<void(bgfx::Encoder&)> m_pass;
+		function<void(bgfx::Encoder&)> m_submit;
 
 		void state(uint64_t& bgfx_state) const;
-		ShaderVersion shader_version(const Program& program) const;
-		ShaderVersion shader_version(const Program& program, const Item& item, const ModelItem& model_item) const;
+		ProgramVersion program(const Program& program) const;
+		ProgramVersion program(const Program& program, const Item& item, const ModelElem& elem) const;
 
-		void submit(bgfx::Encoder& encoder, uint64_t& bgfx_state, const Skin* skin = nullptr) const;
+		void submit(const Program& program, bgfx::Encoder& encoder, uint64_t& bgfx_state, const Skin* skin = nullptr) const;
 
-		struct BaseMaterialUniform
-		{
-			BaseMaterialUniform() {}
-			BaseMaterialUniform(GfxSystem& gfx_system)
-				: u_uv0_scale_offset(bgfx::createUniform("u_material_params_0", bgfx::UniformType::Vec4))
-				, u_uv1_scale_offset(bgfx::createUniform("u_material_params_1", bgfx::UniformType::Vec4))
-				, s_skeleton(bgfx::createUniform("s_skeleton", bgfx::UniformType::Int1))
-			{
-				UNUSED(gfx_system);
-			}
-
-			void upload(bgfx::Encoder& encoder, const BaseMaterialBlock& data) const
-			{
-				encoder.setUniform(u_uv0_scale_offset, &data.m_uv0_scale.x);
-				//encoder.setUniform(u_uv1_scale_offset, &data.m_uv1_scale.x);
-			}
-
-			bgfx::UniformHandle u_uv0_scale_offset;
-			bgfx::UniformHandle u_uv1_scale_offset;
-			bgfx::UniformHandle s_skeleton;
-		};
-
-		static BaseMaterialUniform s_base_uniform;
-
-		static GfxSystem* ms_gfx_system;
+		static GfxSystem* ms_gfx;
 	};
 }

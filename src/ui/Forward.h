@@ -1,5 +1,3 @@
-
-
 #pragma once
 
 #include <infra/Config.h>
@@ -9,23 +7,16 @@
 #include <math/Forward.h>
 #include <ctx/Forward.h>
 
-#ifndef MUD_UI_EXPORT
-#define MUD_UI_EXPORT MUD_IMPORT
+#ifndef TWO_UI_EXPORT
+#define TWO_UI_EXPORT TWO_IMPORT
 #endif
 
+#undef TWO_UI_DRAW_CACHE
 
-    
-    
-
-namespace std {
-
-    
-    
-}
-
-namespace mud {
-namespace ui {
-
+namespace two
+{
+namespace ui
+{
     enum class PopupFlags : unsigned int;
     
     
@@ -50,47 +41,30 @@ namespace ui {
 }
 }
 
-namespace glm {
-
-    
-    
-}
-
-namespace bx {
-
-    
-    
-}
-
-namespace json11 {
-
-    
-    
-}
-
-namespace mud {
-
-    enum Dim : unsigned int;
-    enum FlowAxis : unsigned int;
-    enum Pivot : unsigned int;
-    enum Align : unsigned int;
-    enum LayoutSolver : unsigned int;
-    enum AutoLayout : unsigned int;
-    enum Flow : unsigned int;
-    enum Sizing : unsigned int;
-    enum SpacePreset : unsigned int;
-    enum Clipping : unsigned int;
-    enum Opacity : unsigned int;
+namespace two
+{
+    enum class Axis : unsigned int;
+    enum class FlowAxis : unsigned int;
+    enum class Pivot : unsigned int;
+    enum class Align : unsigned int;
+    enum class Solver : unsigned int;
+    enum class AutoLayout : unsigned int;
+    enum class LayoutFlow : unsigned int;
+    enum class Sizing : unsigned int;
+    enum class Preset : unsigned int;
+    enum class Clip : unsigned int;
+    enum class Opacity : unsigned int;
     enum WidgetState : unsigned int;
     enum DirtyLayout : unsigned int;
     enum class CodePalette : unsigned char;
     enum class TextFocusMode : unsigned int;
-    enum WindowState : unsigned int;
+    enum class WindowState : unsigned int;
     enum class DropState : unsigned int;
     
-    template <class T> struct Dim2;
+    template <class T> struct v2;
     
     class Style;
+	struct Subskin;
     struct Space;
     struct Styles;
     struct UiRect;
@@ -101,11 +75,13 @@ namespace mud {
     struct Shadow;
     struct Paint;
     struct TextPaint;
+	struct TextMarker;
     struct Gradient;
     struct TextCursor;
     struct TextSelection;
     class Text;
     class TextEdit;
+	struct Clipboard;
     struct NodeConnection;
     class Vg;
     class UiRenderer;
@@ -147,31 +123,18 @@ namespace mud {
     class Styler;
 }
 
-namespace mud {
-namespace detail {
+#ifdef TWO_META_GENERATOR
+#include <stl/vector.h>
+#include <stl/span.h>
+#include <ui/Style/Style.h>
+namespace stl
+{
+	export_ using cstring = const char*;
+	export_ extern template struct refl_ span_ span<float>;
+	export_ extern template struct refl_ span_ span<cstring>;
 
-    
-    
+	//export_ extern template class refl_ seque_ vector<string>;
+	export_ extern template class refl_ seque_ vector<two::Space>;
+	export_ extern template class refl_ seque_ vector<two::Subskin>;
 }
-}
-
-namespace mud {
-namespace gfx {
-
-    
-    
-}
-}
-
-namespace bimg {
-
-    
-    
-}
-
-namespace bgfx {
-
-    
-    
-}
-
+#endif

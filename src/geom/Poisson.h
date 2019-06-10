@@ -4,33 +4,30 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
 #include <math/Vec.h>
 #include <math/Grid.h>
 #endif
 #include <geom/Forward.h>
 #include <geom/Shapes.h>
 
-namespace mud
+namespace two
 {
-	export_ class refl_ MUD_GEOM_EXPORT Distribution
+	export_ class refl_ TWO_GEOM_EXPORT Distribution
 	{
 	public:
-		class Point
+		struct Point
 		{
-		public:
-			Point(const vec3& p, float r) : position(p), radius(r), visits(0) {}
-
 			vec3 position;
 			float radius;
-			size_t visits;
+			size_t visits = 0;
 		};
 
-		//meth_ virtual std::vector<Circle> distribute(float radius, const vec3& offset) = 0;
+		//meth_ virtual vector<Circle> distribute(float radius, const vec3& offset) = 0;
 		//meth_ virtual bool addPoint(float radius, vec3& point) = 0;
 	};
 
-	export_ class refl_ MUD_GEOM_EXPORT Poisson : public Distribution
+	export_ class refl_ TWO_GEOM_EXPORT Poisson : public Distribution
 	{
 	public:
 		constr_ Poisson(vec2 size, float maxRadius);
@@ -42,8 +39,8 @@ namespace mud
 
 		void uniform(float radius);
 
-		meth_ std::vector<vec3> distribute(float radius);
-		meth_ std::vector<Circle> distribute_circles(float radius);
+		meth_ vector<vec3> distribute(float radius);
+		meth_ vector<Circle> distribute_circles(float radius);
 		meth_ bool addPoint(float radius, vec3& point);
 
 		bool insertPoint(float radius);
@@ -62,11 +59,11 @@ namespace mud
 
 		size_t m_k = 30U;
 
-		std::vector<Point> m_points;
+		vector<Point> m_points;
 
-		std::vector<Point> m_unprocessed;
-		Grid<std::vector<Point>> m_grid;
+		vector<Point> m_unprocessed;
+		vector2d<vector<Point>> m_grid;
 	};
 
-	MUD_GEOM_EXPORT func_ std::vector<vec3> distribute_poisson(vec2 size, float radius);
+	TWO_GEOM_EXPORT func_ vector<vec3> distribute_poisson(vec2 size, float radius);
 }

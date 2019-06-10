@@ -1,4 +1,4 @@
- //  Copyright (c) 2016 Hugo Amiard hugo.amiard@laposte.net
+ //  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -22,7 +22,7 @@
 
 #include <OgreBuildSettings.h>
 
-namespace mud
+namespace two
 {
 	class UiPassProvider : public Ogre::CompositorPassProvider
 	{
@@ -136,7 +136,7 @@ namespace mud
 		params["hidden"] = "true";
 		params["gamma"] = "true";
 
-		m_hiddenWindow = m_ogreRoot->createRenderWindow("mudHidden", 1, 1, false, &params);
+		m_hiddenWindow = m_ogreRoot->createRenderWindow("twoHidden", 1, 1, false, &params);
 	}
 
 	void OgreRenderSystem::setupUiWorkspace()

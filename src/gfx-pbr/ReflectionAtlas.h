@@ -4,30 +4,51 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
+#include <stl/vector.h>
 #include <math/Colour.h>
 #include <math/Vec.h>
+#include <gfx/Texture.h>
+#include <gfx/Camera.h>
+#include <gfx/RenderTarget.h>
 #endif
 #include <gfx-pbr/Forward.h>
 
 #include <bgfx/bgfx.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#endif
-
-namespace mud
+namespace two
 {
-	struct ReflectionCubemap
+	export_ class refl_ TWO_GFX_PBR_EXPORT CubeTarget
 	{
-		ReflectionCubemap(uint16_t size);
-		bgfx::FrameBufferHandle m_fbo[6];
-		bgfx::TextureHandle m_cubemap;
-		bgfx::TextureHandle m_depth;
-		uint16_t m_size;
+	public:
+		constr_ CubeTarget() {}
+		meth_ void create(uint32_t size);
+		meth_ FrameBuffer& side(size_t i) { return m_fbos[i]; }
+		FrameBuffer m_fbos[6]; // @todo reflect array members
+		attr_ Texture m_cubemap;
+		attr_ Texture m_depth;
+		attr_ uint32_t m_size;
 	};
 
-	class ReflectionAtlas
+	export_ class refl_ TWO_GFX_PBR_EXPORT CubeCamera
+	{
+	public:
+		constr_ CubeCamera() {}
+		constr_ CubeCamera(Scene& scene, float near, float far, uint32_t size);
+
+		Camera m_cameras[6];
+		Viewport m_viewports[6];
+
+		attr_ CubeTarget m_cubemap;
+		attr_ uvec2 m_size;
+
+		meth_ Render render(GfxSystem& gfx, Render& render, SignedAxis axis);
+
+		void render(GfxSystem& gfx, Render& render, RenderFunc renderer);
+		void clear(GfxSystem& gfx, Render& render, Colour color, float depth, uint8_t stencil);
+	};
+
+	export_ class TWO_GFX_PBR_EXPORT ReflectionAtlas
 	{
 	public:
 		ReflectionAtlas(uint16_t size, uint16_t subdiv);
@@ -36,7 +57,8 @@ namespace mud
 		uint16_t m_size = 0;
 		uint16_t m_subdiv = 0;
 
-		bgfx::TextureHandle m_color_tex = BGFX_INVALID_HANDLE;
+		FrameBuffer m_fbo[6];
+		Texture m_color;
 
 		vec4 probe_rect(ReflectionProbe& probe);
 		uvec4 render_update(Render& render, ReflectionProbe& probe);
@@ -47,13 +69,10 @@ namespace mud
 			ReflectionProbe* m_probe;
 			uvec4 m_urect;
 			vec4 m_rect;
-			uint64_t m_last_update;
+			uint32_t m_last_update;
 		};
 
-		bgfx::FrameBufferHandle m_fbo[6];
-		bgfx::TextureHandle m_color;
-
-		std::vector<Slot> m_slots;
-		std::vector<Slot*> m_free_slots;
+		vector<Slot> m_slots;
+		vector<Slot*> m_free_slots;
 	};
 }

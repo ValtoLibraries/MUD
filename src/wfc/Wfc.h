@@ -1,27 +1,21 @@
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
+#include <stl/function.h>
+#include <stl/string.h>
+#include <stl/vector.h>
+#include <stl/set.h>
+#include <stl/map.h>
 #include <math/Grid.h>
 #include <math/Vec.h>
 #endif
 #include <wfc/Forward.h>
 
-#ifndef MUD_CPP_20
-#include <unordered_map>
-#include <vector>
-#include <array>
-#include <set>
-#include <functional>
-#include <random>
-#include <string>
-#endif
-
-namespace mud
+namespace two
 {
-	using string = std::string;
 	using ubool = uint8_t;
 
-#define MUD_WFC_PROPAGATION_VEC
+#define TWO_WFC_PROPAGATION_VEC
 
 	export_ enum refl_ Result : unsigned int
 	{
@@ -30,26 +24,27 @@ namespace mud
 		kUnfinished,
 	};
 
-	export_ struct refl_ MUD_WFC_EXPORT Tile
+	export_ struct refl_ TWO_WFC_EXPORT Tile
 	{
+		Tile() {}
 		Tile(uint32_t index, string name, char symmetry, int cardinality, int profile) : m_index(index), m_name(name), m_symmetry(symmetry), m_cardinality(cardinality), m_profile(profile) {}
 		attr_ uint32_t m_index;
 		attr_ string m_name;
 		attr_ char m_symmetry;
 		attr_ int m_cardinality;
 		attr_ int m_profile;
-		std::array<int, 8> m_flips;
-		std::array<uint32_t, 6> m_edges;
+		int m_flips[8];
+		table<SignedAxis, uint32_t> m_edges;
 	};
 
-	export_ struct refl_ MUD_WFC_EXPORT Tileset
+	export_ struct refl_ TWO_WFC_EXPORT Tileset
 	{
 		attr_ string m_name;
 		attr_ vec3 m_tile_size;
 		attr_ vec3 m_tile_scale;
-		std::vector<Tile> m_tiles;
-		std::vector<Tile> m_tiles_flip;
-		std::vector<double> m_weights;
+		vector<Tile> m_tiles;
+		vector<Tile> m_tiles_flip;
+		vector<double> m_weights;
 		attr_ uint16_t m_num_tiles;
 
 		constr_ Tileset() {}
@@ -57,20 +52,11 @@ namespace mud
 		int flip(int tile, uint8_t flip) const { return m_tiles_flip[tile].m_flips[flip]; }
 	};
 
-	using RandomDouble = std::function<double()>;
-	using ValidCoord = std::function<bool(int, int, int)>;
-	using Propagator = std::function<void(Wave&)>;
+	using RandomDouble = function<double()>;
+	using ValidCoord = function<bool(int, int, int)>;
+	using Propagator = function<void(Wave&)>;
 
-	struct DoubleGenerator
-	{
-		std::random_device device;
-		std::mt19937 generator;
-		std::uniform_real_distribution<double> distribution;
-		double next() { return distribution(generator); }
-		DoubleGenerator() : device(), generator(device()), distribution(0.0, 1.0) {}
-	};
-
-	export_ struct refl_ MUD_WFC_EXPORT Wave
+	export_ struct refl_ TWO_WFC_EXPORT Wave
 	{
 		Wave();
 		Wave(uint16_t states, uint16_t width, uint16_t height, uint16_t depth, bool periodic);
@@ -78,10 +64,10 @@ namespace mud
 		uint16_t m_width, m_height, m_depth;
 		bool m_periodic;
 
-		std::vector<double> m_states;
-		std::vector<string> m_pattern_names; // debug
-		array_3d<std::vector<ubool>> m_wave;
-		std::vector<uvec3> m_changes;
+		vector<double> m_states;
+		vector<string> m_pattern_names; // debug
+		vector3d<vector<ubool>> m_wave;
+		vector<uvec3> m_changes;
 
 		bool m_stabilized = true;
 		bool m_solved = false;
@@ -94,7 +80,7 @@ namespace mud
 		uint16_t m_failure_point[6];
 
 		/*double m_logT;
-		std::vector<double> m_log_weights;
+		vector<double> m_log_weights;
 
 		void setup()
 		{
@@ -115,32 +101,32 @@ namespace mud
 		meth_ Result solve(size_t limit);
 	};
 
-	export_ struct refl_ MUD_WFC_EXPORT WaveTileset : public Tileset
+	export_ struct refl_ TWO_WFC_EXPORT WaveTileset : public Tileset
 	{
-		array_3d<ubool> m_propagator[6];
+		vector3d<ubool> m_propagator[6];
 
 		constr_ WaveTileset();
 		void initialize();
 		void connect(int left, int right, bool horizontal);
 		void finalize();
 
-		array_3d<ubool>& side(SignedAxis axis) { return m_propagator[size_t(axis)]; }
+		vector3d<ubool>& side(SignedAxis axis) { return m_propagator[size_t(axis)]; }
 	};
 
-	export_ struct refl_ MUD_WFC_EXPORT TileWave : public Wave
+	export_ struct refl_ TWO_WFC_EXPORT TileWave : public Wave
 	{
 		TileWave();
 		constr_ TileWave(WaveTileset& tileset, uint16_t width, uint16_t height, uint16_t depth, bool periodic);
 	};
 
-	export_ MUD_WFC_EXPORT bool neighbour(Wave& wave, const uvec3& coord, SignedAxis d, uvec3& neighbour);
-	export_ MUD_WFC_EXPORT uint16_t tile_at(Wave& wave, uint16_t x, uint16_t y, uint16_t z);
+	export_ TWO_WFC_EXPORT bool neighbour(Wave& wave, const uvec3& coord, SignedAxis d, uvec3& neighbour);
+	export_ TWO_WFC_EXPORT uint16_t tile_at(Wave& wave, uint16_t x, uint16_t y, uint16_t z);
 
-	export_ MUD_WFC_EXPORT void add_tile(Tileset& tileset, const std::set<string>& subset_tiles, const string& tile_name, char symmetry, float weight);
-	export_ MUD_WFC_EXPORT void add_tile(Tileset& tileset, const string& tile_name, char symmetry, float weight);
+	export_ TWO_WFC_EXPORT void add_tile(Tileset& tileset, const set<string>& subset_tiles, const string& tile_name, char symmetry, float weight);
+	export_ TWO_WFC_EXPORT void add_tile(Tileset& tileset, const string& tile_name, char symmetry, float weight);
 
-	export_ MUD_WFC_EXPORT func_ void parse_json_tileset(const string& path, const string& subset, Tileset& outputTileset);
-	export_ MUD_WFC_EXPORT func_ void parse_json_wave_tileset(const string& path, const string& subset, WaveTileset& outputTileset);
+	export_ TWO_WFC_EXPORT func_ void parse_json_tileset(const string& path, const string& subset, Tileset& outputTileset);
+	export_ TWO_WFC_EXPORT func_ void parse_json_wave_tileset(const string& path, const string& subset, WaveTileset& outputTileset);
 
 	struct VoxelTile
 	{
@@ -156,10 +142,10 @@ namespace mud
 	inline bool operator==(RGBA x, RGBA y) { return x.r == y.r && x.g == y.g && x.b == y.b && x.a == y.a; }
 
 	using ColorIndex = uint8_t; // tile index or color index. If you have more than 255, don't.
-	using ColorPalette = std::vector<RGBA>;
-	using ColorPattern = std::vector<ColorIndex>;
+	using ColorPalette = vector<RGBA>;
+	using ColorPattern = vector<ColorIndex>;
 	using PatternHash = uint64_t; // Another representation of a Pattern.
-	using PatternPrevalence = std::unordered_map<PatternHash, size_t>;
+	using PatternPrevalence = map<PatternHash, size_t>;
 	using PatternIndex = uint16_t;
 
 	const auto kInvalidIndex = static_cast<size_t>(-1);
@@ -167,12 +153,12 @@ namespace mud
 
 	const size_t MAX_COLORS = 1 << (sizeof(ColorIndex) * 8);
 
-	using OverlapGraphics = array_3d<std::vector<ColorIndex>>;
+	using OverlapGraphics = vector3d<vector<ColorIndex>>;
 
 	struct PalettedImage
 	{
 		size_t                  width, height;
-		std::vector<ColorIndex> data; // width * height
+		vector<ColorIndex> data; // width * height
 		ColorPalette            palette;
 
 		ColorIndex at_wrapped(size_t x, size_t y) const
@@ -187,8 +173,8 @@ namespace mud
 		Patternset(int n, const PatternPrevalence& hashed_patterns, const ColorPalette& palette, PatternHash foundation_pattern);
 
 		int m_n;
-		array_3d<std::vector<std::vector<PatternIndex>>> m_propagator;
-		std::vector<ColorPattern> m_patterns;
-		std::vector<double> m_weights;
+		vector3d<vector<vector<PatternIndex>>> m_propagator;
+		vector<ColorPattern> m_patterns;
+		vector<double> m_weights;
 	};
 }

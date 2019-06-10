@@ -1,10 +1,10 @@
-//  Copyright (c) 2016 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #pragma once
 
-#ifdef MUD_PLATFORM_EMSCRIPTEN
+#ifdef TWO_PLATFORM_EMSCRIPTEN
 
 #include <ctx/Forward.h>
 #include <ctx/Context.h>
@@ -12,24 +12,24 @@
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
 
-#ifndef MUD_CTX_WASM_EXPORT
-#define MUD_CTX_WASM_EXPORT
+#ifndef TWO_CTX_WASM_EXPORT
+#define TWO_CTX_WASM_EXPORT
 #endif
 
-namespace mud
+namespace two
 {
-	class MUD_CTX_WASM_EXPORT EmContext : public Context
+	class TWO_CTX_WASM_EXPORT EmContext : public Context
 	{
 	public:
-		EmContext(RenderSystem& renderSystem, cstring name, int width, int height, bool full_screen);
+		EmContext(RenderSystem& renderSystem, const string& name, uvec2 size, bool fullscreen, bool main);
 
-		void init_context();
-		virtual void init_input(Mouse& mouse, Keyboard& keyboard) final;
-		virtual void reset(uint16_t width, uint16_t height) override;
+		void create_context(const string& name);
+		virtual void init_input(Mouse& mouse, Keyboard& keyboard) override;
 
-		virtual bool next_frame() final;
+		virtual bool begin_frame() override;
+		virtual void end_frame() override;
 
-		virtual void lock_mouse(bool locked) final;
+		virtual void lock_mouse(bool locked) override;
 
 		void resize();
 

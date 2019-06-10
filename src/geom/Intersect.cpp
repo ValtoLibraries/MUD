@@ -4,25 +4,22 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.geom;
+#ifdef TWO_MODULES
+module two.geom;
 #else
-#include <math/Clamp.h>
 #include <math/Axes.h>
 #include <geom/Types.h>
 #include <geom/Intersect.h>
 #include <geom/Shapes.h>
 #include <geom/Geom.h>
+#include <geom/Geom.hpp>
 #include <geom/Aabb.h>
 #endif
 
-namespace mud
+#include <stl/swap.h>
+
+namespace two
 {
-	// using std::clamp;
-
-	const float c_cmp_epsilon = 0.00001f;
-	const float c_cmp_epsilon2 = c_cmp_epsilon * c_cmp_epsilon;
-
 	float ray_aabb_intersection_dist(const vec3& bmin, const vec3& bmax, const Ray& ray)
 	{
 		const vec3 t1 = (bmin - ray.m_start) * ray.m_inv_dir;
@@ -103,7 +100,7 @@ namespace mud
 				const float ood = 1.0f / d[i];
 				float t1 = (amin[i] - sp[i]) * ood;
 				float t2 = (amax[i] - sp[i]) * ood;
-				if(t1 > t2) std::swap(t1, t2);
+				if(t1 > t2) swap(t1, t2);
 				if(t1 > tmin) tmin = t1;
 				if(t2 < tmax) tmax = t2;
 				if(tmin > tmax) return false;
@@ -135,7 +132,7 @@ namespace mud
 				float ood = 1.0f / d[i];
 				float t1 = (bmin[i] - p[i]) * ood;
 				float t2 = (bmax[i] - p[i]) * ood;
-				if(t1 > t2) std::swap(t1, t2);
+				if(t1 > t2) swap(t1, t2);
 				if(t1 > tmin) tmin = t1;
 				if(t2 < tmax) tmax = t2;
 				if(tmin > tmax) return false;
@@ -227,12 +224,12 @@ namespace mud
 		d = hypot(dx,dy); // Suggested by Keith Briggs
 
 		/* Check for solvability. */
-		if (d > (r0 + r1))
+		if(d > (r0 + r1))
 		{
 			/* no solution. circles do not intersect. */
 			return false;
 		}
-		if (d < fabs(r0 - r1))
+		if(d < fabs(r0 - r1))
 		{
 			/* no solution. one circle is contained in the other */
 			return false;
@@ -280,7 +277,7 @@ namespace mud
 		vec3 P = N * d;
 		vec3 result = L1 + (dot(N, P - L1) / dot(N, L2 - L1)) * (L2 - L1);
 		if(any(isnan(result)) || any(isinf(result)))
-			return Zero3; // @todo move to optional when C++17
+			return vec3(0.f); // @todo move to optional when C++17
 		return result;
 	}
 
@@ -289,7 +286,7 @@ namespace mud
 		vec3 N = cross(P2 - P1, P3 - P1);
 		vec3 result = L1 + (dot(N, P1 - L1) / dot(N, L2 - L1)) * (L2 - L1);
 		if(any(isnan(result)) || any(isinf(result)))
-			return Zero3; // @todo move to optional when C++17
+			return vec3(0.f); // @todo move to optional when C++17
 		return result;
 	}
 
@@ -301,8 +298,8 @@ namespace mud
 
 		float denom = dot(cross(normal0, normal1), normal2);
 
-		if(std::abs(denom) <= c_cmp_epsilon)
-			return Zero3; // @todo move to optional when C++17
+		if(abs(denom) <= c_cmp_epsilon)
+			return vec3(0.f); // @todo move to optional when C++17
 
 		return ((cross(normal1, normal2) * plane0.m_distance) +
 				(cross(normal2, normal0) * plane1.m_distance) +
@@ -415,9 +412,8 @@ namespace mud
 
 	Aabb transform_aabb(const Aabb& source, const mat4& transform)
 	{
-		vec3 center = vec3(transform * vec4{ source.m_center, 1.f });
-		vec3 extent = vec3(abs(transform) * vec4 { source.m_extents, 0.f });
-
+		vec3 center = mulp(transform, source.m_center);
+		vec3 extent = mult(abs(transform), source.m_extents);
 		return Aabb(center, extent);
 	}
 
@@ -457,8 +453,6 @@ namespace mud
 		return true;
 	}
 
-	inline float sqr(float a) { return a * a; }
-
 	bool sphere_aabb_intersection(const vec3& center, float radius, const Aabb& aabb)
 	{
 		vec3 min = aabb.m_center - aabb.m_extents;
@@ -469,8 +463,8 @@ namespace mud
 
 		for(vec3::length_type i = 0; i < 3; ++i)
 		{
-			if(center[i] < min[i]) dmin += sqr(center[i] - min[i]);
-			else if(center[i] > max[i]) dmin += sqr(center[i] - max[i]);
+			if(center[i] < min[i]) dmin += sq(center[i] - min[i]);
+			else if(center[i] > max[i]) dmin += sq(center[i] - max[i]);
 		}
 
 		return dmin <= r2;

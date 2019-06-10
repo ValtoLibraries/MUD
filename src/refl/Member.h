@@ -6,22 +6,18 @@
 
 #include <refl/Forward.h>
 #include <type/Type.h>
-#include <type/Var.h>
-#include <type/Any.h>
-#include <infra/Array.h>
+#include <type/Ref.h>
+#include <stl/span.h>
 #include <refl/Meta.h>
 
-#ifndef MUD_CPP_20
-#include <functional>
-#endif
-
-namespace mud
+namespace two
 {
-	using MemberGet = Ref(*)(Ref);
+	using MemberGet = void*(*)(void*);
 
-	export_ class refl_ MUD_REFL_EXPORT Static
+	export_ class refl_ TWO_REFL_EXPORT Static
 	{
 	public:
+		Static();
 		Static(Type& parent_type, cstring name, Ref value);
 
 		Type* m_parent_type;
@@ -29,7 +25,7 @@ namespace mud
 		Ref m_value;
 	};
 
-	export_ class refl_ MUD_REFL_EXPORT Member
+	export_ class refl_ TWO_REFL_EXPORT Member
 	{
 	public:
 		enum Flags
@@ -45,21 +41,21 @@ namespace mud
 		};
 
 	public:
-		Member(Type& object_type, Address address, Type& type, cstring name, Var default_value, Flags flags = Flags::None, MemberGet get = nullptr);
+		Member();
+		Member(Type& object_type, size_t offset, Type& type, cstring name, const void* default_value, Flags flags = Flags::None, MemberGet get = nullptr);
 		~Member();
 
 		int m_index;
 		Type* m_object_type;
-		Address m_address;
 		size_t m_offset;
 		Type* m_type;
 		cstring m_name;
-		Var m_default_value;
+		Ref m_default_value;
 		Flags m_flags;
 		MemberGet m_get;
 
-		Meta& meta() { return mud::meta(*m_type); }
-		Class& cls() { return mud::cls(*m_type); }
+		Meta& meta() const { return two::meta(*m_type); }
+		Class& cls() const { return two::cls(*m_type); }
 
 		bool is_pointer() const { return (m_flags & Pointer) != 0; }
 		bool is_mutable() const { return (m_flags & NonMutable) == 0; }
@@ -72,7 +68,7 @@ namespace mud
 
 		inline Ref get(Ref object) const
 		{
-			if(m_get) return m_get(object);
+			if(m_get) return Ref(m_get(object.m_value), *m_type);
 			Ref ref = this->ref(object);
 			if(this->is_pointer())
 				return Ref(*(void**)ref.m_value, *m_type);
@@ -80,12 +76,12 @@ namespace mud
 				return ref;
 		}
 
-		inline Var get_value(Ref object) const
+		/*inline const Var& get_value(Ref object) const;
 		{
 			Var result = m_default_value;
 			result.copy(this->get(object));
 			return result;
-		}
+		}*/
 
 		inline void set(Ref object, Ref value) const
 		{
@@ -98,16 +94,16 @@ namespace mud
 
 		inline Ref cast(Ref object) const;
 		inline Ref cast_get(Ref object) const;
-		inline Var safe_get(Ref object) const;
+		//inline Var safe_get(Ref object) const;
 		inline void cast_set(Ref object, Ref value) const;
 	};
 
-	export_ template <typename T_Value, typename T>
-	Member& member(T_Value T::*mem) { return cls<T>().member(member_address(mem)); }
+	export_ template <class T_Value, class T>
+	Member& member(T_Value T::*mem) { return cls<T>().member(member_offset(mem)); }
 
-	export_ template <typename T_Return, typename T, typename... T_Params>
+	export_ template <class T_Return, class T, typename... T_Params>
 	Member& member(T_Return(T::*meth)(T_Params...)) { return cls<T>().member(member_address(meth)); }
 
-	export_ template <typename T_Return, typename T, typename... T_Params>
+	export_ template <class T_Return, class T, typename... T_Params>
 	Member& member(T_Return(T::*meth)(T_Params...) const) { return cls<T>().member(member_address(meth)); }
 }

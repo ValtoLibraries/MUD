@@ -4,12 +4,12 @@
 
 #include <gfx/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.gfx;
+#ifdef TWO_MODULES
+module two.gfx;
 #else
 #include <bgfx/bgfx.h>
-#include <bx/math.h>
 
+#include <ecs/ECS.hpp>
 #include <geom/Intersect.h>
 #include <gfx/Viewport.h>
 #include <gfx/Camera.h>
@@ -17,47 +17,50 @@ module mud.gfx;
 #include <gfx/Renderer.h>
 #include <gfx/Froxel.h>
 #include <gfx/Shot.h>
-#include <gfx/Culling.h>
+#include <gfx/RenderTarget.h>
 #endif
 
 //#define NO_OCCLUSION_CULLING
 
-namespace mud
+namespace two
 {
+	GridECS s_viewer_ecs;
+	GridECS* g_viewer_ecs = &s_viewer_ecs;
+
 	static uint16_t viewportIndex = 1;
 
-	Viewport::Viewport(Camera& camera, Scene& scene, uvec4 rect, bool scissor)
+	Viewport::Viewport(Camera& camera, Scene& scene, const vec4& rect, bool scissor)
 		: m_camera(&camera)
 		, m_scene(&scene)
 		, m_index(viewportIndex++)
 		, m_rect(rect)
 		, m_scissor(scissor)
-	{}
+		, m_culler(construct<Culler>(*this))
+	{
+		(Entt&)(*this) = { &s_viewer_ecs, s_viewer_ecs.create() };
+	}
 
 	Viewport::~Viewport()
 	{}
 
-	void Viewport::render_pass(cstring name, const Pass& render_pass)
+	void Viewport::pass(const Pass& pass)
 	{
-		bgfx::setViewName(render_pass.m_index, name);
-		bgfx::setViewRect(render_pass.m_index, uint16_t(m_rect.x), uint16_t(m_rect.y), uint16_t(rect_w(m_rect)), uint16_t(rect_h(m_rect)));
-		bgfx::setViewTransform(render_pass.m_index, value_ptr(m_camera->m_transform), value_ptr(m_camera->m_projection));
-		bgfx::setViewFrameBuffer(render_pass.m_index, render_pass.m_fbo);
-		bgfx::setViewClear(render_pass.m_index, BGFX_CLEAR_NONE);
+		const FrameBuffer& fbo = *pass.m_fbo;
+		const ushort4 rect = ushort4(m_rect * vec2(fbo.m_size));
+
+		bgfx::setViewRect(pass.m_index, rect.x, rect.y, rect.width, rect.height);
+		bgfx::setViewTransform(pass.m_index, value_ptr(m_camera->m_view), value_ptr(m_camera->m_proj));
+		bgfx::setViewFrameBuffer(pass.m_index, *pass.m_fbo);
+		bgfx::setViewClear(pass.m_index, BGFX_CLEAR_NONE);
 
 		if(m_scissor)
-			bgfx::setViewScissor(render_pass.m_index, uint16_t(m_rect.x), uint16_t(m_rect.y), uint16_t(rect_w(m_rect)), uint16_t(rect_h(m_rect)));
-
-		bgfx::touch(render_pass.m_index);
+			bgfx::setViewScissor(pass.m_index, rect.x, rect.y, rect.width, rect.height);
 	}
 
 	void Viewport::cull(Render& render)
 	{
 #ifndef NO_OCCLUSION_CULLING
-		if(!m_culler)
-			m_culler = make_unique<Culler>(*this);
-		if(m_culler)
-			m_culler->render(render);
+		m_culler->render(render);
 #else
 		UNUSED(render);
 #endif
@@ -65,22 +68,35 @@ namespace mud
 
 	void Viewport::render(Render& render)
 	{
-		if(m_get_size)
-			m_rect = m_get_size();
-
-		m_camera->m_aspect = float(rect_w(m_rect)) / float(rect_h(m_rect));
-		m_camera->update();
-
-		if(m_camera->m_clusters)
+		if(m_rect.height != 0.f)
 		{
-			m_camera->m_clusters->m_dirty |= Froxelizer::VIEWPORT_CHANGED | Froxelizer::PROJECTION_CHANGED;
-			m_camera->m_clusters->update(*this, m_camera->m_projection, m_camera->m_near, m_camera->m_far);
-			m_camera->m_clusters->froxelize_lights(*m_camera, render.m_shot->m_lights);
-			m_camera->m_clusters->upload();
+			const vec2 size = m_rect.size * vec2(render.m_fbo->m_size);
+			m_camera->m_aspect = size.x / size.y;
 		}
 
-		if(m_render)
-			m_render(render);
+		m_camera->update();
+
+		if(m_clusters)
+		{
+			const uvec4 rect = uvec4(m_rect * vec2(render.m_fbo->m_size));
+			m_clusters->m_dirty |= uint8_t(Froxelizer::Dirty::Viewport) | uint8_t(Froxelizer::Dirty::Projection);
+			m_clusters->update(rect, m_camera->m_proj, m_camera->m_near, m_camera->m_far);
+			m_clusters->clusterize_lights(*m_camera, render.m_shot.m_lights);
+			m_clusters->upload();
+		}
+
+		for(RenderTask& task : m_tasks)
+			task(render);
+	}
+
+	void Viewport::set_clustered(GfxSystem& gfx)
+	{
+		if(m_rect.width != 0.f && m_rect.height != 0.f && !m_clusters)
+		{
+			m_clustered = true;
+			m_clusters = make_unique<Froxelizer>(gfx);
+			m_clusters->setup();
+		}
 	}
 
 	/*void hmdUpdate()
@@ -106,8 +122,8 @@ namespace mud
 	Ray Viewport::ray(const vec2& pos)
 	{
 		// coord in NDC
-		float xNDC = (pos.x / float(rect_w(m_rect))) * 2.0f - 1.0f;
-		float yNDC = ((float(rect_h(m_rect)) - pos.y) / float(rect_h(m_rect))) * 2.0f - 1.0f;
+		float xNDC = (pos.x / float(m_rect.width)) * 2.0f - 1.0f;
+		float yNDC = ((float(m_rect.height) - pos.y) / float(m_rect.height)) * 2.0f - 1.0f;
 
 		return m_camera->ray({ xNDC, yNDC });
 	}

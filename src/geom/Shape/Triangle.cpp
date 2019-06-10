@@ -4,17 +4,18 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.geom;
+#ifdef TWO_MODULES
+module two.geom;
 #else
+#include <math/Vec.hpp>
 #include <geom/Shape/Triangle.h>
 #include <geom/Shapes.h>
-#include <geom/Primitive.h>
+#include <geom/Primitive.hpp>
 #endif
 
 //#define PK_GLITCH
 
-namespace mud
+namespace two
 {
 	void triangle_vertices(const ProcShape& shape, const Triangle& triangle, bool fill, MeshAdapter& writer)
 	{

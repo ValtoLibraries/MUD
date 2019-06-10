@@ -4,13 +4,13 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
 #include <math/Colour.h>
 #include <math/Vec.h>
 #endif
 #include <gfx/Forward.h>
 
-namespace mud
+namespace two
 {
 	export_ enum class refl_ LightType : unsigned int
 	{
@@ -27,23 +27,22 @@ namespace mud
 		CSM_BlendSplits = 1 << 2
 	};
 
-	export_ class refl_ MUD_GFX_EXPORT Light
+	export_ struct AtlasIndex { uint8_t slice = UINT8_MAX; uint16_t slot = UINT16_MAX; };
+
+	export_ class refl_ TWO_GFX_EXPORT Light
 	{
 	public:
-		Light(Node3& node, LightType type = LightType::Point, bool shadows = false);
-		~Light();
+		constr_ Light(Node3& node, LightType type = LightType::Point, bool shadows = false, Colour colour = Colour::White, float energy = 1.f, float range = 1.f);
 
-		attr_ Node3& m_node;
-
+		attr_ Node3* m_node = nullptr;
 		attr_ LightType m_type = LightType::Point;
 		attr_ bool m_visible = true;
 		attr_ Colour m_colour = Colour::White;
 		attr_ float m_range = 1.f;
 		attr_ float m_energy = 1.f;
-		attr_ float m_specular = 0.5f;
+		attr_ float m_specular = 1.f;
 		attr_ float m_attenuation = 0.5f;
 		attr_ bool m_shadows = false;
-		attr_ Colour m_shadow_colour = Colour::Black;
 		attr_ float m_shadow_range = 100.f;
 		attr_ uint32_t m_layers = 0xFFFFFFFF;
 
@@ -62,5 +61,8 @@ namespace mud
 		attr_ float m_shadow_bias = 0.f;
 
 		size_t m_shot_index = 0;
+
+		uint32_t m_index = 0;
+		AtlasIndex m_shadow_index = {};
 	};
 }

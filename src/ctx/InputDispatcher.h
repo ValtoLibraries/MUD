@@ -4,53 +4,33 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
+#include <stl/vector.h>
+#include <stl/map.h>
 #include <type/Unique.h>
-#include <infra/EnumArray.h>
+#include <stl/table.h>
 #endif
 #include <ctx/Forward.h>
 #include <ctx/KeyCode.h>
 #include <ctx/InputEvent.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#include <map>
-#endif
-
-namespace mud
+namespace two
 {
-	export_ template <class T_Element>
+	export_ template <class T>
 	struct EventMap
 	{
-		EventMap() { m_events = {}; m_keyed_events = {}; }
-		
-#ifdef MUD_MODULES
-		enum_array<DeviceType, enum_array<EventType, T_Element, size_t(EventType::Count)>, size_t(DeviceType::Count)> m_events;
-		enum_array<DeviceType, enum_array<EventType, std::map<int, T_Element>, size_t(EventType::Count)>, size_t(DeviceType::Count)> m_keyed_events;
-#else
-		enum_array<DeviceType, enum_array<EventType, T_Element>> m_events;
-		enum_array<DeviceType, enum_array<EventType, std::map<int, T_Element>>> m_keyed_events;
-#endif
+		table<DeviceType, table<EventType, T>> m_events = {};
+		table<DeviceType, table<EventType, map<int, T>>> m_keyed_events = {};
 
-		void clear()
-		{
-			m_events = {}; m_keyed_events = {};
-			//static EventMap<T_Element> empty;
-			//memcpy(this, &empty, sizeof(EventMap<T_Element>));
-		}
-
-		T_Element& event(DeviceType device_type, EventType event_type) { return m_events[size_t(device_type)][size_t(event_type)]; }
-		T_Element& event(DeviceType device_type, EventType event_type, int key) { return m_keyed_events[size_t(device_type)][size_t(event_type)][key]; }
+		void clear() { *this = {}; }
 	};
 
-	export_ struct MUD_CTX_EXPORT EventBatch : public EventMap<InputEvent*>
+	export_ struct TWO_CTX_EXPORT EventBatch : public EventMap<InputEvent*>
 	{
 		ControlNode* m_control_node = nullptr;
-		
-		EventBatch() {}
 	};
 
-	export_ class MUD_CTX_EXPORT EventDispatcher
+	export_ class TWO_CTX_EXPORT EventDispatcher
 	{
 	public:
 		EventDispatcher(ControlNode* control_node);
@@ -61,7 +41,7 @@ namespace mud
 		void receive_event(InputEvent& event, ControlNode& receiver);
 
 		ControlNode& m_control_node;
-		std::vector<EventBatch> m_event_batches;
+		vector<EventBatch> m_event_batches;
 		size_t m_top = 0;
 	};
 }

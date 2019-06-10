@@ -4,28 +4,23 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <infra/Array.h>
-#include <infra/NonCopy.h>
-#include <type/Any.h>
+#ifndef TWO_MODULES
+#include <stl/string.h>
+#include <stl/map.h>
+#include <stl/span.h>
+#include <type/Var.h>
+#include <type/Proto.h>
 #include <refl/Method.h>
 #include <refl/Class.h>
 #endif
 #include <lang/Forward.h>
 
-#ifndef MUD_CPP_20
-#include <map>
-#include <string>
-#endif
-
-namespace mud
+namespace two
 {
-	using string = std::string;
-
-	export_ class refl_ MUD_LANG_EXPORT Script : public Callable
+	export_ class refl_ TWO_LANG_EXPORT Script : public Callable
 	{
 	public:
-		Script(Type& type, cstring name, const Signature& signature = {});
+		Script(Type& type, const string& name, const Signature& signature = {});
 		virtual ~Script();
 
 		attr_ uint32_t m_index;
@@ -43,17 +38,17 @@ namespace mud
 		Wren
 	};
 
-	export_ struct refl_ MUD_LANG_EXPORT Error
+	export_ struct refl_ TWO_LANG_EXPORT ScriptError
 	{
 		size_t m_line;
 		size_t m_column;
 		string m_message;
 	};
 
-	export_ class refl_ MUD_LANG_EXPORT TextScript final : public Script
+	export_ class refl_ TWO_LANG_EXPORT TextScript final : public Script
 	{
 	public:
-		constr_ TextScript(cstring name, Language language, const Signature& signature = {});
+		constr_ TextScript(const string& name, Language language, const Signature& signature = {});
 
 		attr_ Language m_language;
 		attr_ string m_script;
@@ -62,13 +57,13 @@ namespace mud
 		Interpreter* m_interpreter;
 
 		using Callable::operator();
-		virtual void operator()(array<Var> args, Var& result) const;
+		virtual void operator()(span<void*> args, void*& result) const override;
 
-		mutable std::map<int, Error> m_compile_errors;
-		mutable std::map<int, Error> m_runtime_errors;
+		mutable map<int, ScriptError> m_compile_errors;
+		mutable map<int, ScriptError> m_runtime_errors;
 	};
 
-	export_ class refl_ MUD_LANG_EXPORT Interpreter : public NonCopy
+	export_ class refl_ TWO_LANG_EXPORT Interpreter
 	{
 	public:
 		Interpreter();
@@ -76,39 +71,41 @@ namespace mud
 
 		virtual void declare_types() = 0;
 
-		virtual Var get(cstring name, Type& type) { UNUSED(name); UNUSED(type); return Var(); }
-		virtual void set(cstring name, Var value) { UNUSED(name); UNUSED(value); }
+		virtual Var get(const string& name, const Type& type);
+		virtual void set(const string& name, const Var& value);
 
-		virtual Var getx(array<cstring> path, Type& type) { UNUSED(path); UNUSED(type); return Var(); }
-		virtual void setx(array<cstring> path, Var value) { UNUSED(path); UNUSED(value); }
+		virtual Var getx(span<cstring> path, const Type& type);
+		virtual void setx(span<cstring> path, const Var& value);
 
-		virtual void call(cstring code, Var* result = nullptr) = 0;
-		virtual void virtual_call(Method& method, Ref object, array<Var> args) { UNUSED(method); UNUSED(object); UNUSED(args); }
+		virtual void call(const string& code, Var* result = nullptr) = 0;
+		virtual void virtual_call(Method& method, Ref object, span<Var> args) { UNUSED(method); UNUSED(object); UNUSED(args); }
 
-		void call(const TextScript& script, array<Var> args, Var* result = nullptr);
+		//void call(const TextScript& script, span<Var> args, Var* result = nullptr);
+		void call(const TextScript& script, span<void*> args, void*& result);
 
 		string flush();
 
 		template <class T>
-		T* tget(cstring name) { Var value = get(name, type<T>()); return try_val<T>(value); }
+		T* tget(const string& name);
 
 		template <class T>
-		T* tgetx(array<cstring> path) { Var value = getx(path, type<T>()); return try_val<T>(value); }
+		T* tgetx(span<cstring> path);
 
 		template <class T>
-		T* tcall(cstring expr) { Var result = call(expr, &type<T>()); return try_val<T>(result); }
+		T* tcall(const string& expr);
 
 		const TextScript* m_script = nullptr;
 		string m_output;
 	};
 
-	export_ class refl_ MUD_LANG_EXPORT ScriptClass : public NonCopy
+	export_ class refl_ TWO_LANG_EXPORT ScriptClass
 	{
 	public:
-		constr_ ScriptClass(const string& name, const std::vector<Type*>& parts);
+		constr_ ScriptClass(const string& name, span<Type*> parts);
 
 		attr_ string m_name;
-		attr_ Type m_type;
+		attr_ Type m_class_type;
 		attr_ Class m_class;
+		attr_ Prototype m_prototype;
 	};
 }

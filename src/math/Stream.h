@@ -4,21 +4,28 @@
 
 #pragma once
 
+#include <stl/string.h>
 #include <math/Forward.h>
 #include <math/Vec.h>
 #include <math/Colour.h>
 
-#ifndef MUD_CPP_20
 #include <sstream>
-#include <string>
-#endif
 
-namespace mud
+namespace two
 {
-	using string = std::string;
+	export_ inline void read(std::istream& stream, size_t length, string& buffer)
+	{
+		buffer.resize(length);
+		stream.read(&buffer[0], length);
+	}
 
-#ifndef MUD_CPP_20
-	export_ inline string read(std::istream& stream, size_t length) { string result; result.resize(length); stream.read(&result[0], length); return result; }
+	export_ inline void read(std::istream& stream, size_t length, vector<uchar>& buffer)
+	{
+		buffer.resize(length);
+		stream.read((char*)&buffer[0], length);
+	}
+
+	export_ inline string read(std::istream& stream, size_t length) { string result; read(stream, length, result); return result; }
 
 	export_ template <class T>
 	inline T read(std::istream& stream) { T result; stream >> result; return result; }
@@ -33,14 +40,5 @@ namespace mud
 	inline quat read(std::istream& stream) { quat result; stream >> result.x >> result.y >> result.z >> result.w; return result; }
 
 	export_ template <>
-	inline Colour read(std::istream& stream) { Colour result; stream >> result.m_r >> result.m_g >> result.m_b; return result; }
-#else
-	// istream doesn't seem implemented yet with MSVC modules
-
-	export_ inline string read(std::istream& stream, size_t length) { return string(); }
-
-	export_ template <class T>
-	inline T read(std::istream& stream) { return T(); }
-#endif
-
+	inline Colour read(std::istream& stream) { Colour result; stream >> result.r >> result.g >> result.b; return result; }
 }

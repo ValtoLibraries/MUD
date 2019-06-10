@@ -3,19 +3,19 @@
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #include <infra/Cpp20.h>
-#ifndef MUD_CPP_20
+#ifndef TWO_CPP_20
 #include <cstdio>
 #endif
 
-#ifdef MUD_MODULES
-module mud.ctx;
+#ifdef TWO_MODULES
+module two.ctx;
 #else
 #include <ctx/InputDispatcher.h>
 #include <ctx/InputDevice.h>
 #include <ctx/ControlNode.h>
 #endif
 
-namespace mud
+namespace two
 {
 	EventDispatcher::EventDispatcher(ControlNode* control_node)
 		: m_control_node(*control_node)
@@ -47,9 +47,9 @@ namespace mud
 			receiver.m_events->m_control_node = &receiver;
 		}
 
-		receiver.m_events->event(event.m_deviceType, event.m_eventType) = &event;
+		receiver.m_events->m_events[event.m_deviceType][event.m_eventType] = &event;
 		if(event.m_key != -1)
-			receiver.m_events->event(event.m_deviceType, event.m_eventType, event.m_key) = &event;
+			receiver.m_events->m_keyed_events[event.m_deviceType][event.m_eventType][event.m_key] = &event;
 	}
 
 	ControlNode* EventDispatcher::dispatch_event(InputEvent& event, ControlNode* topReceiver)

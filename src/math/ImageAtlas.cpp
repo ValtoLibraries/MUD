@@ -4,46 +4,47 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.ui;
+#ifdef TWO_MODULES
+module two.ui;
 #else
 #include <stb_rect_pack.h>
 #include <stb_image.h>
-
-#include <infra/String.h>
+#include <infra/StringOps.h>
 #include <infra/File.h>
 #include <math/Interp.h>
 #include <math/ImageAtlas.h>
 #endif
 
-namespace mud
+#include <cstring>
+
+namespace two
 {
-	void load_folder_images(std::vector<Image>& images, const string& path, const string& subfolder)
+	void load_folder_images(vector<Image>& images, const string& path, const string& subfolder)
 	{
-		auto visit_file = [&](cstring path, cstring file)
+		auto visit_file = [&](const string& file)
 		{
-			string fullpath = string(path) + file;
-			string name = subfolder + replace_all(file, ".png", "");
+			string fullpath = path + "/" + file;
+			string name = subfolder + replace(file, ".png", "");
 
 			int width, height, n;
 			unsigned char* img = stbi_load(fullpath.c_str(), &width, &height, &n, 4);
 			stbi_image_free(img);
-			images.push_back({ name.c_str(), fullpath.c_str(), { uint(width), uint(height) } });
+			images.push_back({ name, fullpath, { uint(width), uint(height) } });
 		};
 
-		visit_files(path.c_str(), visit_file);
+		visit_files(path, visit_file);
 	}
 
 	struct StbRectPack
 	{
-		StbRectPack(uvec2 size, size_t num_nodes)
+		StbRectPack(const uvec2& size, size_t num_nodes)
 			: m_nodes(num_nodes)
 		{
 			stbrp_init_target(&m_context, size.x, size.y, m_nodes.data(), int(num_nodes));
 		}
 
 		stbrp_context m_context;
-		std::vector<stbrp_node> m_nodes;
+		vector<stbrp_node> m_nodes;
 	};
 
 	ImageAtlas::ImageAtlas(uvec2 size)
@@ -55,12 +56,12 @@ namespace mud
 	ImageAtlas::~ImageAtlas()
 	{}
 
-	std::vector<unsigned char> ImageAtlas::generate_atlas(std::vector<Image*>& images)
+	vector<unsigned char> ImageAtlas::generate_atlas(span<Image*> images)
 	{
 		size_t size = m_size.x * m_size.y * 4;
-		std::vector<unsigned char> data(size, 0);
+		vector<unsigned char> data(size, 0);
 
-		m_images = images;
+		m_images = vector<Image*>(images.begin(), images.end());
 
 		// @todo : sort images
 
@@ -87,7 +88,7 @@ namespace mud
 		return true;
 	}
 
-	void ImageAtlas::blit_image(Image& sprite, std::vector<unsigned char>& data)
+	void ImageAtlas::blit_image(Image& sprite, vector<unsigned char>& data)
 	{
 		int width, height, n;
 		stbi_set_unpremultiply_on_load(1);
@@ -97,7 +98,7 @@ namespace mud
 		for(int y = 0; y < height; ++y)
 		{
 			size_t dest_offset = sprite.d_coord.x * 4 + (sprite.d_coord.y + y) * m_size.x * 4;
-			std::copy(sprite_data + y * width * 4, sprite_data + (y + 1) * width * 4, data.data() + dest_offset);
+			memcpy(data.data() + dest_offset, sprite_data + y * width * 4, width * 4);
 		}
 
 		stbi_image_free(sprite_data);
@@ -121,7 +122,7 @@ namespace mud
 	{
 		if(m_textures.size() >= m_rect_pack->m_nodes.size())
 			return nullptr;
-		m_textures.emplace_back(name, "", size);
+		m_textures.push_back({ name, "", size });
 		Image& texture = m_textures.back();
 		if(!this->place_image(texture))
 		{
@@ -158,8 +159,8 @@ namespace mud
 
 		for(size_t i = 0; i < m_frame_coords.size(); ++i)
 		{
-			vec4 uv = { vec2{ m_frame_coords[i] } * atlas_inverse_size,
-						vec2{ m_frame_coords[i] + m_frame_size } * atlas_inverse_size };
+			vec4 uv = { vec2(m_frame_coords[i]) * atlas_inverse_size,
+						vec2(m_frame_coords[i] + m_frame_size) * atlas_inverse_size };
 			m_frame_uvs.push_back(uv);
 		}
 	}
@@ -178,11 +179,11 @@ namespace mud
 		return m_sprites[0];
 	}
 
-	Sprite* SpriteAtlas::add_sprite(cstring name, uvec2 size, uvec2 frames)
+	Sprite* SpriteAtlas::add_sprite(cstring name, const uvec2& size, uvec2 frames)
 	{
 		if(m_sprites.size() >= m_rect_pack->m_nodes.size())
 			return nullptr;
-		m_sprites.emplace_back(name, "", size, frames);
+		m_sprites.push_back({ name, "", size, frames });
 		Sprite& sprite = m_sprites.back();
 		if(!this->place_image(sprite))
 		{

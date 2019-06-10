@@ -4,25 +4,39 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.lang;
+#ifdef TWO_MODULES
+module two.lang;
 #else
-#include <infra/Vector.h>
+#include <stl/math.h>
+#include <stl/algorithm.h>
+#include <infra/ToString.h>
 #include <refl/Convert.h>
-#include <infra/StringConvert.h>
+#include <infra/ToString.h>
 #include <infra/Reverse.h>
+#include <infra/Sort.h>
 #include <lang/Types.h>
 #include <lang/VisualScript.h>
 #endif
 
-#define MUD_DEBUG_SCRIPT
+#include <cstdio>
 
-namespace mud
+#include <algorithm>
+
+#define TWO_DEBUG_SCRIPT
+
+namespace two
 {
-	template <> void from_string<StreamIndex>(const string& str, StreamIndex& val) { UNUSED(str); UNUSED(val); }
+	template <class T, class V>
+	inline auto remove_pt(vector<T>& vec, V& value)
+	{
+		auto pos = find_if(vec.begin(), vec.end(), [&](auto& pt) { return pt.get() == &value; });
+		vec.erase(pos);
+	}
+
+	template <> void to_value<StreamIndex>(const string& str, StreamIndex& val) { UNUSED(str); UNUSED(val); }
 	template <> void to_string<StreamIndex>(const StreamIndex& val, string& str) { str += "{"; for(size_t i : val) str += to_string(i) + ","; str.pop_back(); str += "}"; }
 
-	Valve::Valve(Process& process, cstring name, ValveKind kind, Var value, bool nullable, bool reference)
+	Valve::Valve(Process& process, cstring name, ValveKind kind, const Var& value, bool nullable, bool reference)
 		: m_process(process)
 		, m_index(kind == INPUT_VALVE ? process.m_inputs.size() : process.m_outputs.size())
 		, m_name(name)
@@ -44,7 +58,7 @@ namespace mud
 	}
 
 	Valve::Valve(Process& process, const Param& param)
-		: Valve(process, param.m_name, param.output() ? OUTPUT_VALVE : INPUT_VALVE, param.m_value, param.nullable(), param.reference())
+		: Valve(process, param.m_name, param.output() ? OUTPUT_VALVE : INPUT_VALVE, param.default_val(), param.nullable(), param.reference())
 	{}
 
 	Valve::~Valve()
@@ -86,7 +100,7 @@ namespace mud
 			{
 				info += "(" + string(meta(branch.m_value).m_name) + ") ";
 				if(g_convert[type(branch.m_value).m_id])
-					info += to_string(branch.m_value);
+					info += to_string(branch.m_value.m_ref);
 				info += "\n";
 			}
 		});
@@ -109,12 +123,12 @@ namespace mud
 		return stream_branch->m_value;
 	}
 
-	object_ptr<Pipe> Valve::try_connect(Valve& output, StreamModifier modifier)
+	object<Pipe> Valve::try_connect(Valve& output, StreamModifier modifier)
 	{
 		if(!m_pipes.empty())
 			m_process.m_script.disconnect(*m_pipes[0]);
 
-		return make_object<Pipe>(output, *this, modifier);
+		return oconstruct<Pipe>(output, *this, modifier);
 	}
 
 	void Valve::propagate()
@@ -142,18 +156,18 @@ namespace mud
 
 	Pipe::~Pipe()
 	{
-		vector_remove(m_output.m_pipes, this);
-		vector_remove(m_input.m_pipes, this);
+		remove(m_output.m_pipes, this);
+		remove(m_input.m_pipes, this);
 	}
 	
 	void dump_stream(Stream& stream, const string& name)
 	{
-		printf("INFO: Dump tree %s\n", name.c_str());
+		printf("[info] Dump tree %s\n", name.c_str());
 		stream.visit(true, [&](StreamBranch& branch)
 		{
 			for(size_t d = 0; d < branch.m_depth; ++d)
 				printf("    ");
-			printf("Branch %s value %s\n", to_string(branch.m_index).c_str(), convert(type(branch.m_value)).m_to_string ? to_string(branch.m_value).c_str()
+			printf("Branch %s value %s\n", to_string(branch.m_index).c_str(), convert(type(branch.m_value)).m_to_string ? to_string(branch.m_value.m_ref).c_str()
 																														: to_name(type(branch.m_value), branch.m_value.m_ref).c_str());
 		});
 	}
@@ -186,20 +200,20 @@ namespace mud
 	Valve& Process::out_flow()
 	{
 		if(!m_out_flow)
-			m_out_flow = make_object<Valve>(*this, "out", FLOW_VALVE_OUT);
+			m_out_flow = oconstruct<Valve>(*this, "out", FLOW_VALVE_OUT);
 		return *m_out_flow;
 	}
 
 	Valve& Process::in_flow()
 	{
 		if(!m_in_flow)
-			m_in_flow = make_object<Valve>(*this, "in", FLOW_VALVE_IN);
+			m_in_flow = oconstruct<Valve>(*this, "in", FLOW_VALVE_IN);
 		return *m_in_flow;
 	}
 
 	void Process::recompute()
 	{
-		//printf("DEBUG: Process %s executing\n", m_title.c_str());
+		//printf("[debug] Process %s executing\n", m_title.c_str());
 		this->execute();
 		m_state = COMPUTED;
 
@@ -272,9 +286,9 @@ namespace mud
 		{
 			bool check = input->check(branch);
 			valid = valid && check;
-#ifdef MUD_DEBUG_SCRIPT
+#ifdef TWO_DEBUG_SCRIPT
 			if(!check)
-				printf("WARNING: Wrong parameter for process %s, input %s, branch %s\n", m_title.c_str(), input->m_name.c_str(), to_string(branch.m_index).c_str());
+				printf("[warning] vislang - wrong parameter for process %s, input %s, branch %s\n", m_title.c_str(), input->m_name.c_str(), to_string(branch.m_index).c_str());
 #endif
 		}
 		return valid;
@@ -284,9 +298,9 @@ namespace mud
 	{
 		if(!this->validate_inputs(branch))
 		{
-#ifdef MUD_DEBUG_SCRIPT
+#ifdef TWO_DEBUG_SCRIPT
 			//if(!branch.empty()) // @todo this doesn't work (branches are never empty :/
-				printf("WARNING: Process %s failed for branch %s\n", m_title.c_str(), to_string(branch.m_index).c_str());
+				printf("[warning] vislang - process %s failed for branch %s\n", m_title.c_str(), to_string(branch.m_index).c_str());
 #endif
 			for(Valve* valve : m_outputs)
 				valve->m_stream.write(branch, Var());
@@ -302,19 +316,19 @@ namespace mud
 		return *this;
 	}
 
-	Valve* Process::pipe(std::vector<Valve*> outputParams, Process* flow, std::vector<StreamModifier> modifiers)
+	Valve* Process::pipe(span<Valve*> outputParams, Process* flow, span<StreamModifier> modifiers)
 	{
 		this->plug(outputParams, flow, modifiers);
 		return m_outputs.size() > 0 ? &this->output() : nullptr;
 	}
 
-	Process& Process::plug(std::vector<Valve*> outputParams, Process* flow, std::vector<StreamModifier> modifiers)
+	Process& Process::plug(span<Valve*> outputParams, Process* flow, span<StreamModifier> modifiers)
 	{
 		if(flow)
 			this->flow(flow->out_flow());
-		size_t num_inputs = std::min(m_inputs.size(), outputParams.size());
+		size_t num_inputs = min(m_inputs.size(), outputParams.size());
 		for(size_t i = 0; i < num_inputs; ++i)
-			m_script.connect(*outputParams[i], *m_inputs.at(i), modifiers.size() > i ? modifiers[i] : SM_NONE);
+			m_script.connect(*outputParams[i], *m_inputs[i], modifiers.size() > i ? modifiers[i] : SM_NONE);
 		return *this;
 	}
 
@@ -343,24 +357,24 @@ namespace mud
 			for(Pipe* pipe : m_out_flow->m_pipes)
 			{
 				Process& process = pipe->m_input.m_process;
-				m_order = std::min(m_order, process.visit_order() - 1);
+				m_order = min(m_order, process.visit_order() - 1);
 			}
 
 		for(Valve* valve : m_outputs)
 			for(Pipe* pipe : valve->m_pipes)
 			{
 				Process& process = pipe->m_input.m_process;
-				m_order = std::min(m_order, process.visit_order() - 1);
+				m_order = min(m_order, process.visit_order() - 1);
 			}
 
 		return m_order;
 	}
 
-	VisualScript::VisualScript(cstring name, const Signature& signature)
+	VisualScript::VisualScript(const string& name, const Signature& signature)
 		: Script(type<VisualScript>(), name, signature)
 	{
-		if(!signature.m_returnval.none())
-			this->node<ProcessOutput>(Param("return", signature.m_returnval));
+		if(!signature.m_return_type.isvoid())
+			this->node<ProcessOutput>(Param("return", *signature.m_return_type.m_type));
 
 		for(const Param& param : signature.m_params)
 			if(!param.output())
@@ -371,7 +385,7 @@ namespace mud
 
 	void VisualScript::remove(Process& process)
 	{
-		vector_remove_pt(m_processes, process);
+		remove_pt(m_processes, process);
 
 		size_t index = 0;
 		for(auto& element : m_processes)
@@ -406,22 +420,22 @@ namespace mud
 		for(auto& process : m_processes)
 			m_execution.push_back(process.get());
 
-		std::sort(m_execution.begin(), m_execution.end(),
-			[](Process* lhs, Process* rhs) { return lhs->m_order < rhs->m_order; });
+		//quicksort<Process*>(m_execution, [](Process* lhs, Process* rhs) { return lhs->m_order < rhs->m_order; });
+		std::sort(m_execution.begin(), m_execution.end(), [](Process* lhs, Process* rhs) { return lhs->m_order < rhs->m_order; });
 	}
 
 	void VisualScript::connect(Valve& output, Valve& input, StreamModifier modifier)
 	{
-		object_ptr<Pipe> pipe = input.try_connect(output, modifier);
+		object<Pipe> pipe = input.try_connect(output, modifier);
 		if(pipe)
-			m_pipes.push_back(std::move(pipe));
+			m_pipes.push_back(move(pipe));
 		if(!m_locked)
 			this->execute();
 	}
 
 	void VisualScript::disconnect(Pipe& pipe)
 	{
-		vector_remove_pt(m_pipes, pipe);
+		remove_pt(m_pipes, pipe);
 	}
 
 	Valve& VisualScript::input(const string& name)
@@ -435,19 +449,23 @@ namespace mud
 	void VisualScript::execute(bool uncomputed)
 	{
 		for(Process* process : m_execution)
+		{
+			printf("[debug] vislang - eval process %s\n", process->m_title.c_str());
 			if(!uncomputed || (!process->computed() && !process->locked()))
 			{
+				printf("[debug] vislang - run process %s\n", process->m_title.c_str());
 				process->recompute();
 			}
+		}
 	}
 
-	void VisualScript::operator()(array<Var> args, Var& result) const
+	void VisualScript::operator()(span<void*> args, void*& result) const
 	{
 		// @kludge: ugly cast until we decide something on this callable constness mess
 		VisualScript& self = const_cast<VisualScript&>(*this);
 		self.lock();
 		for(size_t i = 0; i < m_inputs.size(); ++i)
-			m_inputs[i]->m_output.m_stream.write(args[i]);
+			m_inputs[i]->m_output.m_stream.write(Ref(args[i], *m_signature.m_params[i].m_type));
 		self.unlock(false);
 
 		self.reorder();
@@ -458,7 +476,7 @@ namespace mud
 	ProcessInput::ProcessInput(VisualScript& script, const Param& param)
 		: Process(script, param.m_name, type<ProcessInput>())
 		, Param(param)
-		, m_output(*this, param.m_name, OUTPUT_VALVE, param.m_value, param.nullable(), param.reference())
+		, m_output(*this, param.m_name, OUTPUT_VALVE, param.default_val(), param.nullable(), param.reference())
 	{
 		script.m_inputs.push_back(this);
 	}
@@ -466,7 +484,7 @@ namespace mud
 	ProcessOutput::ProcessOutput(VisualScript& script, const Param& param)
 		: Process(script, param.m_name, type<ProcessOutput>())
 		, Param(param)
-		, m_input(*this, param.m_name, INPUT_VALVE, param.m_value, param.nullable(), param.reference())
+		, m_input(*this, param.m_name, INPUT_VALVE, param.default_val(), param.nullable(), param.reference())
 	{
 		script.m_outputs.push_back(this);
 	}

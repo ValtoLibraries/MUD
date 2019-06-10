@@ -6,8 +6,8 @@
 
 #include <bgfx/bgfx.h>
 
-#ifdef MUD_MODULES
-module mud.gfx.pbr;
+#ifdef TWO_MODULES
+module two.gfx.pbr;
 #else
 #include <gfx/RenderTarget.h>
 #include <gfx/Filter.h>
@@ -15,80 +15,57 @@ module mud.gfx.pbr;
 #include <gfx/GfxSystem.h>
 #include <gfx-pbr/Types.h>
 #include <gfx-pbr/Filters/Tonemap.h>
+#include <gfx-pbr/Gpu/Tonemap.hpp>
 #endif
 
-namespace mud
+namespace two
 {
-	BlockTonemap::BlockTonemap(GfxSystem& gfx_system, BlockFilter& filter, BlockCopy& copy)
-		: GfxBlock(gfx_system, *this)
-		, m_filter(filter)
-		, m_copy(copy)
-		, m_program(gfx_system.programs().create("filter/tonemap"))
-	{
-		static cstring options[2] = {
-			"ADJUST_BCS",
-			"COLOR_CORRECTION",
-		};
-		static cstring modes[2] = {
-			"TONEMAP_MODE",
-		};
+	GpuState<BCS> GpuState<BCS>::me;
+	GpuState<Tonemap> GpuState<Tonemap>::me;
 
-		m_shader_block->m_options = { options, 1 };
-		m_shader_block->m_modes = { modes, 1 };
+	BlockTonemap::BlockTonemap(GfxSystem& gfx, BlockFilter& filter, BlockCopy& copy)
+		: GfxBlock(gfx, *this)
+		, m_program(gfx.programs().create("filter/tonemap"))
+	{
+		m_options = { "TO_GAMMA", "ADJUST_BCS", "COLOR_LUT" };
+		m_modes = { "TONEMAP_MODE" };
 
 		m_program.register_block(*this);
 	}
 
 	void BlockTonemap::init_block()
 	{
-		u_uniform.createUniforms();
+		GpuState<BCS>::me.init();
+		GpuState<Tonemap>::me.init();
 	}
 
-	void BlockTonemap::begin_render(Render& render)
+	void pass_tonemap(GfxSystem& gfx, Render& render, Tonemap& tonemap, BCS& bcs)
 	{
-		UNUSED(render);
-	}
+		static BlockTonemap& block = *gfx.m_renderer.block<BlockTonemap>();
 
-	void BlockTonemap::begin_pass(Render& render)
-	{
-		UNUSED(render);
-	}
-	
-	void BlockTonemap::submit_pass(Render& render)
-	{
-		if(render.m_filters && render.m_filters->m_tonemap.m_enabled)
-			this->render(render, render.m_filters->m_tonemap, render.m_filters->m_bcs);
-		else
-			m_copy.submit_quad(*render.m_target, render.composite_pass(), render.m_target->m_post_process.last(), render.m_viewport.m_rect);
-	}
+		ProgramVersion program = { block.m_program };
 
-	void BlockTonemap::render(Render& render, Tonemap& tonemap, BCS& bcs)
-	{
-		ShaderVersion shader_version(&m_program);
+		program.set_mode(block.m_index, TONEMAP_MODE, uint8_t(tonemap.m_mode));
+		program.set_option(block.m_index, TO_GAMMA, render.m_viewport->m_to_gamma);
 
-		m_filter.set_uniforms(render, *bgfx::begin());
+		gfx.m_filter->source0(render.m_target->m_post.last());
 
-		shader_version.set_mode(m_index, TONEMAP_MODE, uint8_t(tonemap.m_mode));
-
-		bgfx::setTexture(uint8_t(TextureSampler::Source0), m_filter.u_uniform.s_source_0, render.m_target->m_post_process.last());
-
-		if(bgfx::isValid(tonemap.m_color_correction))
+		if(tonemap.m_color_lut)
 		{
-			shader_version.set_option(m_index, COLOR_CORRECTION, true);
-			bgfx::setTexture(uint8_t(TextureSampler::Source1), m_filter.u_uniform.s_source_1, tonemap.m_color_correction);
+			program.set_option(block.m_index, COLOR_LUT, true);
+			gfx.m_filter->source1(*tonemap.m_color_lut);
 		}
 
-		vec4 exposure_params = { tonemap.m_exposure, tonemap.m_white_point, 0.f, 0.f };
-		bgfx::setUniform(u_uniform.u_exposure_params, &exposure_params);
+		GpuState<Tonemap>::me.upload(tonemap);
 
 		if(bcs.m_enabled)
 		{
-			shader_version.set_option(m_index, ADJUST_BCS, true);
+			program.set_option(block.m_index, ADJUST_BCS, true);
 
-			vec4 bcs_values = { bcs.m_brightness, bcs.m_contrast, bcs.m_saturation, 0.f };
-			bgfx::setUniform(u_uniform.u_bcs, &bcs_values);
+			GpuState<BCS>::me.upload(bcs);
 		}
 
-		m_filter.submit_quad(*render.m_target, render.composite_pass(), render.m_target->m_fbo, m_program.version(shader_version), render.m_viewport.m_rect);
+		const Pass pass = render.composite_pass("tonemap");
+		gfx.m_filter->quad(pass, *render.m_fbo, program);
 	}
 }

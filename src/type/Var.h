@@ -4,12 +4,13 @@
 
 #pragma once
 
+#include <stdint.h>
+#include <stl/swap.h>
 #include <type/Ref.h>
-#include <type/Unique.h>
 
-namespace mud
+namespace two
 {
-	export_ class MUD_TYPE_EXPORT AnyHandler
+	export_ class TWO_TYPE_EXPORT AnyHandler
 	{
 	public:
 		virtual Ref ref(const Any& any) const { UNUSED(any); return Ref(); }
@@ -24,7 +25,7 @@ namespace mud
 		static AnyHandler none;
 	};
 
-	export_ class MUD_TYPE_EXPORT Any
+	export_ class TWO_TYPE_EXPORT Any
 	{
 	public:
 		Any() : m_handler(&AnyHandler::none) {}
@@ -36,7 +37,7 @@ namespace mud
 		Any& operator=(const Any& rhs) { if(m_handler == rhs.m_handler) m_handler->assign(*this, rhs); else Any(rhs).swap(*this); return *this; }
 		Any& operator=(Ref ref) { m_handler->assign(*this, ref); return *this; }
 
-		Any& swap(Any& other) { std::swap(m_handler, other.m_handler); std::swap(m_pointer, other.m_pointer); std::swap(m_storage, other.m_storage); return *this; }
+		Any& swap(Any& other) { using two::swap; swap(m_handler, other.m_handler); swap(m_pointer, other.m_pointer); swap(m_storage, other.m_storage); return *this; }
 
 		Ref ref() const { return m_handler->ref(*this); }
 		bool operator==(const Any& other) const { return m_handler == other.m_handler && m_handler->compare(*this, other); }
@@ -54,7 +55,7 @@ namespace mud
 		REF
 	};
 
-	export_ class refl_ MUD_TYPE_EXPORT Var
+	export_ class refl_ TWO_TYPE_EXPORT Var
 	{
 	public:
 		Var() : m_mode(VAL), m_any(), m_ref() {}
@@ -62,7 +63,7 @@ namespace mud
 		Var(const Ref& ref) : m_mode(REF), m_ref(ref) {}
 
 		Var(const Var& other) : m_mode(other.m_mode), m_any(other.m_any), m_ref(m_mode == VAL ? m_any.ref() : other.m_ref) {}
-		Var& operator=(const Var& other) { m_mode = other.m_mode; if (m_mode == VAL) { m_any = other.m_any; m_ref = m_any.ref(); } else m_ref = other.m_ref; return *this; }
+		Var& operator=(const Var& other) { m_mode = other.m_mode; if(m_mode == VAL) { m_any = other.m_any; m_ref = m_any.ref(); } else m_ref = other.m_ref; return *this; }
 		Var& operator=(const Ref& ref) { m_mode = REF; m_ref = ref; return *this; }
 
 		VarMode m_mode;
@@ -84,5 +85,5 @@ namespace mud
 		inline operator Ref&() { return m_ref; }
 	};
 
-	export_ inline Type& type(const Var& var) { return *var.m_ref.m_type; }
+	export_ inline const Type& type(const Var& var) { return *var.m_ref.m_type; }
 }

@@ -4,9 +4,7 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <infra/NonCopy.h>
-#include <infra/Global.h>
+#ifndef TWO_MODULES
 #include <math/Vec.h>
 #include <geom/Shape/ProcShape.h>
 #endif
@@ -14,17 +12,29 @@
 #include <gfx/Mesh.h>
 #include <gfx/Material.h>
 
-#ifndef MUD_CPP_20
-#include <map>
-#endif
-
-namespace mud
+namespace two
 {
 	constexpr size_t c_max_shape_size = 256U;
 
 	using cstring = const char*;
 
-	export_ class refl_ MUD_GFX_EXPORT ImmediateDraw
+	export_ class refl_ TWO_GFX_EXPORT Direct
+	{
+	public:
+		constr_ Direct();
+		constr_ Direct(Item& item);
+
+		//void begin();
+		//Mesh& batch(uint32_t vertex_format, uint32_t vertex_count, uint32_t index_count = 0);
+
+		//attr_ Mesh m_mesh;
+		//attr_ Model m_model;
+		attr_ Item* m_item = nullptr;
+
+		//vector<Mesh> m_batches;
+	};
+
+	export_ class refl_ TWO_GFX_EXPORT ImmediateDraw
 	{
 	public:
 		ImmediateDraw(Material& material);
@@ -43,51 +53,76 @@ namespace mud
 		struct Batch
 		{
 			//DrawMode m_draw_mode;
-			std::vector<Vertex> m_vertices;
-			std::vector<uint16_t> m_indices;
+			vector<Vertex> m_vertices;
+			vector<uint16_t> m_indices;
 		};
 
-		std::vector<Batch> m_batches[2];
+		vector<Batch> m_batches[2];
 		size_t m_cursor[2];
 
 		void begin();
 
 		Batch* batch(DrawMode draw_mode, size_t vertex_count);
 
-		void draw(const mat4& transform, const ProcShape& shapes);
-		void draw(const mat4& transform, array<ProcShape> shapes);
-		void draw(const mat4& transform, array<ProcShape> shapes, ShapeSize size, DrawMode draw_mode);
+		void shape(const mat4& transform, const ProcShape& shape);
+		void draw(const mat4& transform, span<ProcShape> shapes);
+		void draw(const mat4& transform, span<ProcShape> shapes, DrawMode draw_mode);
 
-		void draw(Batch& batch, const mat4& transform, array<ProcShape> shapes, ShapeSize size, DrawMode draw_mode);
+		void draw(Batch& batch, const mat4& transform, span<ProcShape> shapes, ShapeSize size, DrawMode draw_mode);
 
 		void submit(bgfx::Encoder& encoder, uint8_t view, uint64_t bgfx_state);
 		void submit(bgfx::Encoder& encoder, uint8_t view, uint64_t bgfx_state, DrawMode draw_mode);
 		void submit(bgfx::Encoder& encoder, uint8_t view, uint64_t bgfx_state, DrawMode draw_mode, Batch& batch);
 	};
 
-	export_ class refl_ MUD_GFX_EXPORT SymbolIndex : public NonCopy
+	export_ class refl_ TWO_GFX_EXPORT SymbolIndex
 	{
 	public:
 		SymbolIndex();
 		~SymbolIndex();
 
 		Model& symbol_model(const Symbol& symbol, const Shape& shape, DrawMode draw_mode);
-		Material& symbol_material(GfxSystem& gfx_system, const Symbol& symbol, DrawMode draw_mode);
+		Material& symbol_material(GfxSystem& gfx, const Symbol& symbol, DrawMode draw_mode);
 
-	protected:
-		std::map<uint64_t, Material*> m_materials;
-		std::map<uint64_t, std::map<std::array<char, c_max_shape_size>, object_ptr<Model>>> m_symbols;
+		struct Impl;
+		unique<Impl> m_impl;
 	};
 
-	export_ MUD_GFX_EXPORT object_ptr<Model> draw_model(cstring name, const ProcShape& shape, bool readback = false);
-	export_ MUD_GFX_EXPORT object_ptr<Model> draw_model(cstring name, const std::vector<ProcShape>& shapes, bool readback = false);
+	export_ TWO_GFX_EXPORT object<Model> gen_model(cstring name, const ProcShape& shape, bool readback = false);
+	export_ TWO_GFX_EXPORT object<Model> gen_model(cstring name, span<ProcShape> shapes, bool readback = false);
 
-	export_ MUD_GFX_EXPORT void draw_model(const ProcShape& shape, Model& model, bool readback = false, Material* material = nullptr);
-	export_ MUD_GFX_EXPORT void draw_model(const std::vector<ProcShape>& shapes, Model& model, bool readback = false, Material* material = nullptr);
+	export_ TWO_GFX_EXPORT void gen_model(const ProcShape& shape, Model& model, bool readback = false, Material* material = nullptr);
+	export_ TWO_GFX_EXPORT void gen_model(span<ProcShape> shapes, Model& model, bool readback = false, Material* material = nullptr);
 
-	export_ MUD_GFX_EXPORT void draw_mesh(const ProcShape& shapes, Model& model, DrawMode draw_mode, bool readback = false, Material* material = nullptr);
-	export_ MUD_GFX_EXPORT void draw_mesh(const std::vector<ProcShape>& shapes, Model& model, DrawMode draw_mode, bool readback = false, Material* material = nullptr);
-	
-	export_ MUD_GFX_EXPORT void draw_mesh(const std::vector<ProcShape>& shapes, Model& model, ShapeSize size, DrawMode draw_mode, bool readback = false, Material* material = nullptr);
+	export_ TWO_GFX_EXPORT void gen_mesh(const ProcShape& shapes, Model& model, DrawMode draw_mode, bool readback = false, Material* material = nullptr);
+	export_ TWO_GFX_EXPORT void gen_mesh(span<ProcShape> shapes, Model& model, DrawMode draw_mode, bool readback = false, Material* material = nullptr);
 
+	export_ TWO_GFX_EXPORT void gen_geom(const ProcShape& shapes, MeshPacker& model, DrawMode draw_mode);
+	export_ TWO_GFX_EXPORT void gen_geom(span<ProcShape> shapes, MeshPacker& model, DrawMode draw_mode);
+
+
+	export_ class refl_ TWO_GFX_EXPORT Lines
+	{
+	public:
+		constr_ Lines();
+		constr_ Lines(const vector<vec3>& points);
+		constr_ Lines(const Curve3& curve, size_t subdiv);
+
+		struct Segment { vec3 pos0; float dist0; vec3 pos1; float dist1; Colour col0; Colour col1; };
+		vector<Segment> m_segments;
+		bool m_started = false;
+
+		Aabb m_aabb;
+		float m_radius;
+
+		meth_ void add(const vec3& start, const vec3& end, const Colour& start_colour = Colour(1.f), const Colour& end_colour = Colour(1.f));
+		meth_ void start(const vec3& position, const Colour& colour = Colour(1.f));
+		meth_ void next(const vec3& position, const Colour& colour = Colour(1.f));
+		meth_ void setup();
+		meth_ void write(Mesh& mesh);
+		meth_ void commit(Batch& batch);
+
+		void update_aabb();
+		void update_sphere();
+	};
 }

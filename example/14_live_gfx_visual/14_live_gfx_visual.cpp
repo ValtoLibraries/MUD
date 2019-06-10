@@ -1,7 +1,12 @@
-#include <mud/mud.h>
+//#include <two/frame.h>
+#include <frame/Api.h>
+#include <lang/Api.h>
+#include <uio/Api.h>
+#include <meta/gfx.meta.h>
+
 #include <14_live_gfx_visual/14_live_gfx_visual.h>
 
-using namespace mud;
+using namespace two;
 
 static float g_time = 0.f;
 
@@ -27,7 +32,7 @@ void define_visual_script(VisualScript& script)
 	Var& grid_position = *script.function(multiply<vec3>, { &coords, &grid_interval });
 	Var& position = *script.function(subtract<vec3>, { &grid_position, &c });
 
-	Var& offsets = script.value(vec3{ 0.21f, 0.f, 0.37f });
+	Var& offsets = script.value(vec3(0.21f, 0.f, 0.37f));
 	Var& f = *script.function(multiply<vec3>, { &coords, &offsets });
 	Var& angles = *script.function(add<vec3>, { &f, &time });
 	Var& rotation = script.create<quat>({ &angles });
@@ -40,14 +45,14 @@ void define_visual_script(VisualScript& script)
 	Var& b = *script.function(nsinf, { &ty });
 	Var& g = *script.function(ncosf, { &time });
 
-	Var& s0 = script.value(Unit3);
+	Var& s0 = script.value(vec3(1.f));
 	Var& s1 = script.value(1.f);
 	Var& scale = *script.function(multiply<vec3>, { &s0, &s1 });
 
 	Var& colour = script.create<Colour>({ &r, &g, &b, &script.value(1.f) });
 
-	Gnode& (*func_node)(Gnode&, Ref, const vec3&, const quat&, const vec3&) = gfx::node;
-	Var& node = *script.function(func_node, { &scene, &script.node<ProcessValue>(Ref()).output(), &position, &rotation, &scale });
+	Gnode& (*func_node)(Gnode&, const vec3&, const quat&, const vec3&) = gfx::node;
+	Var& node = *script.function(func_node, { &scene, &position, &rotation, &scale });
 
 	Var& fill_colour = script.value(Colour::None);
 	Var& symbol = script.create<Symbol>({ &fill_colour, &colour });
@@ -59,7 +64,7 @@ void define_visual_script(VisualScript& script)
 
 VisualScript& create_visual_script()
 {
-	Signature signature = { { Param{ "scene", Ref(type<Gnode>()) } } };
+	Signature signature = { { Param{ "scene", type<Gnode>() } } };
 	static VisualScript script = { "Example Script", signature };
 	define_visual_script(script);
 	return script;
@@ -68,7 +73,7 @@ VisualScript& create_visual_script()
 void ex_14_live_gfx_visual(Shell& app, Widget& parent, Dockbar& dockbar)
 {
 	UNUSED(app);
-#ifdef MUD_PLATFORM_EMSCRIPTEN
+#ifdef TWO_PLATFORM_EMSCRIPTEN
 	// speed it up a bit on Emscripten cause it's clamped to 60fps
 	g_time += 0.02f;
 #else
@@ -80,26 +85,27 @@ void ex_14_live_gfx_visual(Shell& app, Widget& parent, Dockbar& dockbar)
 
 	static VisualScript& script = create_visual_script();
 
-	if(Widget* dock = ui::dockitem(dockbar, "Game", carray<uint16_t, 1>{ 1U }))
+	if(Widget* dock = ui::dockitem(dockbar, "Game", { 1U }))
 		visual_script_edit(*dock, script);
 
-	Gnode& scene = viewer.m_scene->begin();
+	Gnode& scene = viewer.m_scene.begin();
 
-	static Var result;
-	static std::vector<Var> args = { Ref(&scene) };
-	script(args, result);
+	static Call call = { script, vector<Var>{ Ref(&scene)} };
+	call();	
 }
 
 #ifdef _14_LIVE_GFX_VISUAL_EXE
-void pump(Shell& app)
+void pump(Shell& app, ShellWindow& window)
 {
-	edit_context(app.m_ui->begin(), app.m_editor, true);
+	shell_context(window.m_ui->begin(), app.m_editor);
 	ex_14_live_gfx_visual(app, *app.m_editor.m_screen, *app.m_editor.m_dockbar);
 }
 
 int main(int argc, char *argv[])
 {
-	Shell app(cstrarray(MUD_RESOURCE_PATH), argc, argv);
+	Shell app(TWO_RESOURCE_PATH, exec_path(argc, argv));
+	System::instance().load_modules({ &two_gfx::m() });
+	app.m_gfx.init_pipeline(pipeline_minimal);
 	app.run(pump);
 }
 #endif

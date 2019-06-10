@@ -4,18 +4,24 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.ui;
+#ifdef TWO_MODULES
+module two.ui;
 #else
 #include <infra/Reverse.h>
+#include <math/Vec.hpp>
 #include <ui/Frame/Solver.h>
 #include <ui/Style/Style.h>
-#include <ui/Structs/Widget.h>
+#include <ui/WidgetStruct.h>
 #include <ui/Frame/Caption.h>
 #include <ui/Frame/Layer.h>
 #endif
 
-namespace mud
+#include <cstdio>
+
+#define DEBUG_BOUNDS 0
+#define DEBUG_LAYOUT 0
+
+namespace two
 {
 	void collect_solvers(Frame& frame, SolverVector& solvers, DirtyLayout dirtyTop)
 	{
@@ -63,59 +69,62 @@ namespace mud
 			solver->read();
 	}
 
-	Space Space::preset(SpacePreset preset)
+	Space Space::preset(Preset preset)
 	{
-		if     (preset == SHEET)  return { PARAGRAPH,  WRAP,   WRAP };
-		else if(preset == FLEX)	  return { PARALLEL,   WRAP,   WRAP };
-		else if(preset == ITEM)   return { READING,    SHRINK, SHRINK };
-		else if(preset == UNIT)   return { PARAGRAPH,  SHRINK, SHRINK };
-		else if(preset == BLOCK)  return { PARAGRAPH,  FIXED,  FIXED };
-		else if(preset == LINE)   return { READING,    WRAP,   SHRINK };
-		else if(preset == STACK)  return { PARAGRAPH,  SHRINK, WRAP };
-		else if(preset == DIV)    return { ORTHOGONAL, WRAP,   SHRINK };
-		else if(preset == SPACER) return { PARALLEL,   WRAP,   SHRINK };
-		else if(preset == BOARD)  return { READING,    EXPAND, EXPAND };
-		else if(preset == LAYOUT) return { PARAGRAPH,  EXPAND, EXPAND };
-		else 					  return { PARAGRAPH,  WRAP,   WRAP };
+		if     (preset == Preset::Sheet)  return { FlowAxis::Paragraph,	Sizing::Wrap,   Sizing::Wrap };
+		else if(preset == Preset::Flex)	  return { FlowAxis::Same,	    Sizing::Wrap,   Sizing::Wrap };
+		else if(preset == Preset::Item)   return { FlowAxis::Reading,   Sizing::Shrink, Sizing::Shrink };
+		else if(preset == Preset::Unit)   return { FlowAxis::Paragraph, Sizing::Shrink, Sizing::Shrink };
+		else if(preset == Preset::Block)  return { FlowAxis::Paragraph, Sizing::Fixed,  Sizing::Fixed };
+		else if(preset == Preset::Line)   return { FlowAxis::Reading,   Sizing::Wrap,   Sizing::Shrink };
+		else if(preset == Preset::Stack)  return { FlowAxis::Paragraph, Sizing::Shrink, Sizing::Wrap };
+		else if(preset == Preset::Div)    return { FlowAxis::Flip,      Sizing::Wrap,   Sizing::Shrink };
+		else if(preset == Preset::Spacer) return { FlowAxis::Same,      Sizing::Wrap,   Sizing::Shrink };
+		else if(preset == Preset::Board)  return { FlowAxis::Reading,   Sizing::Expand, Sizing::Expand };
+		else if(preset == Preset::Layout) return { FlowAxis::Paragraph, Sizing::Expand, Sizing::Expand };
+		else 							  return { FlowAxis::Paragraph, Sizing::Wrap,   Sizing::Wrap };
 	}
 
-	float AlignSpace[5] = { 0.f, 0.5f, 1.f, 0.f, 1.f };
-	float AlignExtent[5] = { 0.f, 0.5f, 1.f, 1.f, 0.f };
+	table<Align, float> c_align_space = { { 0.f, 0.5f, 1.f, 0.f, 1.f } };
+	table<Align, float> c_align_extent = { { 0.f, 0.5f, 1.f, 1.f, 0.f } };
+
+	FrameSolver::FrameSolver()
+	{}
 
 	FrameSolver::FrameSolver(FrameSolver* solver, Layout* layout, Frame* frame)
 		: d_frame(frame)
 		, d_parent(solver)
-		, d_style(layout)
-		, m_solvers{ solver ? &solver->solver(*this, DIM_X) : nullptr, solver ? &solver->solver(*this, DIM_Y) : nullptr }
+		, d_layout(layout)
+		, m_solvers{ solver ? &solver->solver(*this, Axis::X) : nullptr, solver ? &solver->solver(*this, Axis::Y) : nullptr }
 		, d_grid(solver ? solver->grid() : nullptr)
 	{
-		if(d_style)
+		if(d_layout)
 			this->applySpace();
 	}
 
-	FrameSolver& FrameSolver::solver(FrameSolver& frame, Dim dim)
+	FrameSolver& FrameSolver::solver(FrameSolver& frame, Axis dim)
 	{
-		if(dim == d_length && d_grid && frame.d_frame && frame.d_parent != d_grid) // && !frame.d_style->m_no_grid
+		if(dim == d_length && d_grid && frame.d_frame && frame.d_parent != d_grid) // && !d_layout->m_no_grid
 			return d_grid->solver(frame, dim);
 		return *this;
 	}
 
-	void FrameSolver::applySpace(Dim length)
+	void FrameSolver::applySpace(Axis length)
 	{
-		const Space& space = d_style->m_space;
+		const Space& space = d_layout->m_space;
 
-		if(length != DIM_NONE)
+		if(length != Axis::None)
 			d_length = length;
-		else if(space.direction == ORTHOGONAL)
-			d_length = flip_dim(d_parent->d_length);
-		else if(space.direction == PARALLEL)
+		else if(space.direction == FlowAxis::Flip)
+			d_length = flip(d_parent->d_length);
+		else if(space.direction == FlowAxis::Same)
 			d_length = d_parent->d_length;
-		else if(space.direction == READING)
-			d_length = DIM_X;
-		else if(space.direction == PARAGRAPH)
-			d_length = DIM_Y;
+		else if(space.direction == FlowAxis::Reading)
+			d_length = Axis::X;
+		else if(space.direction == FlowAxis::Paragraph)
+			d_length = Axis::Y;
 
-		d_depth = flip_dim(d_length);
+		d_depth = flip(d_length);
 
 		d_sizing[d_length] = space.sizingLength;
 		d_sizing[d_depth] = space.sizingDepth;
@@ -137,23 +146,23 @@ namespace mud
 	void FrameSolver::compute()
 	{
 		if(!d_parent) return;
-		m_solvers[DIM_X]->compute(*this, DIM_X);
-		m_solvers[DIM_Y]->compute(*this, DIM_Y);
+		m_solvers[Axis::X]->compute(*this, Axis::X);
+		m_solvers[Axis::Y]->compute(*this, Axis::Y);
 
-#if 0 // DEBUG
+#if DEBUG_BOUNDS
 		if(!d_frame) return;
 		d_frame->debug_print(false);
-		printf(" LAYOUT measured content size %i , %i\n", int(d_content.x), int(d_content.y));
+		printf(" layout measured content size %i , %i\n", int(d_content.x), int(d_content.y));
 #endif
 	}
 
 	void FrameSolver::layout()
 	{
 		if(!d_parent) return;
-		m_solvers[DIM_X]->layout(*this, DIM_X);
-		m_solvers[DIM_Y]->layout(*this, DIM_Y);
+		m_solvers[Axis::X]->layout(*this, Axis::X);
+		m_solvers[Axis::Y]->layout(*this, Axis::Y);
 
-#if 0 // DEBUG
+#if DEBUG_LAYOUT
 		if(!d_frame) return;
 		d_frame->debug_print(false);
 		printf(" size %i , %i ", int(m_size.x), int(m_size.y));
@@ -167,39 +176,42 @@ namespace mud
 			d_frame->read_solver(*this);
 	}
 
-	void FrameSolver::compute(FrameSolver& frame, Dim dim)
+	void FrameSolver::compute(FrameSolver& frame, Axis dim)
 	{
 		UNUSED(frame); UNUSED(dim);
 	}
 
-	void FrameSolver::layout(FrameSolver& frame, Dim dim)
+	void FrameSolver::layout(FrameSolver& frame, Axis dim)
 	{
 		UNUSED(frame); UNUSED(dim);
 	}
+
+	RowSolver::RowSolver()
+	{}
 
 	RowSolver::RowSolver(FrameSolver* solver, Layout* layout, Frame* frame)
 		: FrameSolver(solver, layout, frame)
 	{}
 
-	void RowSolver::compute(FrameSolver& frame, Dim dim)
+	void RowSolver::compute(FrameSolver& frame, Axis dim)
 	{
-		if(dim == d_length && frame.flow() && frame.d_sizing[d_length] >= WRAP)
-			d_totalSpan += frame.m_span[d_length];
+		if(dim == d_length && frame.flow() && frame.d_sizing[d_length] >= Sizing::Wrap)
+			d_total_span += frame.m_span[d_length];
 
 		if(!frame.sizeflow())
 			return;
 
-		if(frame.d_sizing[dim] <= WRAP)
+		if(frame.d_sizing[dim] <= Sizing::Wrap)
 			this->measure(frame, dim);
 
-		if(frame.d_sizing[dim] <= SHRINK && frame.flow() && dim == d_length)
-			m_spaceContent[dim] += frame.dbounds(dim);
+		if(frame.d_sizing[dim] <= Sizing::Shrink && frame.flow() && dim == d_length)
+			m_space_content[dim] += frame.dbounds(dim);
 
-		if(dim == d_length && frame.d_sizing[d_length] >= WRAP)
-			d_contentExpand = true;
+		if(dim == d_length && frame.d_sizing[d_length] >= Sizing::Wrap)
+			d_content_expand = true;
 	}
 
-	void RowSolver::measure(FrameSolver& frame, Dim dim)
+	void RowSolver::measure(FrameSolver& frame, Axis dim)
 	{
 		if(dim == d_length && frame.flow())
 		{
@@ -210,10 +222,10 @@ namespace mud
 			d_content[dim] = max(d_content[dim], frame.dbounds(dim));
 	}
 
-	void RowSolver::layout(FrameSolver& frame, Dim dim)
+	void RowSolver::layout(FrameSolver& frame, Axis dim)
 	{
-		if(dim == d_length && frame.flow() && frame.d_sizing[d_length] >= WRAP)
-			frame.m_span[d_length] = frame.m_span[d_length] / d_totalSpan;
+		if(dim == d_length && frame.flow() && frame.d_sizing[d_length] >= Sizing::Wrap)
+			frame.m_span[d_length] = frame.m_span[d_length] / d_total_span;
 
 		this->resize(frame, dim);
 
@@ -221,9 +233,9 @@ namespace mud
 			this->position(frame, dim);
 	}
 
-	void RowSolver::resize(FrameSolver& frame, Dim dim)
+	void RowSolver::resize(FrameSolver& frame, Axis dim)
 	{
-		if(d_style->m_layout[dim] < AUTO_SIZE)
+		if(d_layout->m_layout[dim] < AutoLayout::Size)
 			return;
 
 		float space = this->dspace(dim);
@@ -231,7 +243,7 @@ namespace mud
 		if(dim == d_length && frame.flow())
 		{
 			float spacings = d_spacing[dim];
-			space -= (m_spaceContent[dim] + spacings);
+			space -= (m_space_content[dim] + spacings);
 			space *= frame.m_span[d_length];
 		}
 		else
@@ -242,23 +254,23 @@ namespace mud
 		float content = frame.dcontent(dim);
 
 		Sizing sizing = frame.d_sizing[dim];
-		if(sizing == SHRINK)
+		if(sizing == Sizing::Shrink)
 			frame.m_size[dim] = content;
-		else if(sizing == WRAP)
+		else if(sizing == Sizing::Wrap)
 			frame.m_size[dim] = max(content, space);
-		else if(sizing == EXPAND)
+		else if(sizing == Sizing::Expand)
 			frame.m_size[dim] = space;
 	}
 
-	void RowSolver::position(FrameSolver& frame, Dim dim)
+	void RowSolver::position(FrameSolver& frame, Axis dim)
 	{
-		if(d_style->m_layout[dim] < AUTO_LAYOUT)
+		if(d_layout->m_layout[dim] < AutoLayout::Layout)
 			return;
 
 		float space = this->dspace(dim);
 
 		if(dim == d_length && frame.flow())
-			frame.m_position[dim] = this->positionSequence(frame, d_contentExpand ? 0.f : space - d_content[d_length]);
+			frame.m_position[dim] = this->positionSequence(frame, d_content_expand ? 0.f : space - d_content[d_length]);
 		else
 			frame.m_position[dim] = this->positionFree(frame, dim, space);
 
@@ -266,16 +278,16 @@ namespace mud
 			d_prev = &frame;
 	}
 
-	float RowSolver::positionFree(FrameSolver& frame, Dim dim, float space)
+	float RowSolver::positionFree(FrameSolver& frame, Axis dim, float space)
 	{
-		Align align = frame.dalign(dim);// == d_length ? DIM_X : DIM_Y);
-		float alignOffset = space * AlignSpace[align] - frame.dextent(dim) * AlignExtent[align];
+		Align align = frame.dalign(dim);// == d_length ? Axis::X : Axis::Y);
+		float alignOffset = space * c_align_space[align] - frame.dextent(dim) * c_align_extent[align];
 		return (frame.flow() ? dpadding(dim) + frame.dmargin(dim) : 0.f) + alignOffset;
 	}
 
 	float RowSolver::positionSequence(FrameSolver& frame, float space)
 	{
-		auto alignSequence = [&](FrameSolver& frame, float space) { return space * AlignSpace[frame.dalign(d_length)]; };
+		auto alignSequence = [&](FrameSolver& frame, float space) { return space * c_align_space[frame.dalign(d_length)]; };
 		if(d_prev)
 			return d_prev->doffset(d_length) - alignSequence(*d_prev, space) + this->spacing() + alignSequence(frame, space);
 		else
@@ -297,9 +309,9 @@ namespace mud
 	static Layout& gridOverlayStyle()
 	{
 		static Layout style;
-		//style.m_space = { READING, EXPAND, EXPAND };
-		style.m_space = { READING, WRAP, WRAP };
-		style.m_flow = OVERLAY;
+		//style.m_space = { FlowAxis::Reading, Sizing::Expand, Sizing::Expand };
+		style.m_space = { FlowAxis::Reading, Sizing::Wrap, Sizing::Wrap };
+		style.m_flow = LayoutFlow::Overlay;
 		style.m_spacing = { 2.f, 2.f };
 		return style;
 	}
@@ -307,9 +319,9 @@ namespace mud
 	static Layout& columnSolverStyle()
 	{
 		static Layout style;
-		//style.m_space = { PARAGRAPH, EXPAND, EXPAND };
-		style.m_space = { PARAGRAPH, WRAP, WRAP };
-		style.m_layout = { AUTO_LAYOUT, NO_LAYOUT };
+		//style.m_space = { FlowAxis::Paragraph, Sizing::Expand, Sizing::Expand };
+		style.m_space = { FlowAxis::Paragraph, Sizing::Wrap, Sizing::Wrap };
+		style.m_layout = { AutoLayout::Layout, AutoLayout::None };
 		return style;
 	}
 
@@ -319,18 +331,18 @@ namespace mud
 		this->divide(layout->m_table_division);
 	}
 
-	void TableSolver::divide(const std::vector<float>& columns)
+	void TableSolver::divide(span<float> columns)
 	{
 		m_solvers.clear();
-		m_solvers.emplace_back(make_unique<RowSolver>(this, &gridOverlayStyle()));
+		m_solvers.push_back(construct<RowSolver>(this, &gridOverlayStyle()));
 		for(size_t i = 0; i < columns.size(); ++i)
 		{
-			m_solvers.emplace_back(make_unique<RowSolver>(m_solvers.front().get(), &columnSolverStyle()));
+			m_solvers.push_back(construct<RowSolver>(m_solvers.front().get(), &columnSolverStyle()));
 			m_solvers.back()->m_span = { columns[i], 0.f };
 		}
 	}
 
-	void TableSolver::update(const std::vector<float>& columns)
+	void TableSolver::update(span<float> columns)
 	{
 		if(m_solvers.size() != columns.size() + 1)
 			return divide(columns);
@@ -339,10 +351,10 @@ namespace mud
 			m_solvers[1 + i]->m_span[d_depth] = columns[i];
 	}
 
-	FrameSolver& TableSolver::solver(FrameSolver& frame, Dim dim)
+	FrameSolver& TableSolver::solver(FrameSolver& frame, Axis dim)
 	{
 		UNUSED(dim);
-		if(frame.d_frame && frame.d_parent != this && !frame.d_parent->d_style->m_no_grid)
+		if(frame.d_frame && frame.d_parent != this && !frame.d_parent->d_layout->m_no_grid)
 		{
 			//size_t column0 = frame.d_frame->dindex(d_depth);
 			size_t column = frame.d_frame->d_widget.m_index;
@@ -354,11 +366,11 @@ namespace mud
 
 	LineSolver::LineSolver(FrameSolver* solver, Space space)
 		: RowSolver(solver, nullptr)
-		, d_style()
+		, d_layout()
 	{
-		d_style.m_space = space;
-		d_style.m_space.direction = READING;
-		FrameSolver::d_style = &d_style;
+		d_layout.m_space = space;
+		d_layout.m_space.direction = FlowAxis::Reading;
+		FrameSolver::d_layout = &d_layout;
 		this->applySpace();
 	}
 
@@ -368,14 +380,14 @@ namespace mud
 		this->divide(layout->m_grid_division);
 	}
 
-	void GridSolver::divide(std::vector<Space> lines)
+	void GridSolver::divide(span<Space> lines)
 	{
 		m_solvers.clear();
 		for(size_t i = 0; i < lines.size(); ++i)
-			m_solvers.emplace_back(make_unique<LineSolver>(this, lines[i]));
+			m_solvers.push_back(construct<LineSolver>(this, lines[i]));
 	}
 
-	FrameSolver& GridSolver::solver(FrameSolver& frame, Dim dim)
+	FrameSolver& GridSolver::solver(FrameSolver& frame, Axis dim)
 	{
 		UNUSED(dim);
 		if(frame.d_frame)

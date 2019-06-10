@@ -2,10 +2,12 @@
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
-
 #include <snd/SoundManager.h>
 
-#include <infra/Vector.h>
+#include <stl/hash_base.hpp>
+#include <stl/algorithm.h>
+#include <infra/File.h>
+#include <math/Vec.hpp>
 
 #include <AL/al.h>
 #include <AL/alc.h>
@@ -17,10 +19,10 @@
 
 #include <snd/SoundManager.h>
 
-#include <iostream>
-#include <fstream>
+#include <cstdio>
+#include <cstring>
 
-namespace mud
+namespace two
 {
 #define QUEUE_LIST_SIZE 64
 
@@ -28,14 +30,14 @@ namespace mud
 	{
 		ALenum error = alGetError();
 		if(error == AL_NO_ERROR)				return false;
-		else if(error == AL_INVALID_NAME)		printf("ERROR: OpenAL - AL_INVALID_NAME\n");
-		else if(error == AL_ILLEGAL_ENUM)		printf("ERROR: OpenAL - AL_ILLEGAL_ENUM\n");
-		else if(error == AL_INVALID_ENUM)		printf("ERROR: OpenAL - AL_INVALID_ENUM\n");
-		else if(error == AL_INVALID_VALUE)		printf("ERROR: OpenAL - AL_INVALID_VALUE\n");
-		else if(error == AL_ILLEGAL_COMMAND)	printf("ERROR: OpenAL - AL_ILLEGAL_COMMAND\n");
-		else if(error == AL_INVALID_OPERATION)	printf("ERROR: OpenAL - AL_INVALID_OPERATION\n");
-		else if(error == AL_OUT_OF_MEMORY)		printf("ERROR: OpenAL - AL_OUT_OF_MEMORY\n");
-		else									printf("ERROR: OpenAL - %i\n", int(error));
+		else if(error == AL_INVALID_NAME)		printf("[ERROR] snd - OpenAL - AL_INVALID_NAME\n");
+		else if(error == AL_ILLEGAL_ENUM)		printf("[ERROR] snd - OpenAL - AL_ILLEGAL_ENUM\n");
+		else if(error == AL_INVALID_ENUM)		printf("[ERROR] snd - OpenAL - AL_INVALID_ENUM\n");
+		else if(error == AL_INVALID_VALUE)		printf("[ERROR] snd - OpenAL - AL_INVALID_VALUE\n");
+		else if(error == AL_ILLEGAL_COMMAND)	printf("[ERROR] snd - OpenAL - AL_ILLEGAL_COMMAND\n");
+		else if(error == AL_INVALID_OPERATION)	printf("[ERROR] snd - OpenAL - AL_INVALID_OPERATION\n");
+		else if(error == AL_OUT_OF_MEMORY)		printf("[ERROR] snd - OpenAL - AL_OUT_OF_MEMORY\n");
+		else									printf("[ERROR] snd - OpenAL - %i\n", int(error));
 		return true;
 	}
 
@@ -44,20 +46,22 @@ namespace mud
 		bool errors = false;
 		while(ALCenum error = alcGetError(device) != ALC_NO_ERROR)
 		{
-			if(error == ALC_INVALID_DEVICE)			printf("ERROR: OpenALC - ALC_INVALID_DEVICE\n");
-			else if(error == ALC_INVALID_CONTEXT)	printf("ERROR: OpenALC - ALC_INVALID_CONTEXT\n");
-			else if(error == ALC_INVALID_ENUM)		printf("ERROR: OpenALC - ALC_INVALID_ENUM\n");
-			else if(error == ALC_INVALID_VALUE)		printf("ERROR: OpenALC - ALC_INVALID_VALUE\n");
-			else if(error == ALC_OUT_OF_MEMORY)		printf("ERROR: OpenALC - ALC_OUT_OF_MEMORY\n");
+			if(error == ALC_INVALID_DEVICE)			printf("[ERROR] OpenALC - ALC_INVALID_DEVICE\n");
+			else if(error == ALC_INVALID_CONTEXT)	printf("[ERROR] OpenALC - ALC_INVALID_CONTEXT\n");
+			else if(error == ALC_INVALID_ENUM)		printf("[ERROR] OpenALC - ALC_INVALID_ENUM\n");
+			else if(error == ALC_INVALID_VALUE)		printf("[ERROR] OpenALC - ALC_INVALID_VALUE\n");
+			else if(error == ALC_OUT_OF_MEMORY)		printf("[ERROR] OpenALC - ALC_OUT_OF_MEMORY\n");
 			errors = true;
 		}
 		return errors;
 	}
 
-	SoundManager::SoundManager(cstring resource_path)
+	SoundManager::SoundManager(const string& resource_path)
 		: m_resource_path(resource_path)
+#ifdef SOUND_THREADED
 		, m_actions(QUEUE_LIST_SIZE)
-		, m_delayedActions(500)
+		, m_delayed_actions(500)
+#endif
 	{}
 
 	SoundManager::~SoundManager()
@@ -65,62 +69,61 @@ namespace mud
 		if(m_context == 0)
 			return;
 
-		m_shuttingDown = true;
+		m_shutting_down = true;
+#ifdef SOUND_THREADED
 		//mUpdateThread->join();
 		//delete m_updateThread;
+#endif
 
-		releaseAll();
+		this->release_all();
 
 		alcMakeContextCurrent(0);
 		alcDestroyContext(m_context);
 		alcCloseDevice(m_device);
 	}
 
-	void SoundManager::clearSources()
+	void SoundManager::clear_sources()
 	{
-		alDeleteSources(m_maxSources, &m_sourcePool[0]);
-
-		m_sourcePool.clear();
+		alDeleteSources(m_max_sources, &m_source_pool[0]);
+		m_source_pool.clear();
 	}
 
-	void SoundManager::clearSounds()
+	void SoundManager::clear_sounds()
 	{
-		for (SoundList::iterator it = m_active_sounds.begin(); it != m_active_sounds.end(); ++it)
-		{
-			destroySoundImpl((*it));
-		}
+		for(auto& sound : m_sounds)
+			this->release_active(*sound);
 
-		m_pausedSounds.clear();
-		m_active_sounds.clear();
-		m_inactiveSounds.clear();
+		m_sounds.clear();
+		m_paused_sounds.clear();
+		m_inactive_sounds.clear();
 	}
 
-	void SoundManager::clearBuffers()
+	void SoundManager::clear_buffers()
 	{
-		m_sharedBuffers.clear();
+		m_shared_buffers.clear();
 	}
 
-	void SoundManager::releaseAll()
+	void SoundManager::release_all()
 	{
-		stopAllSoundsImpl();
-		clearSounds();
-		clearBuffers();
-		clearSources();
+		this->stop_all();
+		this->clear_sounds();
+		this->clear_buffers();
+		this->clear_sources();
 	}
 
-	bool SoundManager::init(cstring device_name, unsigned int max_sources)
+	bool SoundManager::init(const string& device_name, unsigned int max_sources)
 	{
-		printf("INFO: Init Sound Manager\n");
+		printf("[info] Init Sound Manager\n");
 
-		if (m_device)
+		if(m_device)
 			return true;
 
 		alGetError();
 
-		enumDevices();
+		this->enum_devices();
 
 		string name = device_name;
-		if(!name.empty() && std::find(m_devices.begin(), m_devices.end(), name) != m_devices.end())
+		if(!name.empty() && find(m_devices.begin(), m_devices.end(), name) != m_devices.end())
 			m_device = alcOpenDevice(name.c_str());
 		else if(m_devices.size() > 0)
 			m_device = alcOpenDevice(m_devices.front().c_str());
@@ -136,19 +139,19 @@ namespace mud
 		if(!m_context)
 			return false;
 
-		if (!alcMakeContextCurrent(m_context))
+		if(!alcMakeContextCurrent(m_context))
 			return false;
 
-		this->logFeatureSupport();
+		this->log_features();
 
-		m_maxSources = createSourcePool(max_sources);
+		m_max_sources = create_source_pool(max_sources);
 
-		//m_update_thread = make_unique<std::thread>([=] { this->threadUpdate(); });
+		//m_update_thread = std::make_unique<std::thread>([=] { this->update(); });
 
 		return true;
 	}
 
-	int SoundManager::createSourcePool(int max_sources)
+	int SoundManager::create_source_pool(int max_sources)
 	{
 		ALuint source;
 		int num_sources = 0;
@@ -159,7 +162,7 @@ namespace mud
 			alGenSources(1,&source);
 			if(source != 0)
 			{
-				m_sourcePool.push_back(source);
+				m_source_pool.push_back(source);
 				num_sources++;
 			}
 			else
@@ -169,11 +172,11 @@ namespace mud
 			}
 		}
 
-		printf("INFO: Sound - added %i source\n", num_sources);
+		printf("[info] Sound - added %i source\n", num_sources);
 		return num_sources;
 	}
 
-	void SoundManager::enumDevices()
+	void SoundManager::enum_devices()
 	{
 		const ALCchar* devices = alcGetString(NULL, ALC_DEVICE_SPECIFIER);
 
@@ -203,291 +206,282 @@ namespace mud
 		}
 	}
 
-	void SoundManager::setMasterVolume(ALfloat vol)
+	void SoundManager::set_master_volume(ALfloat vol)
 	{
 		m_volume = vol;
 		alListenerf(AL_GAIN, vol);
 	}
 
-	Sound* SoundManager::createSound(cstring filename, bool loop, bool stream, SoundCallback callback)
+	Sound* SoundManager::create_sound(const string& filename, bool loop, bool stream, SoundCallback callback)
 	{
-		string path = filename; //m_resource_path + "sounds/" + filename;
+		string path = filename; //m_resource_path + "/sounds/" + filename;
 
-		std::ifstream ifile(path, std::ifstream::out);
-		if(!ifile.good())
+		if(!file_exists(path))
 		{
-			printf("ERROR: Could not open sound file %s\n", path.c_str());
+			printf("[ERROR] Could not open sound file %s\n", path.c_str());
 			return nullptr;
 		}
 
-		Sound* sound = nullptr;
+		unique<Sound> sound;
 		if(stream)
-			sound = new/*sound*/StreamSound(*this, callback);
+			sound = construct<StreamSound>(*this, callback);
 		else
-			sound = new/*sound*/StaticSound(*this, callback);
+			sound = construct<StaticSound>(*this, callback);
 
-		sound->setLoop(loop);
+		sound->set_loop(loop);
 
-		this->addAction([=] { this->createSoundImpl(sound, path.c_str(), stream); });
-
-		return sound;
+		Sound& result = *sound;
+#ifdef SOUND_THREADED
+		this->add_action([&, sound = move(sound)]() mutable { this->create(move(sound), path.c_str(), stream); });
+#else
+		this->create(move(sound), path.c_str(), stream);
+#endif
+		return &result;
 	}
 
-	void SoundManager::createSoundImpl(Sound* sound, cstring filename, bool stream)
+	void SoundManager::create(unique<Sound> sound, const string& filename, bool stream)
 	{
-		//std::cerr << "creating sound Impl : " << filename << std::endl;
-		m_inactiveSounds.push_back(sound);
+		//printf("creating sound Impl : " << filename );
+		m_inactive_sounds.push_back(&*sound);
 
 		if(!stream)
-			sound->openShared(getSharedBuffer(filename));
+			sound->open(get_buffer(filename));
 		else
 			sound->open(filename);
-		//std::cerr << "done" << std::endl;
+
+		m_sounds.push_back(move(sound));
+
+		//printf("done" );
 	}
 
-	void SoundManager::stopAllSounds()
+	void SoundManager::stop_all_sounds()
 	{
-		addAction(std::bind(&SoundManager::stopAllSoundsImpl, this));
+		this->add_action([&]() { this->stop_all(); });
 	}
 
-	void SoundManager::setGlobalPitch(float pitch)
+	void SoundManager::set_global_pitch(float pitch)
 	{
-		m_globalPitch = pitch;
+		m_global_pitch = pitch;
 
-		addAction(std::bind(&SoundManager::setGlobalPitchImpl, this));
+		this->add_action([&]() { this->set_pitch(); });
 	}
 
-	void SoundManager::pauseAllSounds()
+	void SoundManager::pause_all_sounds()
 	{
-		addAction(std::bind(&SoundManager::pauseAllSoundsImpl, this));
+		this->add_action([&]() { this->pause_all(); });
 	}
 
-	void SoundManager::resumeAllSounds()
+	void SoundManager::resume_all_sounds()
 	{
-		addAction(std::bind(&SoundManager::resumeAllSoundsImpl, this));
+		this->add_action([&]() { this->resume_all(); });
 	}
 
-	void SoundManager::muteAllSounds()
+	void SoundManager::mute_all_sounds()
 	{
 		alGetListenerf(AL_GAIN, &m_volume);
 		alListenerf(AL_GAIN, 0.f);
 	}
 
-	void SoundManager::unmuteAllSounds()
+	void SoundManager::unmute_all_sounds()
 	{
 		alListenerf(AL_GAIN, m_volume);
 	}
 
-	void SoundManager::destroySound(Sound* sound)
+	void SoundManager::destroy_sound(Sound& sound)
 	{
-		addAction(std::bind(&SoundManager::destroySoundImpl, this, sound));
+		add_action([&]() { this->destroy(sound); });
 	}
 
-	void SoundManager::setDistanceModel(ALenum value)
+	void SoundManager::set_distance_model(ALenum value)
 	{
 		alDistanceModel(value);
 	}
 
-	void SoundManager::setSpeedOfSound(float speed)
+	void SoundManager::set_speed_of_sound(float speed)
 	{
 		alSpeedOfSound(speed);
 	}
 
-	void SoundManager::setDopplerFactor(float factor)
+	void SoundManager::set_doppler_factor(float factor)
 	{
 		alDopplerFactor(factor);
 	}
 
-	void SoundManager::updateActiveSound(Sound* sound)
+	void SoundManager::update_active(Sound& sound)
 	{
-		releaseActiveSound(sound);
-		queueActiveSound(sound);
+		this->release_active(sound);
+		this->queue_active(sound);
 	}
 
-	void SoundManager::queueActiveSound(Sound* sound)
+	void SoundManager::queue_active(Sound& sound)
 	{
-		unsigned int index = 0;
-		SoundList::iterator pos = m_active_sounds.begin();
+		size_t index = 0;
+		while(index != m_active_sounds.size() && m_active_sounds[index]->m_priority < sound.m_priority) { ++index; }
 
-		while(pos != m_active_sounds.end() && (*pos)->m_priority < sound->m_priority) { ++index; ++pos; }
-
-		if(m_active_sounds.size() < m_maxSources)
+		if(m_active_sounds.size() < m_max_sources)
 		{
-			sound->assignSource(vector_pop(m_sourcePool));
+			sound.assign_source(pop(m_source_pool));
 		}
-		else if(index <= m_maxSources)
+		else if(index <= m_max_sources)
 		{
-			sound->assignSource((*m_lastActive)->m_source);
-			(*m_lastActive)->releaseSource();
-			--m_lastActive;
+			Sound& release = *m_active_sounds[m_max_sources-1];
+			sound.assign_source(release.release_source());
 		}
 
-		m_active_sounds.insert(pos, sound);
-
-		sound->m_priority.m_queueIndex = index;
-		sound->m_priority.m_queueIterator = pos;
+		m_active_sounds.insert(m_active_sounds.begin() + index, &sound);
 	}
 
-	void SoundManager::activateSound(Sound* sound)
+	void SoundManager::activate(Sound& sound)
 	{
-		queueActiveSound(sound);
-		m_inactiveSounds.remove(sound);
+		this->queue_active(sound);
+		remove(m_inactive_sounds, &sound);
 	}
 
-	void SoundManager::releaseActiveSound(Sound* sound)
+	void SoundManager::release_active(Sound& sound)
 	{
-		//int lastIndex = sound->getPriority().m_queueIndex;
-		//SoundList::iterator lastPos = sound->getPriority().m_queueIterator;
-
-		if(m_active_sounds.size() <= m_maxSources)
+		if(m_sounds.size() <= m_max_sources)
 		{
-			m_sourcePool.push_back(sound->m_source);
-			sound->releaseSource();
+			m_source_pool.push_back(sound.release_source());
 		}
 		else
 		{
-			++m_lastActive;
-			(*m_lastActive)->assignSource(sound->m_source);
-			sound->releaseSource();
+			Sound& assign = *m_active_sounds[m_max_sources-1];
+			assign.assign_source(sound.release_source());
 		}
-
-		m_active_sounds.remove(sound);
 	}
 
-	void SoundManager::disactivateSound(Sound* sound)
+	void SoundManager::disactivate(Sound& sound)
 	{
-		releaseActiveSound(sound);
-		m_inactiveSounds.push_back(sound);
+		this->release_active(sound);
+		m_inactive_sounds.push_back(&sound);
 	}
 
-	void SoundManager::updatePosition(Sound* sound, const vec3& position)
+	void SoundManager::update_position(Sound& sound, const vec3& position)
 	{
-		sound->m_priority.m_distance = distance(position, m_listener.m_position);
-		m_updateQueue.push_back(sound);
+		sound.m_priority.m_distance = distance(position, m_listener.m_position);
+		m_update_queue.push_back(&sound);
 	}
 
-	void SoundManager::destroySoundImpl(Sound* sound)
+	void SoundManager::destroy(Sound& sound)
 	{
-		//std::cerr << "destroying sound " << std::endl;
-		if(sound->m_active)
-			releaseActiveSound(sound);
+		//printf("destroying sound " );
+		if(sound.m_active)
+			this->release_active(sound);
 		else
-			m_inactiveSounds.remove(sound);
+			remove(m_inactive_sounds, &sound);
 
-		if(sound->isPaused())
-			m_pausedSounds.remove(sound);
-
-		delete sound;
+		if(sound.is_paused())
+			remove(m_paused_sounds, &sound);
 	}
 
-	void SoundManager::playSound(Sound* sound)
+	void SoundManager::play_sound(Sound& sound)
 	{
-		addAction([=] { this->playSoundImpl(sound); });
+		this->add_action([&] { this->play(sound); });
 	}
 
-	void SoundManager::pauseSound(Sound* sound)
+	void SoundManager::pause_sound(Sound& sound)
 	{
-		addAction([=] { this->pauseSoundImpl(sound); });
+		this->add_action([&] { this->pause(sound); });
 	}
 
-	void SoundManager::stopSound(Sound* sound)
+	void SoundManager::stop_sound(Sound& sound)
 	{
-		addAction([=] { this->stopSoundImpl(sound); });
+		this->add_action([&] { this->stop(sound); });
 	}
 
-	void SoundManager::playSoundImpl(Sound* sound)
+	void SoundManager::play(Sound& sound)
 	{
-		activateSound(sound);
-		sound->playImpl();
+		this->activate(sound);
+		sound.play_impl();
 	}
 
-	void SoundManager::pauseSoundImpl(Sound* sound)
+	void SoundManager::pause(Sound& sound)
 	{
-		sound->pauseImpl();
-		m_pausedSounds.push_back(sound);
-		disactivateSound(sound);
+		sound.pause_impl();
+		m_paused_sounds.push_back(&sound);
+		this->disactivate(sound);
 	}
 
-	void SoundManager::stopSoundImpl(Sound* sound)
+	void SoundManager::stop(Sound& sound)
 	{
-		sound->stopImpl();
-		disactivateSound(sound);
+		sound.stop_impl();
+		this->disactivate(sound);
 
-		if(sound->m_temporary)
-			destroySound(sound);
+		if(sound.m_temporary)
+			this->destroy_sound(sound);
 	}
 
-	void SoundManager::stopAllSoundsImpl()
-	{
-		SoundList activeSounds(m_active_sounds.begin(), m_active_sounds.end());
-
-		for(Sound* sound : activeSounds)
-			stopSoundImpl(sound);
-	}
-
-	void SoundManager::pauseAllSoundsImpl()
-	{
-		SoundList activeSounds(m_active_sounds.begin(), m_active_sounds.end());
-
-		for(Sound* sound : activeSounds)
-			pauseSoundImpl(sound);
-	}
-
-	void SoundManager::resumeAllSoundsImpl()
-	{
-		SoundList pausedSounds(m_pausedSounds.begin(), m_pausedSounds.end());
-
-		for(Sound* sound : pausedSounds)
-			playSoundImpl(sound);
-	}
-
-	void SoundManager::setGlobalPitchImpl()
+	void SoundManager::stop_all()
 	{
 		for(Sound* sound : m_active_sounds)
-			sound->setPitch(m_globalPitch);
+			this->stop(*sound);
 	}
 
-	SharedBuffer& SoundManager::createSharedBuffer(cstring filename)
+	void SoundManager::pause_all()
 	{
-		m_sharedBuffers[filename] = make_unique<SharedBuffer>(filename, [=](SharedBuffer& buffer) { this->releaseBuffer(buffer); });
-		return *m_sharedBuffers[filename];
+		for(Sound* sound : m_active_sounds)
+			this->pause(*sound);
 	}
 
-	SharedBuffer& SoundManager::getSharedBuffer(cstring filename)
+	void SoundManager::resume_all()
 	{
-		auto find = m_sharedBuffers.find(filename);
-		if(find != m_sharedBuffers.end())
+		for(Sound* sound : m_paused_sounds)
+			this->play(*sound);
+	}
+
+	void SoundManager::set_pitch()
+	{
+		for(auto& sound : m_sounds)
+			sound->set_pitch(m_global_pitch);
+	}
+
+	SharedBuffer& SoundManager::create_buffer(const string& filename)
+	{
+		m_shared_buffers[filename] = make_unique<SharedBuffer>(filename, *this);
+		return *m_shared_buffers[filename];
+	}
+
+	SharedBuffer& SoundManager::get_buffer(const string& filename)
+	{
+		auto find = m_shared_buffers.find(filename);
+		if(find != m_shared_buffers.end())
 			return *(*find).second;
 		else
-			return createSharedBuffer(filename);
+			return this->create_buffer(filename);
 	}
 
-	void SoundManager::releaseBuffer(SharedBuffer& buffer)
+	void SoundManager::release_buffer(SharedBuffer& buffer)
 	{
-		m_sharedBuffers.erase(m_sharedBuffers.find(buffer.m_file_buffer->m_filename));
+		m_shared_buffers.erase(m_shared_buffers.find(buffer.m_file_buffer->m_filename));
 	}
 
-	void SoundManager::addAction(const SoundAction& action)
+	void SoundManager::add_action(const SoundAction& action)
 	{
+#ifndef SOUND_THREADED
+		action();
+#else
 		if(!m_actions.push(action))
-			m_delayedActions.push(action);
+			m_delayed_actions.push(action);
+#endif
 	}
 
-	void SoundManager::processActions()
+#ifdef SOUND_THREADED
+	void SoundManager::process_actions()
 	{
 		int i = 0;
-		std::function<void ()> action;
+		function<void ()> action;
 
 		if(!m_actions.empty())
 			while(((++i) < 5) && m_actions.pop(action))
 				action();
 
-		if(!m_delayedActions.empty())
-			while(((++i) < 5) && m_delayedActions.pop(action))
+		if(!m_delayed_actions.empty())
+			while(((++i) < 5) && m_delayed_actions.pop(action))
 				action();
 	}
+#endif
 
-	void SoundManager::updateSounds()
+	void SoundManager::update_sounds()
 	{
 		double time_step = m_clock.read();
 		
@@ -495,30 +489,30 @@ namespace mud
 
 		m_listener.update();
 		
-		for(Sound* sound : m_active_sounds)
+		for(auto& sound : m_sounds)
 			sound->update(float(time_step));
 
 		m_clock.update();
 	}
 
-	void SoundManager::threadUpdate()
+	void SoundManager::update()
 	{
 		if(!m_device)
 			return;
 
-		//std::cerr << "SoundManager::next_frame" << std::endl;
-		//while(!m_shuttingDown)
+		//while(!m_shutting_down)
 		//{
-			updateSounds();
-			processActions();
+			this->update_sounds();
+#ifdef SOUND_THREADED
+			this->process_actions();
+#endif
 			//std::this_thread::sleep(std::posix_time::milliseconds(10));
 		//}
-		//std::cerr << "SoundManager::next_frame" << std::endl;
 	}
 
-	void SoundManager::logFeatureSupport()
+	void SoundManager::log_features()
 	{
-		printf("INFO: Supported sound formats\n");
+		printf("[info] Supported sound formats\n");
 
 		if(alcGetEnumValue(m_device, "AL_FORMAT_MONO16"))
 			printf("    - AL_FORMAT_MONO16 -- Monophonic Sound\n");

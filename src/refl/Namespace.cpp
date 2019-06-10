@@ -4,14 +4,14 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.refl;
+#ifdef TWO_MODULES
+module two.refl;
 #else
 #include <refl/Namespace.h>
 #include <refl/System.h>
 #endif
 
-namespace mud
+namespace two
 {
 	Namespace::Namespace(cstring name, Namespace* parent)
 		: m_name(name)
@@ -24,7 +24,7 @@ namespace mud
 		}
 	}
 
-	Namespace& namspc(std::vector<cstring> path)
+	Namespace& namspc(span<cstring> path)
 	{
 		return system().get_namespace(path);
 	}

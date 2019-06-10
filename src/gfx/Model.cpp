@@ -3,16 +3,13 @@
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #include <gfx/Cpp20.h>
-#ifndef MUD_CPP_20
-#include <fstream>
-#endif
 
-#ifdef MUD_MODULES
-module mud.gfx;
+#ifdef TWO_MODULES
+module two.gfx;
 #else
-#include <infra/StringConvert.h>
 #include <type/Indexer.h>
-#include <pool/Pool.h>
+#include <pool/Pool.hpp>
+#include <math/Vec.hpp>
 #include <geom/Geom.h>
 #include <gfx/Types.h>
 #include <gfx/Model.h>
@@ -23,34 +20,39 @@ module mud.gfx;
 #include <gfx/GfxSystem.h>
 #endif
 
-namespace mud
+namespace two
 {
 	//static uint16_t s_model_index = 0;
 
-	GfxSystem* Model::ms_gfx_system = nullptr;
+	GfxSystem* Model::ms_gfx = nullptr;
 
-	Model::Model(cstring id)
-		: m_name(id)
+	Model::Model(const string& name)
+		: m_name(name)
 		, m_index(uint16_t(index(type<Model>(), Ref(this))))//++s_model_index)
 	{}
 
 	Model::~Model()
 	{}
 
-	Mesh& Model::add_mesh(cstring name, bool readback)
+	Mesh& Model::get_mesh(size_t index)
 	{
-		Mesh& mesh = ms_gfx_system->meshes().construct(name, readback);
+		return *m_items[index].m_mesh;
+	}
+
+	Mesh& Model::add_mesh(const string& name, bool readback)
+	{
+		Mesh& mesh = ms_gfx->meshes().construct(name, readback);
 		return mesh;
 	}
 
-	Rig& Model::add_rig(cstring name)
+	Rig& Model::add_rig(const string& name)
 	{
 		UNUSED(name);
-		m_rig = &ms_gfx_system->rigs().construct();
+		m_rig = &ms_gfx->rigs().construct();
 		return *m_rig;
 	}
 
-	ModelItem& Model::add_item(Mesh& mesh, mat4 transform, int skin, Colour colour, Material* material)
+	ModelElem& Model::add_item(Mesh& mesh, const mat4& transform, int skin, const Colour& colour, Material* material)
 	{
 		m_items.push_back({ m_items.size(), &mesh, transform != bxidentity(), transform, skin, colour, material });
 		return m_items.back();
@@ -61,10 +63,10 @@ namespace mud
 		m_aabb = {};
 		m_radius = 0.f;
 
-		for(const ModelItem& item: m_items)
+		for(const ModelElem& item: m_items)
 		{
-			m_geometry[item.m_mesh->m_draw_mode] = true;
-			m_aabb.mergeSafe(transform_aabb(item.m_mesh->m_aabb, item.m_transform));
+			m_geometry[item.m_mesh->m_primitive] = true;
+			m_aabb.merge(transform_aabb(item.m_mesh->m_aabb, item.m_transform));
 		}
 
 		m_radius = sqrt(2.f) * max(m_aabb.m_extents.x, max(m_aabb.m_extents.y, m_aabb.m_extents.z));
@@ -72,12 +74,12 @@ namespace mud
 		m_origin = m_aabb.m_center;
 	}
 
-	Model& model_variant(GfxSystem& gfx_system, Model& original, cstring name, array<cstring> materials, array<Material*> substitutes)
+	Model& model_variant(GfxSystem& gfx, Model& original, const string& name, span<string> materials, span<Material*> substitutes)
 	{
-		Model& variant = gfx_system.models().create(name);
+		Model& variant = gfx.models().create(name);
 		variant = original;
 
-		for(ModelItem& item : variant.m_items)
+		for(ModelElem& item : variant.m_items)
 			for(size_t i = 0; i < materials.size(); ++i)
 			{
 				if(item.m_mesh->m_material->m_name == materials[i])

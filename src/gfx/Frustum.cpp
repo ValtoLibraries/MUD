@@ -4,35 +4,34 @@
 
 #include <gfx/Cpp20.h>
 
-#include <bx/math.h>
-
-#ifdef MUD_MODULES
-module mud.gfx;
+#ifdef TWO_MODULES
+module two.gfx;
 #else
 #include <math/Axis.h>
+#include <geom/Geom.hpp>
 #include <geom/Intersect.h>
 #include <gfx/Frustum.h>
 #include <gfx/Camera.h>
 #include <gfx/Item.h>
 #endif
 
-#include <cstddef>
-#include <cstdint>
+#include <stl/stddef.h>
+#include <stdint.h>
 
 #if defined WIN32
 #include <BaseTsd.h>
 typedef SSIZE_T ssize_t;
 #endif
 
-namespace mud
+namespace two
 {
 	inline Plane bounding_plane(const mat4& mat, Axis component, float dir)
 	{
 		return {
-			mat[0][3] + dir * mat[0][size_t(component)],
-			mat[1][3] + dir * mat[1][size_t(component)],
-			mat[2][3] + dir * mat[2][size_t(component)],
-			mat[3][3] + dir * mat[3][size_t(component)]
+			mat[0][3] + dir * mat[0][component],
+			mat[1][3] + dir * mat[1][component],
+			mat[2][3] + dir * mat[2][component],
+			mat[3][3] + dir * mat[3][component]
 		};
 	}
 
@@ -129,7 +128,9 @@ namespace mud
 
 	Point8 frustum_corners(float fov, float aspect, float near, float far, const mat4& view)
 	{
-		const float proj_height = bx::tan(bx::toRad(fov) * 0.5f);
+		auto torad = [](float d) { return d * c_pi / 180.0f; };
+
+		const float proj_height = tan(torad(fov) * 0.5f);
 		const float proj_width = proj_height * aspect;
 
 		// Frustum corners in view space.
@@ -173,7 +174,7 @@ namespace mud
 
 	void Frustum::compute()
 	{
-		m_center = Zero3;
+		m_center = vec3(0.f);
 		for(uint i = 0; i < 8; i++)
 			m_center += m_corners[i];
 		//m_center /= 8.f;
@@ -184,10 +185,10 @@ namespace mud
 			m_radius = max(distance(m_center, m_corners[i]), m_radius);
 	}
 
-	Frustum optimized_frustum(Camera& camera, array<Item*> items)
+	Frustum optimized_frustum(Camera& camera, span<Item*> items)
 	{
 		if(!camera.m_optimize_ends)
-			return Frustum{ camera.m_transform, camera.m_fov, camera.m_aspect, camera.m_near, camera.m_far };
+			return Frustum{ camera.m_view, camera.m_fov, camera.m_aspect, camera.m_near, camera.m_far };
 
 		Plane near_plane = camera.near_plane();
 
@@ -205,10 +206,10 @@ namespace mud
 		float near = max(camera.m_near, z_min);
 		float far = min(camera.m_far, z_max);
 
-		return Frustum{ camera.m_transform, camera.m_fov, camera.m_aspect, near, far };
+		return Frustum{ camera.m_view, camera.m_fov, camera.m_aspect, near, far };
 	}
 
-	void split_frustum_slices(Camera& camera, array<FrustumSlice> slices, uint8_t num_splits, float near, float far, float split_distribution)
+	void split_frustum_slices(Camera& camera, span<FrustumSlice*> slices, uint8_t num_splits, float near, float far, float split_distribution)
 	{
 		const float ratio = far / near;
 
@@ -217,25 +218,25 @@ namespace mud
 			float si = float(int8_t(i * 2 + 1)) / float(num_splits * 2);
 
 			const float split = split_distribution * (near * powf(ratio, si)) + (1 - split_distribution) * (near + (far - near) * si);
-			const float slice_near = i == 0 ? near : slices[i - 1].m_frustum.m_far * 1.005f;
+			const float slice_near = i == 0 ? near : slices[i - 1]->m_frustum.m_far * 1.005f;
 			const float slice_far = i == num_splits - 1 ? far : split;
 
 			Frustum frustum;
 			if(camera.m_orthographic)
 			{
 				vec2 rect = { camera.m_height * camera.m_aspect, camera.m_height };
-				frustum = { camera.m_transform, rect, slice_near, slice_far };
+				frustum = { camera.m_view, rect, slice_near, slice_far };
 			}
 			else
 			{
-				frustum = { camera.m_transform, camera.m_fov, camera.m_aspect, slice_near, slice_far };
+				frustum = { camera.m_view, camera.m_fov, camera.m_aspect, slice_near, slice_far };
 			}
 
-			slices[i] = { i, frustum };
+			*slices[i] = { i, frustum };
 		}
 	}
 
-	void split_frustum_slices(Camera& camera, array<FrustumSlice> slices, uint8_t num_splits, float split_distribution)
+	void split_frustum_slices(Camera& camera, span<FrustumSlice*> slices, uint8_t num_splits, float split_distribution)
 	{
 		split_frustum_slices(camera, slices, num_splits, camera.m_near, camera.m_far, split_distribution);
 	}

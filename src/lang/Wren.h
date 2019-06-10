@@ -4,27 +4,25 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <infra/Array.h>
-#include <infra/NonCopy.h>
-#include <type/Any.h>
-#include <type/Unique.h>
+#ifndef TWO_MODULES
+#include <stl/string.h>
+#include <stl/memory.h>
+#include <stl/map.h>
 #endif
 #include <lang/Forward.h>
 #include <lang/Script.h>
 
-#ifndef  MUD_CPP_20
-#include <map>
-#include <string>
-#endif
-
-namespace mud
+namespace two
 {
-	using string = std::string;
-
 	class WrenContext;
 
-	export_ class refl_ MUD_LANG_EXPORT WrenInterpreter final : public Interpreter
+	struct WrenFunctionDecl
+	{
+		string functions;
+		string bind;
+	};
+
+	export_ class refl_ TWO_LANG_EXPORT WrenInterpreter final : public Interpreter
 	{
 	public:
 		WrenInterpreter(bool import_symbols);
@@ -32,19 +30,19 @@ namespace mud
 
 		virtual void declare_types() final;
 
-		virtual Var get(cstring name, Type& type) final;
-		virtual void set(cstring name, Var value) final;
+		virtual Var get(const string& name, const Type& type) final;
+		virtual void set(const string& name, const Var& value) final;
 
-		virtual Var getx(array<cstring> path, Type& type) final;
-		virtual void setx(array<cstring> path, Var value) final;
+		virtual Var getx(span<cstring> path, const Type& type) final;
+		virtual void setx(span<cstring> path, const Var& value) final;
 
-		virtual void call(cstring code, Var* result = nullptr) final;
-		virtual void virtual_call(Method& method, Ref object, array<Var> args) final;
+		virtual void call(const string& code, Var* result = nullptr) final;
+		virtual void virtual_call(Method& method, Ref object, span<Var> args) final;
 
-		unique_ptr<WrenContext> m_context;
+		unique<WrenContext> m_context;
 
 		void create_virtual(Ref object);
 
-		std::map<void*, const TextScript*> m_virtual_scripts;
+		map<void*, const TextScript*> m_virtual_scripts;
 	};
 }

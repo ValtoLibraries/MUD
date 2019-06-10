@@ -1,13 +1,15 @@
 #pragma once
 
+#include <stdint.h>
+#include <stl/string.h>
+#include <stl/vector.h>
 #include <gfx-pbr/Forward.h>
 
-#if !defined MUD_MODULES || defined MUD_TYPE_LIB
+#if !defined TWO_MODULES || defined TWO_TYPE_LIB
 #include <type/Type.h>
-#include <type/Vector.h>
 #endif
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
 #include <infra/Types.h>
 #include <type/Types.h>
 #include <math/Types.h>
@@ -15,64 +17,38 @@
 #include <gfx/Types.h>
 #endif
 
-#ifndef MUD_CPP_20
-#include <string>
-#include <cstdint>
-#include <vector>
-#endif
 
-
-namespace mud
+namespace two
 {
     // Exported types
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::CSMFilterMode>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::ShaderModeShadow>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::ShaderOptionBlur>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::ShaderOptionDofBlur>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::ShaderOptionGlow>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::ShaderOptionLight>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::ShaderOptionRadiance>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::ShaderOptionShadow>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::TonemapMode>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::TonemapShaderMode>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::TonemapShaderOption>();
-
-	export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::GIProbe>();
-	export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::LightmapAtlas>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::BCS>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::DofBlur>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::Glow>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::LightShadow>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::ReflectionProbe>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::RenderFilters>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::Tonemap>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::BlockBlur>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::BlockDofBlur>();
-	export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::BlockGI>();
-	export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::BlockGIBake>();
-	export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::BlockGITrace>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::BlockGlow>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::BlockReflection>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::BlockTonemap>();
-	export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::BlockGeometry>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::BlockLight>();
-	export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::BlockLightmap>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::BlockRadiance>();
-    export_ template <> MUD_GFX_PBR_EXPORT Type& type<mud::BlockShadow>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::TonemapMode>();
     
-	export_ template struct MUD_GFX_PBR_EXPORT Typed<std::vector<mud::BCS*>>;
-	export_ template struct MUD_GFX_PBR_EXPORT Typed<std::vector<mud::DofBlur*>>;
-	export_ template struct MUD_GFX_PBR_EXPORT Typed<std::vector<mud::Glow*>>;
-	export_ template struct MUD_GFX_PBR_EXPORT Typed<std::vector<mud::LightShadow*>>;
-	export_ template struct MUD_GFX_PBR_EXPORT Typed<std::vector<mud::ReflectionProbe*>>;
-	export_ template struct MUD_GFX_PBR_EXPORT Typed<std::vector<mud::RenderFilters*>>;
-	export_ template struct MUD_GFX_PBR_EXPORT Typed<std::vector<mud::Tonemap*>>;
-	export_ template struct MUD_GFX_PBR_EXPORT Typed<std::vector<mud::BlockBlur*>>;
-	export_ template struct MUD_GFX_PBR_EXPORT Typed<std::vector<mud::BlockDofBlur*>>;
-	export_ template struct MUD_GFX_PBR_EXPORT Typed<std::vector<mud::BlockGlow*>>;
-	export_ template struct MUD_GFX_PBR_EXPORT Typed<std::vector<mud::BlockReflection*>>;
-	export_ template struct MUD_GFX_PBR_EXPORT Typed<std::vector<mud::BlockTonemap*>>;
-	export_ template struct MUD_GFX_PBR_EXPORT Typed<std::vector<mud::BlockLight*>>;
-	export_ template struct MUD_GFX_PBR_EXPORT Typed<std::vector<mud::BlockRadiance*>>;
-	export_ template struct MUD_GFX_PBR_EXPORT Typed<std::vector<mud::BlockShadow*>>;
+    
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::BlockLight>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::LightmapItem>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::Lightmap>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::LightmapAtlas>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::BlockLightmap>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::BlockGeometry>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::BlockRadiance>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::CubeTarget>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::CubeCamera>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::ReflectionProbe>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::BlockReflection>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::LightShadow>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::CSMSlice>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::CSMShadow>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::BlockShadow>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::GIProbe>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::BlockGITrace>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::BlockGIBake>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::BlockBlur>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::DofParams>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::DofBlur>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::BlockDofBlur>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::Glow>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::BlockGlow>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::BCS>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::Tonemap>();
+    export_ template <> TWO_GFX_PBR_EXPORT Type& type<two::BlockTonemap>();
 }

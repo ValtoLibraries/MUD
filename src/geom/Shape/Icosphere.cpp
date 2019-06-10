@@ -4,15 +4,17 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.geom;
+#ifdef TWO_MODULES
+module two.geom;
 #else
+#include <math/Math.h>
+#include <math/Vec.hpp>
 #include <geom/Shape/Icosphere.h>
 #endif
 
-namespace mud
+namespace two
 {
-	std::vector<IcoSphere> IcoSphere::s_levels = { 1, 2, 3 };
+	vector<IcoSphere> IcoSphere::s_levels = { 1, 2, 3 };
 
 	IcoSphere::IcoSphere(int recursionLevel)
 	{
@@ -46,7 +48,7 @@ namespace mud
 		};
 
 		for(Face& face : faces)
-			m_faces.emplace_back(face);
+			m_faces.push_back(face);
 
 		Line lines[] = {
 			{ 1, 0 }, { 1, 5 }, { 1, 7 }, { 1, 8  }, { 1, 9  },
@@ -59,11 +61,11 @@ namespace mud
 		};
 
 		for(Line& line : lines)
-			m_lines.emplace_back(line);
+			m_lines.push_back(line);
 
 		for(int r = 0; r < recursionLevel; r++)
 		{
-			std::vector<Face> prevfaces = m_faces;
+			vector<Face> prevfaces = m_faces;
 
 			m_faces.clear();
 			m_lines.clear();
@@ -95,7 +97,7 @@ namespace mud
 	
 	int IcoSphere::vertex(const vec3& vertex)
 	{
-		m_vertices.emplace_back(normalize(vertex));
+		m_vertices.push_back(normalize(vertex));
 		return int(m_vertices.size() - 1);
 	}
 
@@ -105,7 +107,7 @@ namespace mud
 		int64_t hi = index0 < index1 ? index1 : index0;
 		int64_t key = (lo << 32) | hi;
 
-		if (m_middle_point_cache.find(key) != m_middle_point_cache.end())
+		if(m_middle_point_cache.find(key) != m_middle_point_cache.end())
 			return m_middle_point_cache[key];
 
 		vec3 point1 = m_vertices[index0];

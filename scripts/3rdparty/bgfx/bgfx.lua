@@ -1,4 +1,4 @@
--- mud library
+-- two library
 -- bgfx dependency module
 
 group "bgfx"
@@ -10,17 +10,30 @@ dofile(path.join(BIMG_DIR, "scripts/bimg_encode.lua"))
 dofile(path.join(BGFX_DIR, "scripts/bgfx.lua"))
 bgfxProject("", "StaticLib", {})
 
+if _OPTIONS["webgpu"] then
+project "bgfx"
+    includedirs {
+        path.join(DAWN_DIR, "src"),
+        path.join(DAWN_DIR, "src/include"),
+        path.join(DAWN_DIR, "out/Default/gen")
+    }
+    
+    defines {
+        "BGFX_CONFIG_RENDERER_WEBGPU=1",
+    }
+end
+
 project "bgfx"
     configuration { "Debug" }
         defines {
             "BGFX_CONFIG_DEBUG_UNIFORM=0",
         }
-        
+
     configuration { "osx",  }
         defines {
             "BGFX_CONFIG_RENDERER_OPENGL=31",
         }
-        
+
     configuration { "asmjs", "webgl2" }
         defines {
             "BGFX_CONFIG_RENDERER_OPENGLES=30",
@@ -29,22 +42,35 @@ project "bgfx"
     configuration {}
 
 project "bimg_encode"
-	configuration { "mingw* or linux or osx or asmjs" }
-		buildoptions {
-			"-Wno-undef"
+    configuration { "mingw* or linux or osx or asmjs" }
+        buildoptions {
+            "-Wno-undef",
+            "-Wno-class-memaccess",
         }
-        
+
+    configuration { "osx or *-clang* or asmjs" }
+        buildoptions {
+            "-Wno-shadow",
+            "-Wno-macro-redefined",
+            "-Wno-tautological-compare",
+        }
+
+    configuration { "vs*", "not asmjs" }
+        buildoptions {
+            "/wd4244", -- warning C4244: '=': conversion from 'int' to 'vtype', possible loss of data
+        }
+
     configuration {}
-        
-dofile(path.join(MUD_DIR, "scripts/3rdparty/bgfx/shaderc.lua"))
+
+dofile(path.join(TWO_DIR, "scripts/3rdparty/bgfx/shaderc.lua"))
 
 function uses_bx()
     includedirs {
         path.join(BX_DIR,    "include"),
     }
     
-	configuration { "vs*", "not orbis", "not asmjs" }
-		includedirs { path.join(BX_DIR, "include/compat/msvc") }
+    configuration { "vs*", "not orbis", "not asmjs" }
+        includedirs { path.join(BX_DIR, "include/compat/msvc") }
     
     configuration {}
 end
@@ -57,6 +83,7 @@ end
 
 function uses_bgfx()
     includedirs {
+        path.join(BX_DIR,    "include"),
         path.join(BGFX_DIR,  "include"),
     }
     
@@ -88,7 +115,7 @@ function uses_bgfx()
 end
 
 function uses_shaderc()
-    defines { "MUD_LIVE_SHADER_COMPILER" }
+    defines { "TWO_LIVE_SHADER_COMPILER" }
     
     --print(" links fcpp, glslang, etc...")
     links {
@@ -96,17 +123,18 @@ function uses_shaderc()
         "glslang",
         "glsl-optimizer",
         "spirv-opt",
+        "spirv-cross",
     }
 end
 
---fcpp        = mud_dep(nil, "fcpp",          false, nil)
---glslang     = mud_dep(nil, "glslang",       false, nil)
---glslopt     = mud_dep(nil, "glsl-optimizer",false, nil)
---spirvopt    = mud_dep(nil, "fcpp",          false, nil)
+--fcpp        = dep(nil, "fcpp",          false, nil)
+--glslang     = dep(nil, "glslang",       false, nil)
+--glslopt     = dep(nil, "glsl-optimizer",false, nil)
+--spirvopt    = dep(nil, "fcpp",          false, nil)
 
-bx          = mud_dep(nil, "bx",            false, uses_bx)
-bimg        = mud_dep(nil, "bimg",          false, uses_bimg,       { bx })
-bimg.decode = mud_dep(nil, "bimg_decode",   false, uses_bimg        { bx })
-bimg.encode = mud_dep(nil, "bimg_encode",   false, uses_bimg        { bx })
-bgfx        = mud_dep(nil, "bgfx",          false, uses_bgfx,       { bx, bimg })
-shaderc     = mud_dep(nil, "shaderc",       false, uses_shaderc,    { bx, bimg, bgfx })
+bx          = dep(nil, "bx",            false, uses_bx)
+bimg        = dep(nil, "bimg",          false, uses_bimg,       { bx })
+bimg.decode = dep(nil, "bimg_decode",   false, uses_bimg        { bx })
+bimg.encode = dep(nil, "bimg_encode",   false, uses_bimg        { bx })
+bgfx        = dep(nil, "bgfx",          false, uses_bgfx,       { bx, bimg })
+shaderc     = dep(nil, "shaderc",       false, uses_shaderc,    { bx, bimg, bgfx })

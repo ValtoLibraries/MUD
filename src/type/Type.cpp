@@ -3,33 +3,24 @@
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #include <infra/Cpp20.h>
-#ifndef MUD_CPP_20
+#ifndef TWO_CPP_20
 #include <cstring>
 #include <cstdio>
-#include <vector>
-#include <string>
 #endif
 
-#ifdef MUD_MODULES
-module mud.obj;
+#ifdef TWO_MODULES
+module two.obj;
 #else
+#include <stl/vector.h>
+#include <stl/string.h>
 #include <type/Type.h>
 #include <type/Vector.h>
 #include <type/Indexer.h>
 //#include <ecs/Proto.h>
 #endif
 
-namespace mud
+namespace two
 {
-	using string = std::string;
-
-	const unsigned int c_max_types = 1000U;
-
-#ifdef MUD_CONTAINER_TYPES_2
-	std::vector<Type> g_vector_types = std::vector<Type>(1000U);
-	std::vector<Type> g_array_types = std::vector<Type>(1000U);
-#endif
-
 	bool Address::operator==(const Address& other) const
 	{
 		return strncmp(value, other.value, 16) == 0;
@@ -54,10 +45,10 @@ namespace mud
 		, m_name(name)
 		, m_size(size)
 	{
-		//printf("DEBUG: Type %s %i\n", name, int(m_id));
+		//printf("[debug] Type %s %i\n", name, int(m_id));
 
 		if(strcmp(name, "INVALID") == 0)
-			printf("WARNING: Invalid type created, this means an lref was created for a type which isn't exported\n");
+			printf("[warning] Invalid type created, this means an lref was created for a type which isn't exported\n");
 	}
 	
 	Type::Type(const char* name, Type& base, size_t size)
@@ -69,7 +60,7 @@ namespace mud
 	Type::~Type()
 	{}
 
-	bool Type::is(Type& type) const
+	bool Type::is(const Type& type) const
 	{
 		if(&type == this)
 			return true;

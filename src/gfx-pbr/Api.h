@@ -1,9 +1,13 @@
+#include <gfx/Node3.h>
+#include <gfx/Graph.h>
+#include <gfx/Scene.h>
+#include <gfx/GfxSystem.h>
 #include <gfx-pbr/Forward.h>
-#include <gfx-pbr/Light.h>
+#include <gfx-pbr/Lighting.h>
 #include <gfx-pbr/Lightmap.h>
-#include <gfx-pbr/Pipeline.h>
+#include <gfx-pbr/PipelinePbr.h>
 #include <gfx-pbr/Radiance.h>
-#include <gfx-pbr/Reflection.h>
+#include <gfx-pbr/ReflectionProbe.h>
 #include <gfx-pbr/ReflectionAtlas.h>
 #include <gfx-pbr/Shadow.h>
 #include <gfx-pbr/ShadowAtlas.h>
@@ -14,4 +18,5 @@
 #include <gfx-pbr/Filters/DofBlur.h>
 #include <gfx-pbr/Filters/Glow.h>
 #include <gfx-pbr/Filters/Tonemap.h>
+#include <gfx-pbr/Handles.h>
 

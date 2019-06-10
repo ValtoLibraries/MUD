@@ -4,18 +4,19 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.ui;
+#ifdef TWO_MODULES
+module two.ui;
 #else
-#include <infra/Vector.h>
+#include <stl/algorithm.h>
+#include <tree/Graph.hpp>
 #include <ui/Sequence.h>
-#include <ui/Structs/Widget.h>
-#include <ui/Structs/RootSheet.h>
-#include <ui/Structs/Container.h>
+#include <ui/WidgetStruct.h>
+#include <ui/UiRoot.h>
+#include <ui/ContainerStruct.h>
 #include <ui/ScrollSheet.h>
 #endif
 
-namespace mud
+namespace two
 {
 namespace ui
 {
@@ -31,33 +32,33 @@ namespace ui
 		return self;
 	}
 
-	bool multiselect_logic(Widget& element, Ref object, std::vector<Ref>& selection)
+	bool multiselect_logic(Widget& element, Ref object, vector<Ref>& selection)
 	{
 		bool changed = false;
-		if(MouseEvent mouse_event = element.mouse_event(DeviceType::MouseLeft, EventType::Stroked, InputMod::Shift))
+		if(MouseEvent event = element.mouse_event(DeviceType::MouseLeft, EventType::Stroked, InputMod::Shift))
 		{
-			vector_swap(selection, object);
+			select_swap(selection, object);
 			changed = true;
 		}
-		if(MouseEvent mouse_event = element.mouse_event(DeviceType::MouseLeft, EventType::Stroked))
+		if(MouseEvent event = element.mouse_event(DeviceType::MouseLeft, EventType::Stroked))
 		{
-			vector_select(selection, object);
+			select(selection, object);
 			changed = true;
 		}
-		if(MouseEvent mouse_event = element.mouse_event(DeviceType::MouseRight, EventType::Stroked))
+		if(MouseEvent event = element.mouse_event(DeviceType::MouseRight, EventType::Stroked))
 		{
-			vector_select(selection, object);
+			select(selection, object);
 			changed = true;
 		}
 
-		element.set_state(SELECTED, vector_has(selection, object));
+		element.set_state(SELECTED, has(selection, object));
 		return changed;
 	}
 
 	bool select_logic(Widget& element, Ref object, Ref& selection)
 	{
 		bool changed = false;
-		if(MouseEvent mouse_event = element.mouse_event(DeviceType::MouseLeft, EventType::Stroked))
+		if(MouseEvent event = element.mouse_event(DeviceType::MouseLeft, EventType::Stroked))
 		{
 			selection = object;
 			changed = true;
@@ -71,16 +72,16 @@ namespace ui
 	{
 		Widget& self = widget(parent, styles().element, object.m_value);
 
-		if(MouseEvent mouse_event = self.mouse_event(DeviceType::MouseLeft, EventType::Dragged))
-			parent.ui().m_drop = { static_cast<Widget*>(mouse_event.m_target), object, DropState::Preview };
+		if(MouseEvent event = self.mouse_event(DeviceType::MouseLeft, EventType::Dragged))
+			parent.ui().m_drop = { static_cast<Widget*>(event.m_target), object, DropState::Preview };
 
-		if(MouseEvent mouse_event = self.mouse_event(DeviceType::MouseLeft, EventType::DragEnded))
-			parent.ui().m_drop = { static_cast<Widget*>(mouse_event.m_target), object, DropState::Done };
+		if(MouseEvent event = self.mouse_event(DeviceType::MouseLeft, EventType::DragEnded))
+			parent.ui().m_drop = { static_cast<Widget*>(event.m_target), object, DropState::Done };
 
 		return self;
 	}
 
-	Widget& element(Widget& parent, Ref object, std::vector<Ref>& selection)
+	Widget& element(Widget& parent, Ref object, vector<Ref>& selection)
 	{
 		Widget& self = element(parent, object);
 		multiselect_logic(self, object, selection);

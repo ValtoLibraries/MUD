@@ -2,7 +2,9 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
+#include <stl/map.h>
+#include <math/Vec.hpp>
 #include <gfx/Renderer.h>
 #include <gfx/Frustum.h>
 #include <gfx/Depth.h>
@@ -10,65 +12,61 @@
 #include <gfx-pbr/Forward.h>
 #include <gfx-pbr/ShadowAtlas.h>
 
-namespace mud
+namespace two
 {
 	enum ShaderOptionShadow : unsigned int
 	{
-		CSM_SHADOW,
+		SHADOWS,
 		CSM_BLEND,
 	};
 
 	enum ShaderModeShadow : unsigned int
 	{
-		CSM_NUM_CASCADES,
-		CSM_PCF_LEVEL,
+		PCF_LEVEL,
 	};
 
-	enum CSMFilterMode : unsigned int
+	enum ShadowFilterMode : unsigned int
 	{
-		CSM_NO_PCF = 0,
-		CSM_HARD_PCF = 1,
-		CSM_PCF5 = 2,
-		CSM_PCF13 = 3
+		PCF_NONE = 0,
+		PCF_HARD = 1,
+		PCF_5 = 2,
+		PCF_13 = 3
 	};
 
-	struct CSMShadow
+	struct Shadowmap
 	{
-		CSMShadow() {}
-		CSMShadow(uint16_t size);
+		Shadowmap() {}
+		~Shadowmap() {}
 
-		uint16_t m_size = 0;
-		bgfx::FrameBufferHandle m_fbo = BGFX_INVALID_HANDLE;
-		bgfx::TextureHandle m_depth = BGFX_INVALID_HANDLE;
-		CSMFilterMode m_filter_mode = CSM_PCF5;
+		Shadowmap(const Shadowmap& other) = delete;
+		Shadowmap& operator=(const Shadowmap& other) = delete;
+
+		void create(const uvec2& size, DepthMethod method = DepthMethod::Depth);
+
+		uvec2 m_size = uvec2(0U);
+		DepthMethod m_depth_method = DepthMethod::Depth;
+		FrameBuffer m_fbo;
+		Texture m_depth;
+		Texture m_color;
+
+		const Texture& texture() const { return m_depth_method == DepthMethod::Depth ? m_depth : m_color; }
 	};
 
-	export_ class MUD_GFX_PBR_EXPORT PassShadow : public PassDepth
+	struct ShadowmapCube
 	{
-	public:
-		PassShadow(GfxSystem& gfx_system, BlockDepth& block_depth, BlockShadow& block_shadow);
+		ShadowmapCube() {}
+		~ShadowmapCube() { if(bgfx::isValid(m_depth)) bgfx::destroy(m_depth); }
 
-		BlockDepth& m_block_depth;
-		BlockShadow& m_block_shadow;
+		void create(uint32_t size);
 
-		virtual void next_draw_pass(Render& render, Pass& render_pass) final;
-		virtual void queue_draw_element(Render& render, DrawElement& element) final;
+		uint32_t m_size = 0U;
+		FrameBuffer m_fbos[6];
+		Texture m_depth;
 	};
 
-	export_ class MUD_GFX_PBR_EXPORT PassShadowmap : public RenderPass
-	{
-	public:
-		PassShadowmap(GfxSystem& gfx_system, BlockShadow& block_shadow);
+	export_ TWO_GFX_PBR_EXPORT void pass_shadowmaps(GfxSystem& gfx, Render& render);
 
-		BlockShadow& m_block_shadow;
-
-		virtual void submit_render_pass(Render& render) final;
-	};
-
-	struct ShadowRenderer : public Renderer
-	{
-		ShadowRenderer(GfxSystem& gfx_system, Pipeline& pipeline);
-	};
+	export_ TWO_GFX_PBR_EXPORT void pass_shadow(GfxSystem& gfx, Render& render);
 
 	export_ struct LightBounds
 	{
@@ -76,90 +74,99 @@ namespace mud
 		vec3 max = { -9000.0f, -9000.0f, -9000.0f };
 	};
 
-	export_ struct refl_ MUD_GFX_PBR_EXPORT LightShadow
+	export_ struct refl_ TWO_GFX_PBR_EXPORT LightShadow
 	{
-		struct Slice
-		{
-			vec4 m_viewport_rect;
-			vec4 m_texture_rect;
-			mat4 m_projection;
-			mat4 m_transform;
-			mat4 m_shadow_matrix;
-			float m_bias_scale;
+		Light* m_light = nullptr;
 
-			FrustumSlice m_frustum_slice;
-			LightBounds m_light_bounds;
+		FrameBuffer* m_fbo = nullptr;
+		vec4 m_rect = {};
+		
+		float m_near = 0.f;
+		float m_far = 100.f;
+		mat4 m_proj = {};
+		mat4 m_transform = {};
 
-			std::vector<Item*> m_items;
-		};
+		mat4 m_shadow_matrix = {};
+		DepthMethod m_depth_method = DepthMethod::Depth;
+		float m_bias_scale = 1.f;
 
-		std::vector<FrustumSlice> m_frustum_slices;
-		std::vector<Slice> m_slices;
+		FrustumSlice m_frustum_slice;
+		LightBounds m_light_bounds;
+
+		vector<Item*> m_items;
 	};
 
-	export_ class refl_ MUD_GFX_PBR_EXPORT BlockShadow : public DrawBlock
+	export_ struct refl_ TWO_GFX_PBR_EXPORT CSMSlice : public LightShadow, public FrustumSlice
+	{};
+
+	export_ struct refl_ TWO_GFX_PBR_EXPORT CSMShadow
+	{
+		Light* m_light;
+
+		vector<CSMSlice> m_slices;
+	};
+
+#ifdef TWO_PLATFORM_EMSCRIPTEN
+	constexpr size_t c_max_shadows = 8;
+#else
+	constexpr size_t c_max_shadows = 32;
+#endif
+
+	export_ class refl_ TWO_GFX_PBR_EXPORT BlockShadow : public DrawBlock
 	{
 	public:
-		BlockShadow(GfxSystem& gfx_system, BlockDepth& block_depth);
+		BlockShadow(GfxSystem& gfx, BlockDepth& block_depth, BlockLight& block_light);
 
 		virtual void init_block() override;
+		virtual void begin_frame(const RenderFrame& frame) override;
 
 		virtual void begin_render(Render& render) override;
-		virtual void begin_pass(Render& render) override;
 
-		virtual void begin_draw_pass(Render& render) override;
+		virtual void options(Render& render, const DrawElement& element, ProgramVersion& program) const override;
+		virtual void submit(Render& render, const Pass& pass) const override;
+		virtual void submit(Render& render, const DrawElement& element, const Pass& pass) const override;
 
-		virtual void options(Render& render, ShaderVersion& shader_version) const override;
-		virtual void submit(Render& render, const Pass& render_pass) const override;
+		void setup_shadows(Render& render);
+		void commit_shadows(Render& render, const mat4& view);
+		void upload_shadows(Render& render, const Pass& pass) const;
 
-		void update_shadows(Render& render);
-		void render_shadows(Render& render);
-
-		void update_direct(Render& render, Light& light, size_t num_direct, size_t index);
-		void render_direct(Render& render, Light& light, size_t index);
+		void update_csm(Render& render, Light& light, CSMShadow& csm);
 
 		BlockDepth& m_block_depth;
+		BlockLight& m_block_light;
 
-		DepthParams m_depth_params;
-
-		Light* m_direct_light = nullptr;
-
-		struct DirectionalShadowUniform
-		{
-			void createUniforms()
-			{
-				s_csm_atlas	 = bgfx::createUniform("s_csm_atlas",  bgfx::UniformType::Int1);
-				u_csm_params = bgfx::createUniform("u_csm_params", bgfx::UniformType::Vec4);
-			}
-
-			bgfx::UniformHandle s_csm_atlas;
-			bgfx::UniformHandle u_csm_params;
-
-		} u_direct_shadow;
+		DepthMethod m_depth_method = DepthMethod::Depth;
+		DepthParams m_depth_params = {};
+		DistanceParams m_distance_params = {};
 
 		struct ShadowUniform
 		{
 			void createUniforms()
 			{
-				s_shadow_atlas = bgfx::createUniform("s_shadow_atlas", bgfx::UniformType::Int1);
-				u_shadow_pixel_size = bgfx::createUniform("u_shadow_pixel_size", bgfx::UniformType::Vec4);
+				s_shadow_atlas = bgfx::createUniform("s_shadow_atlas", bgfx::UniformType::Sampler, 1U, bgfx::UniformSet::View);
+				u_shadow_atlas = bgfx::createUniform("u_shadow_atlas", bgfx::UniformType::Vec4,    1U, bgfx::UniformSet::View);
+				u_pcf_p0   = bgfx::createUniform("u_pcf_p0",   bgfx::UniformType::Vec4,    1U, bgfx::UniformSet::View);
+				u_csm_p0 = bgfx::createUniform("u_csm_p0", bgfx::UniformType::Vec4, 1U, bgfx::UniformSet::View);
 			}
 
 			bgfx::UniformHandle s_shadow_atlas;
-			bgfx::UniformHandle u_shadow_pixel_size;
+			bgfx::UniformHandle u_shadow_atlas;
+			bgfx::UniformHandle u_pcf_p0;
+			bgfx::UniformHandle u_csm_p0;
 
 		} u_shadow;
 
+#ifdef TWO_PLATFORM_EMSCRIPTEN
+		ShadowFilterMode m_pcf_level = PCF_HARD; // @todo can't get true pcf working on WebGL so far
+#else
+		ShadowFilterMode m_pcf_level = PCF_5;
+#endif
+
 		ShadowAtlas m_atlas;
 
-		std::vector<LightShadow> m_shadows;
+		vector<CSMShadow> m_csm_shadows;
+		vector<LightShadow> m_shadows;
 
-		CSMShadow m_csm;
-
-#ifdef MUD_PLATFORM_EMSCRIPTEN
-		CSMFilterMode m_pcf_level = CSM_HARD_PCF; // @todo can't get true pcf working on WebGL so far
-#else
-		CSMFilterMode m_pcf_level = CSM_PCF5;
-#endif
+		vector<mat4> m_shadow_matrices;
 	};
 }

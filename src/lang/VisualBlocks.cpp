@@ -4,8 +4,8 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.lang;
+#ifdef TWO_MODULES
+module two.lang;
 #else
 #include <type/Indexer.h>
 #include <refl/System.h>
@@ -14,7 +14,7 @@ module mud.lang;
 #include <lang/VisualBlocks.h>
 #endif
 
-namespace mud
+namespace two
 {
 	ProcessValue::ProcessValue(VisualScript& script, const Var& value)
 		: Process(script, value == Ref() ? "Ref" : type(value).m_name, type<ProcessValue>())
@@ -30,17 +30,16 @@ namespace mud
 	{}
 
 	ProcessCreate::ProcessCreate(VisualScript& script, Type& type, const Constructor& constructor)
-		: Process(script, meta(type).m_name, mud::type<ProcessCreate>())
+		: Process(script, meta(type).m_name, two::type<ProcessCreate>())
 		, m_object_type(type)
 		, m_injector(constructor)
-		, m_inputParams()
 		, m_output(*this, "output", OUTPUT_VALVE, is_struct(type) ? meta(type).m_empty_var : Var(meta(type).m_empty_ref), false, is_struct(type) ? false : true)
 		, m_pool(is_struct(type) ? nullptr : g_pools[m_object_type.m_id].get())
 	{
 		for(const Param& param : m_injector.m_constructor.m_params)
 			//if(param.m_mode == INPUT_PARAM)
 			if(param.m_index > 0) // skip first, it's the object reference
-				m_inputParams.emplace_back(make_object<Valve>(*this, param));
+				m_input_params.push_back(oconstruct<Valve>(*this, param));
 	}
 
 	ProcessCreate::ProcessCreate(VisualScript& script, Type& type, ConstructorIndex constructor)
@@ -53,15 +52,15 @@ namespace mud
 
 	void ProcessCreate::clear()
 	{
-		for(Ref& object : m_persistentObjects)
+		for(Ref& object : m_persistent_objects)
 			m_pool->destroy(object);
-		m_persistentObjects.clear();
+		m_persistent_objects.clear();
 	}
 
 	void ProcessCreate::process(const StreamLocation& branch)
 	{
-		for(size_t i = 1; i < m_injector.m_arguments.size(); ++i)
-			m_injector.m_arguments[i] = m_inputs[i - 1]->read(branch);
+		for(size_t i = 1; i < m_injector.m_args.size(); ++i)
+			m_injector.m_args[i] = m_inputs[i - 1]->read(branch);
 
 		if(is_struct(m_object_type))
 		{
@@ -72,20 +71,20 @@ namespace mud
 		{
 			Ref object = m_injector.inject(*m_pool);
 			m_output.m_stream.write(branch, object);
-			m_persistentObjects.push_back(object);
+			m_persistent_objects.push_back(object);
 		}
 	}
 
 	ProcessCallable::ProcessCallable(VisualScript& script, Callable& callable)
 		: Process(script, callable.m_name, type<ProcessCallable>())
-		, m_parameters(callable.m_params.size() + (callable.m_returnval.none() ? 0 : 1))
+		, m_parameters(callable.m_params.size() + (callable.m_return_type == g_qvoid ? 0 : 1))
 		, m_callable(callable)
 	{
 		for(const Param& param : callable.m_params)
-			m_params.emplace_back(make_object<Valve>(*this, param));
+			m_params.push_back(oconstruct<Valve>(*this, param));
 
-		if(!callable.m_returnval.none())
-			m_result = make_object<Valve>(*this, "result", OUTPUT_VALVE, callable.m_returnval, false, false);
+		if(callable.m_return_type != g_qvoid)
+			m_result = oconstruct<Valve>(*this, "result", OUTPUT_VALVE, meta(*callable.m_return_type.m_type).m_empty_var, false, false);
 	}
 
 	void ProcessCallable::process(const StreamLocation& branch)
@@ -98,13 +97,13 @@ namespace mud
 		if(m_result)
 		{
 			Var& value = m_result->m_stream.branch(branch.m_index).m_value;
-			m_callable(to_array(m_parameters), value);
+			//m_callable(to_array(m_parameters), value);
 			m_result->m_stream.branch(branch.m_index).write(value);
 		}
 		else
 		{
 			static Var unused;
-			m_callable(to_array(m_parameters), unused);
+			//m_callable(to_array(m_parameters), unused);
 		}
 
 		for(const Param& param : m_callable.m_params)
@@ -173,13 +172,12 @@ namespace mud
 	ProcessDisplay::ProcessDisplay(VisualScript& script)
 		: Process(script, "Display", type<ProcessDisplay>())
 		, m_input_value(*this, "input", INPUT_VALVE)
-		, m_updateDisplay()
 	{}
 
 	void ProcessDisplay::process(const StreamLocation& branch)
 	{
 		UNUSED(branch);
-		if(m_updateDisplay)
-			m_updateDisplay(*this);
+		if(m_update_display)
+			m_update_display(*this);
 	}
 }

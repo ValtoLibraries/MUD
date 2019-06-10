@@ -4,194 +4,91 @@
 
 #pragma once
 
-#include <math/Forward.h>
-
-#ifndef MUD_CPP_20
-#include <cstdint>
+#include <stdint.h>
 #include <cfloat>
-#include <limits>
-#endif
+#include <stl/limits.h>
+#include <math/Forward.h>
+//#include <math/Math.h>
 
-namespace mud
+namespace two
 {
-	namespace detail
-	{
-		template <class T>
-		inline T min(T a, T b) { return (b < a) ? b : a; }
-
-		template <class T>
-		inline T max(T a, T b) { return (a < b) ? b : a; }
-	}
-
 	export_ template <class T>
-	class StatDef
+	struct refl_ StatDef
 	{
-	public:
-		StatDef(T min = std::numeric_limits<T>::lowest(), T max = std::numeric_limits<T>::max(), T step = T(1))
-			: m_min(min)
-			, m_max(max)
-			, m_step(step)
-		{}
+		attr_ T m_min = limits<T>::min();
+		attr_ T m_max = limits<T>::max();
+		attr_ T m_step = T(1);
 
-		T m_min;
-		T m_max;
-		T m_step;
+		T rincrement(T& value, T amount) const;
+		T rdecrement(T& value, T amount) const;
+		void increment(T& value, T amount) const;
+		void decrement(T& value, T amount) const;
 
-		T rincrement(T& value, T amount) const { T diff = detail::min(m_max - value, amount); value += diff; update(value); return diff; }
-		T rdecrement(T& value, T amount) const { T diff = detail::max(-m_min + value, amount); value -= diff; update(value); return diff; }
-		void increment(T& value, T amount) const { value += amount; update(value); }
-		void decrement(T& value, T amount) const { value -= amount; update(value); }
+		void increment(T& value) const;
+		void decrement(T& value) const;
 
-		void increment(T& value) const { value += m_step; update(value); }
-		void decrement(T& value) const { value -= m_step; update(value); }
-
-		void multiply(T& value, T& base, T multiplier) const { T diff = value - base; base *= multiplier; value = base + diff; update(value); }
+		void multiply(T& value, T& base, T multiplier) const;
 		
-		void modify(T& value, T& base, T val) const { value += val - base; base = value; update(value); }
-		void modify(T& value, T val) const { value = val; update(value); }
+		void modify(T& value, T& base, T val) const;
+		void modify(T& value, T val) const;
 
-		void update(T& value) const
-		{
-			if(value < m_min)
-				value = m_min;
-			if(value > m_max)
-				value = m_max;
-		}
+		void update(T& value) const;
 	};
+
+	export_ extern template struct refl_ StatDef<int>;
+	export_ extern template struct refl_ StatDef<float>;
 
 	export_ template <class T>
-	class Stat
+	struct Stat
 	{
 	public:
-		Stat(T base = T())
-			: m_base(base)
-			, m_value(base)
-			//, m_updateHandlers()
-		{}
+		Stat(T& value, const StatDef<T>& def);
 
-		operator T() const { return m_value; }
+		operator T() const;
 
-		attr_ T m_base;
-		attr_ T m_value;
+		inline T& ref() const;
+		inline T value() const;
 
-		virtual const StatDef<T>& vdef() const = 0;
+		inline T min() const;
+		inline T max() const;
+		inline T step() const;
+
+		inline void modify(T value);
+
+		inline void increment();
+		inline void decrement();
+
+		//T m_base;
+		T* m_ref;
+		const StatDef<T>* m_def;
 	};
 
-	template <class T, class T_Def>
-	class DefStat : public Stat<T>
-	{
-	public:
-		DefStat(T base = T())
-			: Stat<T>(base)
-		{}
-
-		const T_Def* self() const { return static_cast<const T_Def*>(this); }
-
-		const StatDef<T>& vdef() const { return self()->def(); }
-
-		inline T min() const { return self()->def().m_min; }
-		inline T max() const { return self()->def().m_max; }
-		inline T step() const { return self()->def().m_step; }
-
-		inline void modify(T value) { self()->def().modify(this->m_value, this->m_base, value); }
-
-		inline T rincrement(T amount) { return self()->def().rincrement(this->m_value, amount); }
-		inline T rdecrement(T amount) { return self()->def().rdecrement(this->m_value, amount); }
-		inline void increment(T amount) { self()->def().increment(this->m_value, amount); }
-		inline void decrement(T amount) { self()->def().decrement(this->m_value, amount); }
-
-		inline void increment() { self()->def().increment(this->m_value); }
-		inline void decrement() { self()->def().increment(this->m_value); }
-
-		inline void multiply(T multiplier) { self()->def().multiply(this->m_value, this->m_base, multiplier); }
-	};
-
-	export_ template <class T>
-	class refl_ AutoStat
-	{
-	public:
-		AutoStat(T value = T(), T min = std::numeric_limits<T>::lowest(), T max = std::numeric_limits<T>::max(), T step = T(1))
-			: m_value(value)
-			, m_valueRef(m_value)
-			, m_def(min, max, step)
-		{}
-
-		AutoStat(T& value, StatDef<T> def)
-			: m_value()
-			, m_valueRef(value)
-			, m_def(def)
-		{}
-
-		AutoStat(const AutoStat& other)
-			: m_value(other.m_value)
-			, m_valueRef(&other.m_value == &other.m_valueRef ? m_value : other.m_valueRef)
-			, m_def(other.m_def)
-		{}
-
-		AutoStat& operator=(const AutoStat& other)
-		{
-			m_value = other.m_value;
-			m_valueRef = other.m_valueRef;
-			m_def = other.m_def;
-			return *this;
-		}
-
-		operator T() const { return m_valueRef; }
-
-		inline T value() const { return m_valueRef; }
-		inline T& ref() const { return m_valueRef; }
-
-		inline T min() const { return m_def.m_min; }
-		inline T max() const { return m_def.m_max; }
-		inline T step() const { return m_def.m_step; }
-
-		inline void modify(T value) { m_def.modify(m_valueRef, value); }
-
-		inline void increment() { m_def.increment(m_valueRef); }
-		inline void decrement() { m_def.decrement(m_valueRef); }
-
-		const StatDef<T>& vdef() const { return m_def; }
-
-	protected:
-		T m_value;
-		T& m_valueRef;
-		StatDef<T> m_def;
-	};
-
-	export_ template class refl_ MUD_MATH_EXPORT AutoStat<int>;
-	export_ template class refl_ MUD_MATH_EXPORT AutoStat<float>;
-
-	export_ struct refl_ MUD_MATH_EXPORT Ratio : public DefStat<float, Ratio>
-	{
-	public:
-		constr_ Ratio(float value = 0.f) : DefStat<float, Ratio>(value) {}
-		Ratio(const Ratio&) = default;
-		Ratio& operator=(const Ratio&) = default;
-
-		void set(float value) { DefStat<float, Ratio>::modify(value); }
-
-		const StatDef<float>& def() const { static StatDef<float> df(0.f, 1.f, 0.01f); return df; }
-	};
-
-	export_ struct refl_ MUD_MATH_EXPORT Gauge : public DefStat<float, Gauge>
-	{
-	public:
-		constr_ Gauge(float value = 0.f) : DefStat<float, Gauge>(value) {}
-		Gauge(const Gauge&) = default;
-		Gauge& operator=(const Gauge&) = default;
-
-		void set(float value) { DefStat<float, Gauge>::modify(value); }
-
-		const StatDef<float>& def() const { static StatDef<float> df(0.f, FLT_MAX, 1.f); return df; }
-	};
+	export_ extern template struct Stat<int>;
+	export_ extern template struct Stat<float>;
 
 #if 0
-	template <class T>
-	struct StringConverter<AutoStat<T>>
+	export_ struct refl_ TWO_MATH_EXPORT Ratio : public Stat<float>
 	{
-		static inline void to(const AutoStat<T>& stat, string& str) { to_string<T>(stat.value(), str); }
-		static inline void from(const string& str, AutoStat<T>& stat) { stat.modify(from_string<T>(str)); }
+	public:
+		constr_ Ratio(float value = 0.f);
+
+		attr_ float m_value;
+
+		void set(float value) { def().modify(m_value, value); }
+
+		const StatDef<float>& def() const { static StatDef<float> df = { 0.f, 1.f, 0.01f }; return df; }
+	};
+
+	export_ struct refl_ TWO_MATH_EXPORT Gauge : public Stat<float>
+	{
+	public:
+		constr_ Gauge(float value = 0.f);
+
+		attr_ float m_value;
+
+		void set(float value) { def().modify(m_value, value); }
+
+		const StatDef<float>& def() const { static StatDef<float> df = { 0.f, FLT_MAX, 1.f }; return df; }
 	};
 #endif
-
 }

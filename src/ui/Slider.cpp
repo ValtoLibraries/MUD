@@ -4,18 +4,19 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.ui;
+#ifdef TWO_MODULES
+module two.ui;
 #else
-#include <infra/StringConvert.h>
+#include <infra/ToString.h>
+#include <math/Vec.hpp>
 #include <ui/Slider.h>
 #include <ui/Button.h>
 #include <ui/Style/Styles.h>
-#include <ui/Structs/Widget.h>
+#include <ui/WidgetStruct.h>
 #include <ctx/InputDevice.h>
 #endif
 
-namespace mud
+namespace two
 {
 namespace ui
 {
@@ -52,17 +53,17 @@ namespace ui
 		return state;
 	}
 
-	bool slider_cursor(Frame& slider, Frame& knob, Dim dim, const MouseEvent& mouse_event, float& value, const SliderMetrics& metrics, bool relative)
+	bool slider_cursor(Frame& slider, Frame& knob, Axis dim, const MouseEvent& event, float& value, const SliderMetrics& metrics, bool relative)
 	{
 		if(relative)
 		{
-			float delta = mouse_event.m_delta[dim] / slider.m_size[dim];
+			float delta = event.m_delta[dim] / slider.m_size[dim];
 			float cursor = min(1.f, max(0.f, metrics.offset(value) + delta));
 			value = metrics.cursor(value, cursor);
 		}
 		else
 		{
-			vec2 position = slider.local_position(mouse_event.m_pos);
+			vec2 position = slider.local_position(event.m_pos);
 			float offset = -knob.m_size[dim] / 2.f;
 			float cursor = min(slider.m_size[dim]/* - knob.m_size[dim]*/, max(0.f, position[dim] + offset)) / slider.m_size[dim];
 			value = metrics.cursor(value, cursor);
@@ -70,27 +71,27 @@ namespace ui
 		return true;
 	}
 
-	bool slider_logic(Widget& self, Frame& slider, Frame& filler, Frame& knob, float& value, const SliderMetrics& metrics, Dim dim, bool relative)
+	bool slider_logic(Widget& self, Frame& slider, Frame& filler, Frame& knob, float& value, const SliderMetrics& metrics, Axis dim, bool relative)
 	{
         UNUSED(filler);
 		bool changed = false;
 
-		if(MouseEvent mouse_event = self.mouse_event(DeviceType::MouseLeft, EventType::Stroked))
-			changed |= slider_cursor(slider, knob, dim, mouse_event, value, metrics, relative);
+		if(MouseEvent event = self.mouse_event(DeviceType::MouseLeft, EventType::Stroked))
+			changed |= slider_cursor(slider, knob, dim, event, value, metrics, relative);
 
-		if(MouseEvent mouse_event = self.mouse_event(DeviceType::MouseLeft, EventType::DragStarted))
+		if(MouseEvent event = self.mouse_event(DeviceType::MouseLeft, EventType::DragStarted))
 			self.enable_state(PRESSED);
 
-		if(MouseEvent mouse_event = self.mouse_event(DeviceType::MouseLeft, EventType::Dragged))
-			changed |= slider_cursor(slider, knob, dim, mouse_event, value, metrics, relative);
+		if(MouseEvent event = self.mouse_event(DeviceType::MouseLeft, EventType::Dragged))
+			changed |= slider_cursor(slider, knob, dim, event, value, metrics, relative);
 
-		if(MouseEvent mouse_event = self.mouse_event(DeviceType::MouseLeft, EventType::DragEnded))
+		if(MouseEvent event = self.mouse_event(DeviceType::MouseLeft, EventType::DragEnded))
 			self.disable_state(PRESSED);
 
 		return changed;
 	}
 
-	bool slider(Widget& parent, Style& style, float& value, SliderMetrics metrics, Dim dim, bool relative, bool fill, Style* knob_style)
+	bool slider(Widget& parent, Style& style, float& value, SliderMetrics metrics, Axis dim, bool relative, bool fill, Style* knob_style)
 	{
 		Widget& self = widget(parent, style, false, dim);
 
@@ -105,7 +106,7 @@ namespace ui
 		return changed;
 	}
 
-	bool slider(Widget& parent, float& value, SliderMetrics metrics, Dim dim, bool relative, bool fill, Style* knob_style)
+	bool slider(Widget& parent, float& value, SliderMetrics metrics, Axis dim, bool relative, bool fill, Style* knob_style)
 	{
 		return slider(parent, styles().slider, value, metrics, dim, relative, fill, knob_style);
 	}

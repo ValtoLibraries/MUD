@@ -4,15 +4,15 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
 #include <math/Vec.h>
 #endif
 #include <ctx/Forward.h>
 #include <ctx/KeyCode.h>
 
-namespace mud
+namespace two
 {
-	export_ enum class refl_ InputMod : unsigned int
+	export_ enum class refl_ InputMod : uint8_t
 	{
 		None = 0,
 		Shift = 1 << 0,
@@ -58,7 +58,7 @@ namespace mud
 		Count = 12
 	};
 
-	export_ struct refl_ MUD_CTX_EXPORT InputEvent
+	export_ struct refl_ TWO_CTX_EXPORT InputEvent
 	{
 		attr_ DeviceType m_deviceType = DeviceType::None;
 		attr_ EventType m_eventType = EventType::None;
@@ -70,18 +70,15 @@ namespace mud
 
 		InputEvent() {}
 		InputEvent(DeviceType deviceType, EventType eventType, InputMod modifiers = InputMod::None) : m_deviceType(deviceType), m_eventType(eventType), m_modifiers(modifiers) {}
-		virtual ~InputEvent() {}
-
+		
 		meth_ inline InputEvent& consume(ControlNode& consumer) { m_consumer = &consumer; return *this; }
 		meth_ inline bool valid() { return m_deviceType != DeviceType::None && m_consumer == nullptr; }
-		operator bool() { return valid(); }
+		operator bool() { return this->valid(); }
 
-		virtual void dispatch(Mouse& mouse, Keyboard& keyboard) { UNUSED(mouse); UNUSED(keyboard); }
-
-		bool operator==(const InputEvent& other) const { UNUSED(other); return false; }
+		//bool operator==(const InputEvent& other) const { UNUSED(other); return false; }
 	};
 
-	export_ struct refl_ MUD_CTX_EXPORT MouseEvent : public InputEvent
+	export_ struct refl_ TWO_CTX_EXPORT MouseEvent : public InputEvent
 	{
 		attr_ vec2 m_pos = { 0.f, 0.f };
 		attr_ vec2 m_relative = { 0.f, 0.f };
@@ -94,13 +91,13 @@ namespace mud
 
 		MouseEvent() : InputEvent() {}
 		MouseEvent(DeviceType deviceType, EventType eventType, vec2 pos, InputMod modifiers = InputMod::None)
-			: InputEvent(deviceType, eventType, modifiers), m_pos(pos)
+			: InputEvent(deviceType, eventType, modifiers), m_pos(pos), m_relative(pos)
 		{
 			if(deviceType == DeviceType::MouseLeft)
 				m_button = LEFT_BUTTON;
 			else if(deviceType == DeviceType::MouseRight)
 				m_button = RIGHT_BUTTON;
-			else if(deviceType == DeviceType::MouseMiddle)
+			else if(deviceType == DeviceType::MouseMiddle || true)
 				m_button = MIDDLE_BUTTON;
 		}
 
@@ -112,10 +109,10 @@ namespace mud
 
 		MouseEvent& consume(ControlNode& consumer) { m_consumer = &consumer; return *this; }
 
-		bool operator==(const MouseEvent& other) const { UNUSED(other); return false; }
+		//bool operator==(const MouseEvent& other) const { UNUSED(other); return false; }
 	};
 
-	export_ struct refl_ MUD_CTX_EXPORT KeyEvent : public InputEvent
+	export_ struct refl_ TWO_CTX_EXPORT KeyEvent : public InputEvent
 	{
 		attr_ Key m_code;
 		attr_ char m_char;
@@ -127,6 +124,6 @@ namespace mud
 			m_key = int(code);
 		}
 
-		bool operator==(const KeyEvent& other) const { UNUSED(other); return false; }
+		//bool operator==(const KeyEvent& other) const { UNUSED(other); return false; }
 	};
 }

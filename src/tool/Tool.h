@@ -4,9 +4,10 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <infra/NonCopy.h>
-#include <infra/Strung.h>
+#ifndef TWO_MODULES
+#include <stl/vector.h>
+#include <stl/string.h>
+#include <math/Axis.h>
 #include <infra/Global.h>
 #include <type/Dispatch.h>
 #include <math/Vec.h>
@@ -18,22 +19,17 @@
 #include <tool/Action.h>
 #include <gfx-ui/Viewer.h>
 
-#ifndef MUD_CPP_20
-#include <functional>
-#include <vector>
-#endif
-
-namespace mud
+namespace two
 {
-	export_ struct refl_ MUD_TOOL_EXPORT ToolContext
+	export_ struct refl_ TWO_TOOL_EXPORT ToolContext
 	{
 		Camera* m_camera = nullptr;
 		Plane* m_work_plane = nullptr;
 		ActionStack* m_action_stack = nullptr;
-		std::vector<Ref>* m_selection = nullptr;
+		vector<Ref>* m_selection = nullptr;
 	};
 
-	export_ class refl_ MUD_TOOL_EXPORT ToolOption
+	export_ class refl_ TWO_TOOL_EXPORT ToolOption
 	{
 	public:
 		ToolOption(cstring name) : m_name(name) {}
@@ -45,7 +41,7 @@ namespace mud
 		virtual void deactivate() = 0;
 	};
 
-	typedef std::vector<object_ptr<ToolOption>> OptionVector;
+	typedef vector<object<ToolOption>> OptionVector;
 
 	export_ enum class refl_ ToolState : unsigned int
 	{
@@ -54,14 +50,17 @@ namespace mud
 		Active = 2
 	};
 
-	export_ class refl_ MUD_TOOL_EXPORT Tool : public NonCopy
+	export_ class refl_ TWO_TOOL_EXPORT Tool
 	{
 	public:
-		using Callback = std::function<void(Tool&)>;
+		using Callback = void(*)(Tool&);
 
 	public:
 		Tool(ToolContext& context, cstring name, Type& type);
 		virtual ~Tool() {}
+
+		Tool(const Tool& other) = delete;
+		Tool& operator=(const Tool& other) = delete;
 
 		attr_ Type& m_type;
 		attr_ ToolContext& m_context;
@@ -72,56 +71,59 @@ namespace mud
 
 		bool active() { return m_state == ToolState::Active; }
 
-		void add_option(object_ptr<ToolOption> option);
+		void add_option(object<ToolOption> option);
 
 		virtual void activate();
 		virtual void deactivate();
 
-		void commit(object_ptr<EditorAction> action);
+		void commit(object<EditorAction> action);
 
-		virtual bool enabled(const std::vector<Ref>& selection) { UNUSED(selection); return true; }
+		virtual bool enabled(span<Ref> selection) { UNUSED(selection); return true; }
 
 	protected:
 		Callback m_callback;
 	};
 
-	export_ class refl_ MUD_TOOL_EXPORT ViewportTool : public Tool //, public ViewerController
+	export_ class refl_ TWO_TOOL_EXPORT ViewportTool : public Tool //, public ViewerController
 	{
 	public:
 		ViewportTool(ToolContext& context, cstring name, Type& type);
 
-		std::vector<Transform*> gather_transforms(const std::vector<Ref>& selection);
+		vector<Transform*> gather_transforms(span<Ref> selection);
 
 		vec3 m_symbol_position;
 	};
 
-	export_ class refl_ MUD_TOOL_EXPORT SpatialTool : public ViewportTool
+	export_ class refl_ TWO_TOOL_EXPORT SpatialTool : public ViewportTool
 	{
 	public:
 		SpatialTool(ToolContext& context, cstring name, Type& type);
 
 		virtual void paint(Gnode& parent) = 0;
 
-		virtual void process(Viewer& viewer, const std::vector<Ref>& selection) = 0;
+		virtual void process(Viewer& viewer, span<Ref> selection) = 0;
 	};
 
-	export_ struct refl_ MUD_TOOL_EXPORT Gizmo
-	{
-		std::function<Item*(Gnode&)> m_draw_handle;
-		std::function<void(Gnode&, bool)> m_draw_gizmo;
-		Item* m_handle;
-		bool m_highlighted;
-		std::function<vec3(Viewer&, const vec2&)> m_grab_point;
-	};
-
-	MUD_TOOL_EXPORT Colour gizmo_colour(float hue, bool active);
-	MUD_TOOL_EXPORT vec3 gizmo_grab_linear(Viewer& viewer, const Transform& space, Axis axis);
-	MUD_TOOL_EXPORT vec3 gizmo_grab_planar(Viewer& viewer, const Transform& space, Axis normal);
-
-	export_ class refl_ MUD_TOOL_EXPORT TransformAction : public EditorAction
+	export_ class refl_ TWO_TOOL_EXPORT Gizmo
 	{
 	public:
-		TransformAction(array<Transform*> targets);
+		virtual ~Gizmo() {}
+		virtual Item* draw_handle(Gnode&) = 0;
+		virtual void draw_gizmo(Gnode&, bool) = 0;
+		virtual vec3 grab_point(Viewer&, const vec2&) = 0;
+
+		Item* m_handle = nullptr;
+		bool m_highlighted = false;
+	};
+
+	TWO_TOOL_EXPORT Colour gizmo_colour(float hue, bool active);
+	TWO_TOOL_EXPORT vec3 gizmo_grab_linear(Viewer& viewer, const Transform& space, Axis axis);
+	TWO_TOOL_EXPORT vec3 gizmo_grab_planar(Viewer& viewer, const Transform& space, Axis normal);
+
+	export_ class refl_ TWO_TOOL_EXPORT TransformAction : public EditorAction
+	{
+	public:
+		TransformAction(span<Transform*> targets);
 
 		virtual void apply() final;
 		virtual void undo() final;
@@ -132,10 +134,10 @@ namespace mud
 		virtual void undo(Transform& transform) = 0;
 
 	public:
-		std::vector<Transform*> m_targets;
+		vector<Transform*> m_targets;
 	};
 
-	export_ class refl_ MUD_TOOL_EXPORT TransformTool : public SpatialTool
+	export_ class refl_ TWO_TOOL_EXPORT TransformTool : public SpatialTool
 	{
 	public:
 		TransformTool(ToolContext& context, cstring name, Type& type);
@@ -147,15 +149,15 @@ namespace mud
 
 		virtual void paint(Gnode& parent) override;
 
-		virtual void process(Viewer& viewer, const std::vector<Ref>& selection) override;
+		virtual void process(Viewer& viewer, span<Ref> selection) override;
 
-		virtual bool enabled(const std::vector<Ref>& selection) override;
+		virtual bool enabled(span<Ref> selection) override;
 
-		virtual object_ptr<TransformAction> create_action(array<Transform*> targets) = 0;
+		virtual object<TransformAction> create_action(span<Transform*> targets) = 0;
 		virtual bool test_target(Ref target) { UNUSED(target); return true; }
 
-	protected:
-		std::vector<Gizmo> m_gizmos;
+	public:
+		vector<unique<Gizmo>> m_gizmos;
 		Gizmo* m_current = nullptr;
 		Gizmo* m_dragging = nullptr;
 
@@ -164,6 +166,16 @@ namespace mud
 		vec3 m_grab_start;
 		vec3 m_grab_end;
 
-		object_ptr<TransformAction> m_action;
+		object<TransformAction> m_action;
+	};
+
+	export_ class refl_ TWO_TOOL_EXPORT TransformGizmo : public Gizmo
+	{
+	public:
+		TransformGizmo(TransformTool& tool, Axis axis = Axis::X, float hue = 0.f) : m_tool(tool), m_axis(axis), m_hue(hue) {}
+
+		TransformTool& m_tool;
+		Axis m_axis;
+		float m_hue;
 	};
 }

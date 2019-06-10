@@ -4,65 +4,56 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.ui;
+#ifdef TWO_MODULES
+module two.ui;
 #else
-#include <infra/Vector.h>
+#include <stl/algorithm.h>
 #include <infra/File.h>
 #include <ui/Edit/Directory.h>
 #include <ui/Button.h>
-#include <ui/Structs/Widget.h>
-#include <ui/Structs/Container.h>
+#include <ui/WidgetStruct.h>
+#include <ui/ContainerStruct.h>
 #include <ui/Style/Styles.h>
 #endif
 
-namespace mud
+namespace two
 {
 namespace ui
 {
-	Widget& dir_item(Widget& parent, cstring name)
+	Widget& dir_item(Widget& parent, const string& name)
 	{
-		carray<cstring, 2> elements = { "(folder_20)" , name };
-		return multi_button(parent, file_styles().dir, elements);
+		return multi_button(parent, file_styles().dir, { "(folder_20)" , name.c_str() });
 	}
 
-	Widget& file_item(Widget& parent, cstring name)
+	Widget& file_item(Widget& parent, const string& name)
 	{
-		carray<cstring, 2> elements = { "(file_20)" , name };
-		return multi_button(parent, file_styles().file, elements);
+		return multi_button(parent, file_styles().file, { "(file_20)" , name.c_str() });
 	}
 
 	Widget& file_list(Widget& parent, string& path)
 	{
 		Widget& self = widget(parent, styles().wedge);//file_styles().directory);
-		auto on_dir = [&](cstring basepath, cstring dir)
+
+		auto on_dir = [&](const string& dir)
 		{
-			UNUSED(basepath);
-			if(string(dir) == ".") return;
-			Widget& item = dir_item(self, dir);
+			if(dir == ".") return;
+			Widget& item = dir_item(self, dir.c_str());
 			if(item.activated())
 			{
-				if(string(dir) == "..")
+				if(dir == "..")
 					path = path.substr(0, path.rfind("/"));
 				else
 					path = path + "/" + dir;
 			}
 		};
 
-#ifndef MUD_MODULES
-		// clang bug: https://bugs.llvm.org/show_bug.cgi?id=33924
-		auto on_file = [&](cstring path, cstring file)
+		auto on_file = [&](const string& file)
 		{
-			UNUSED(path);
-			file_item(self, file);
+			file_item(self, file.c_str());
 		};
-#endif
 
-		visit_folders(path.c_str(), on_dir, false);
-#ifndef MUD_MODULES
-		// clang bug: https://bugs.llvm.org/show_bug.cgi?id=33924
-		visit_files(path.c_str(), on_file);
-#endif
+		visit_folders(path, on_dir, false);
+		visit_files(path, on_file);
 		return self;
 	}
 
@@ -73,21 +64,20 @@ namespace ui
 		return self;
 	}
 
-	Widget& dir_node(Widget& parent, cstring path, cstring name, bool open)
+	Widget& dir_node(Widget& parent, const string& path, const string& name, bool open)
 	{
-		carray<cstring, 2> elements = { "(folder_20)", name };
+		cstring elements[] = { "(folder_20)", name.c_str() };
 		Widget& self = tree_node(parent, elements, false, open);
 		if(!self.m_body) return self;
 
-		auto on_dir = [&](cstring path, cstring dir)
+		auto on_dir = [&](const string& dir)
 		{
-			dir_node(*self.m_body, (string(path) + "/" + dir).c_str(), dir, false);
+			dir_node(*self.m_body, path + "/" + dir, dir, false);
 		};
 
-		auto on_file = [&](cstring path, cstring file)
+		auto on_file = [&](const string& file)
 		{
-			UNUSED(path);
-			file_node(*self.m_body, file);
+			file_node(*self.m_body, file.c_str());
 		};
 
 		visit_folders(path, on_dir);
@@ -95,14 +85,13 @@ namespace ui
 		return self;
 	}
 
-	Widget& file_node(Widget& parent, cstring name)
+	Widget& file_node(Widget& parent, const string& name)
 	{
-		carray<cstring, 2> elements = { "(file_20)", name };
-		Widget& self = tree_node(parent, elements, true, false);
+		Widget& self = tree_node(parent, { "(file_20)", name.c_str() }, true, false);
 		return self;
 	}
 	
-	Widget& file_tree(Widget& parent, cstring path)
+	Widget& file_tree(Widget& parent, const string& path)
 	{
 		Widget& self = tree(parent);
 		dir_node(self, path, path, false);

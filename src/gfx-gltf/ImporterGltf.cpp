@@ -3,37 +3,24 @@
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #include <infra/Cpp20.h>
-#ifndef MUD_CPP_20
-#include <iostream>
-#include <fstream>
-#endif
 
-#ifdef MUD_MODULES
-#include <cpp/stdguard.h>
-#endif
-#include <base64.h>
+//#include <base64.h>
 #include <bgfx/bgfx.h>
 
-#ifdef MUD_MODULES
-module mud.gfx.gltf;
+#ifdef TWO_MODULES
+module two.gfx.gltf;
 #else
-#include <json11.hpp>
-using json = json11::Json;
-
-#include <type/DispatchDecl.h>
+#include <stl/algorithm.h>
+#include <stl/hash_base.hpp>
 #include <infra/Vector.h>
 #include <infra/File.h>
-#include <infra/String.h>
-#include <infra/StringConvert.h>
-#include <pool/Pool.h>
+#include <infra/StringOps.h>
+#include <infra/ToString.h>
+#include <pool/Pool.hpp>
 #include <srlz/Serial.h>
-#include <refl/System.h>
-#include <refl/Class.h>
-#include <refl/Convert.h>
 #include <math/VecJson.h>
 #include <math/Interp.h>
-#include <math/Stream.h>
-#include <geom/Mesh.h>
+#include <geom/Geometry.h>
 #include <gfx/Node3.h>
 #include <gfx/Item.h>
 #include <gfx/Mesh.h>
@@ -45,34 +32,30 @@ using json = json11::Json;
 #include <gfx/Texture.h>
 #include <gfx/Asset.h>
 #include <gfx/GfxSystem.h>
+#include <gltf/Gltf.h>
 #include <gfx-gltf/Types.h>
 #include <gfx-gltf/ImporterGltf.h>
+#include <meta/gltf.meta.h>
 #endif
+
+#include <cstdio>
 
 #define KUPOMAN_EXPORTER 1
 
-namespace mud
+namespace two
 {
-	inline void from_json(const json& j, PrimitiveType& mat)
-	{
-		mat = static_cast<PrimitiveType>(j.int_value());
-	}
+	float* value_ptr(Colour& colour) { return &colour.r; }
+	const float* value_ptr(const Colour& colour) { return &colour.r; }
 }
 
-namespace mud
+namespace two
 {
-	float* value_ptr(Colour& colour) { return &colour.m_r; }
-	const float* value_ptr(const Colour& colour) { return &colour.m_r; }
-}
-
-namespace mud
-{
-	static ImportConfig load_model_config(cstring path, cstring model_name)
+	static ImportConfig load_model_config(const string& path, const string& model_name, const ImportConfig& inconfig)
 	{
-		ImportConfig config = {};
+		ImportConfig config = inconfig;
 
 		string config_path = file_directory(path) + "/" + model_name + ".cfg";
-		if(file_exists(config_path.c_str()))
+		if(file_exists(config_path))
 			unpack_json_file(Ref(&config), config_path);
 
 		config.m_transform = bxSRT(config.m_scale, config.m_rotation, config.m_position);
@@ -80,107 +63,56 @@ namespace mud
 		return config;
 	}
 
-	FromJson gltf_unpacker()
-	{
-		FromJson unpacker;
-		dispatch_branch<mat4>(unpacker, [&](mat4& result, Ref&, const json& json) { from_json(json, result); });
-		dispatch_branch<quat>(unpacker, [&](quat& result, Ref&, const json& json) { from_json(json, result); });
-		return unpacker;
-	}
-
-	ToJson gltf_packer()
-	{
-		ToJson packer;
-		dispatch_branch<glTFType>         (packer, [](glTFType&          value, json& json_value) { json_value = to_string(Ref(&value)); });
-		dispatch_branch<glTFInterpolation>(packer, [](glTFInterpolation& value, json& json_value) { json_value = to_string(Ref(&value)); });
-		dispatch_branch<glTFAlphaMode>    (packer, [](glTFAlphaMode&     value, json& json_value) { json_value = to_string(Ref(&value)); });
-		return packer;
-	}
-
 	string extensions[] = { "gltf", "glb" };
 
-	ImporterGltf::ImporterGltf(GfxSystem& gfx_system)
-		: m_gfx_system(gfx_system)
+	ImporterGltf::ImporterGltf(GfxSystem& gfx)
+		: m_gfx(gfx)
 	{
-		static std::vector<string> fixed_members(256);
+		setup_gltf(two_gltf::m());
 
-		size_t index = 0;
-		for(Type* type : system().m_types)
-			if(string(type->m_name).find("glTF") == 0 && g_class[type->m_id] && !type->is<glTFAttributes>())
-			{
-				for(Member& member : cls(*type).m_members)
-				{
-					fixed_members[index] = to_camelcase(string(member.m_name));
-					member.m_name = fixed_members[index].c_str();
-					index++;
-					assert(index < fixed_members.size());
-				}
-			}
-
-		static auto load_gltf_model = [&](GfxSystem& gfx_system, Model& model, cstring path)
+		static auto load_gltf_model = [&](Model& model, const string& path, const ImportConfig& inconfig)
 		{
-			UNUSED(gfx_system);
-			ImportConfig config = load_model_config(path, model.m_name.c_str());
+			ImportConfig config = load_model_config(path, model.m_name, inconfig);
 			this->import_model(model, path, config);
 		};
 
-		static auto load_gltf_prefab = [&](GfxSystem& gfx_system, Prefab& prefab, cstring path)
+		static auto load_gltf_prefab = [&](Prefab& prefab, const string& path, const ImportConfig& inconfig)
 		{
-			UNUSED(gfx_system);
-			ImportConfig config = load_model_config(path, prefab.m_name.c_str());
+			ImportConfig config = load_model_config(path, prefab.m_name, inconfig);
 			this->import_prefab(prefab, path, config);
 		};
 
-		gfx_system.add_importer(ModelFormat::gltf, *this);
-		gfx_system.models().add_format(".gltf", load_gltf_model);
-		gfx_system.prefabs().add_format(".gltf", load_gltf_prefab);
+		gfx.add_importer(ModelFormat::gltf, *this);
+
+		gfx.models().add_format(".gltf", load_gltf_model);
+		gfx.prefabs().add_format(".gltf", load_gltf_prefab);
+
+		gfx.models().add_format(".glb", load_gltf_model);
+		gfx.prefabs().add_format(".glb", load_gltf_prefab);
 	}
 
-	void parse_glb(const string& path, json& json, std::vector<uint8_t>& buffer)
+	mat4 derive_transform(const glTF& gltf, const glTFNode& node)
 	{
-		std::ifstream file = std::ifstream(path, std::ios::binary);
-
-		uint32_t magic = read<uint32_t>(file);
-		uint32_t version = read<uint32_t>(file);
-		read<uint32_t>(file); // uint32_t length
-
-		if(magic != 0x46546C67 || version != 2)
-		{
-			printf("ERROR: .glb contents invalid\n");
-			return;
-		}
-
-		while(!file.eof())
-		{
-			uint32_t chunk_length = read<uint32_t>(file);
-			uint32_t chunk_type = read<uint32_t>(file);
-
-			if(chunk_type == 0x4E4F534A)
-			{
-				string errors;
-				string json_string = read(file, chunk_length);
-				json = json::parse(json_string, errors);
-			}
-			else if(chunk_type == 0x004E4942)
-			{
-				buffer.reserve(chunk_length);
-				buffer.insert(buffer.begin(), std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
-			}
-		}
+		// not handling the matrix case here : waiting for c++17 optionals since matrix is almost never used
+		if(node.parent > -1)
+			return derive_transform(gltf, gltf.m_nodes[node.parent]) * node.matrix;
+		else
+			return node.matrix;
 	}
 
-	static std::vector<uint8_t> read_base64_uri(const string& uri)
+	static vector<uint8_t> read_base64_uri(const string& uri)
 	{
-		string decoded = decode_base64(uri.substr(uri.find(",") + 1));
-		return std::vector<uint8_t>(decoded.begin(), decoded.end());
+		//std::string base64 = uri.substr(uri.find(",") + 1).c_str();
+		string decoded;// = decode_base64(base64).c_str();
+		return {};//convert<uint8_t>(decoded);
 	}
 
-	std::vector<uint8_t> read_uri(const string& base_path, const string& uri)
+	vector<uint8_t> read_uri(const string& base_path, const string& uri)
 	{
 		if(uri.find("data:application/octet-stream;base64") == 0)
 			return read_base64_uri(uri);
 		else
-			return read_binary_file(base_path + replace_all(uri, "\\", "/"));
+			return read_binary_file(base_path + "/" + replace(uri, "\\", "/"));
 	}
 
 	void import_buffers(glTF& gltf, Import& state)
@@ -194,11 +126,11 @@ namespace mud
 
 	void import_images(glTF& gltf, Import& state)
 	{
-		auto import_image_mem = [&](array<uint8_t> data)
+		auto import_image_mem = [&](span<uint8_t> data)
 		{
 			string name = state.m_file + to_string(state.m_images.size());
-			Texture& texture = state.m_gfx_system.textures().create(name.c_str());
-			load_texture_mem(state.m_gfx_system, texture, data);
+			Texture& texture = state.m_gfx.textures().create(name.c_str());
+			load_texture_mem(state.m_gfx, texture, data);
 			state.m_images.push_back(&texture);
 		};
 
@@ -208,269 +140,24 @@ namespace mud
 			{
 				if(image.uri.find("data:application/octet-stream;base64") == 0)
 				{
-					std::vector<uint8_t> data = read_base64_uri(image.uri);
+					vector<uint8_t> data = read_base64_uri(image.uri);
 					import_image_mem(data);
 				}
 				else
 				{
-					string path = string(state.m_path) + state.m_file + "/";
-					Texture& texture = state.m_gfx_system.textures().file_at(path.c_str(), image.uri.c_str());
-					//Texture& texture = state.m_gfx_system.textures().file(image.uri.c_str());
+					string path = state.m_path + "/" + state.m_file;
+					Texture& texture = state.m_gfx.textures().file_at(path.c_str(), image.uri.c_str());
+					//Texture& texture = state.m_gfx.textures().file(image.uri.c_str());
 					state.m_images.push_back(&texture);
 				}
 			}
 			else if(image.buffer_view != -1)
 			{
 				const glTFBufferView& buffer_view = gltf.m_buffer_views[image.buffer_view];
-				array<uint8_t> data = { gltf.m_binary_buffers[buffer_view.buffer].data() + buffer_view.byte_offset, buffer_view.byte_length };
+				span<uint8_t> data = { gltf.m_binary_buffers[buffer_view.buffer].data() + buffer_view.byte_offset, buffer_view.byte_length };
 				import_image_mem(data);
 			}
 		}
-	}
-
-	// spec, for reference:
-	// https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#data-alignment
-
-	struct glTFComponentLayout
-	{
-		int num_components;
-		int component_size;
-		int skip_every;
-		int skip_bytes;
-		int element_size;
-	};
-
-	static int type_num_components[] = { 1, 2, 3, 4, 4, 9, 16 };
-	static int component_type_size[] = { 1, 1, 2, 2, 0, 4, 4 };
-
-	// @todo the current approach is really over-complicated when outside of these edge cases
-	glTFComponentLayout component_layout(glTFType type, glTFComponentType component_type)
-	{
-		int num_components = type_num_components[size_t(type)];
-		int component_size = component_type_size[size_t(component_type) - 5120U];
-		int element_size = num_components * component_size;
-
-		glTFComponentLayout layout = { num_components, component_size, 0, 0, element_size };
-
-		if(component_type == glTFComponentType::BYTE || component_type == glTFComponentType::UNSIGNED_BYTE)
-		{
-			if(type == glTFType::MAT2)
-				layout = { num_components, component_size, 2, 2, 8 };
-			if(type == glTFType::MAT3)
-				layout = { num_components, component_size, 3, 1, 12 };
-		}
-
-		if(component_type == glTFComponentType::SHORT || component_type == glTFComponentType::UNSIGNED_SHORT)
-		{
-			if(type == glTFType::MAT3)
-				layout = { num_components, component_size, 6, 4, 16 };
-		}
-
-		return layout;
-	}
-
-	int encode_accessor(glTF& gltf, int buffer_index, glTFAccessor& a, std::vector<double>& values, bool for_vertex)
-	{
-		glTFComponentLayout layout = component_layout(a.type, a.component_type);
-		size_t stride = layout.element_size;
-		if(for_vertex && stride % 4)
-			stride += 4 - (stride % 4); // according to spec must be multiple of 4
-
-		std::vector<uint8_t>& buffer = gltf.m_binary_buffers[buffer_index];
-
-		glTFBufferView buffer_view;
-		buffer_view.byte_stride = stride;
-		buffer_view.byte_offset = buffer.size();
-		buffer_view.byte_length = a.count * layout.element_size;
-
-		buffer.resize(buffer.size() + buffer_view.byte_length);
-		gltf.m_buffers[buffer_index].byte_length += buffer_view.byte_length;
-
-		double* source = values.data();
-
-		size_t offset = buffer_view.byte_offset;
-		for(int i = 0; i < a.count; i++)
-		{
-			uint8_t* dest = &buffer[offset + i * stride];
-
-			for(int j = 0; j < layout.num_components; j++)
-			{
-				if(layout.skip_every && j > 0 && (j % layout.skip_every) == 0)
-					dest += layout.skip_bytes;
-
-				double& d = *source++;
-
-				switch(a.component_type) {
-				case glTFComponentType::BYTE: {
-					*(int8_t*)dest = a.normalized ? int8_t(d * 128.0) : int8_t(d);
-				} break;
-				case glTFComponentType::UNSIGNED_BYTE: {
-					*(uint8_t*)dest = a.normalized ? uint8_t(d * 255.0) : uint8_t(d);
-				} break;
-				case glTFComponentType::SHORT: {
-					*(int16_t*)dest = a.normalized ? int16_t(d * 32768.0) : int16_t(d);
-				} break;
-				case glTFComponentType::UNSIGNED_SHORT: {
-					*(uint16_t*)dest = a.normalized ? uint16_t(d * 65535.0) : uint16_t(d);
-				} break;
-				case glTFComponentType::INT: {
-					*(int*)dest = int(d);
-				} break;
-				case glTFComponentType::FLOAT: {
-					*(float*)dest = float(d);
-				} break;
-				}
-
-				dest += layout.component_size;
-			}
-		}
-
-		gltf.m_buffer_views.push_back(buffer_view);
-		a.buffer_view = int(gltf.m_buffer_views.size() - 1);
-		a.byte_offset = 0;
-
-		gltf.m_accessors.push_back(a);
-		return int(gltf.m_accessors.size() - 1);
-	}
-
-	void decode_buffer_view(const glTF& gltf, const glTFAccessor& a, const glTFComponentLayout& layout, double* dest, bool for_vertex)
-	{
-		const glTFBufferView& buffer_view = gltf.m_buffer_views[a.buffer_view];
-
-		size_t stride = buffer_view.byte_stride ? buffer_view.byte_stride : layout.element_size;
-		if(for_vertex && stride % 4)
-			stride += 4 - (stride % 4); // according to spec must be multiple of 4
-
-		size_t offset = buffer_view.byte_offset + a.byte_offset;
-		const std::vector<uint8_t>& buffer = gltf.m_binary_buffers[buffer_view.buffer];
-
-		for(int i = 0; i < a.count; i++)
-		{
-			const uint8_t* src = &buffer[offset + i * stride];
-
-			for(int j = 0; j < layout.num_components; j++)
-			{
-				if(layout.skip_every && j > 0 && (j % layout.skip_every) == 0)
-					src += layout.skip_bytes;
-
-				double d = 0;
-
-				switch(a.component_type) {
-				case glTFComponentType::BYTE: {
-					int8_t b = int8_t(*src);
-					d = a.normalized ? (double(b) / 128.0) : double(b);
-				} break;
-				case glTFComponentType::UNSIGNED_BYTE: {
-					uint8_t b = *src;
-					d = a.normalized ? (double(b) / 255.0) : double(b);
-				} break;
-				case glTFComponentType::SHORT: {
-					int16_t s = *(int16_t*)src;
-					d = a.normalized ? (double(s) / 32768.0) : double(s);
-				} break;
-				case glTFComponentType::UNSIGNED_SHORT: {
-					uint16_t s = *(uint16_t*)src;
-					d = a.normalized ? (double(s) / 65535.0) : double(s);
-				} break;
-				case glTFComponentType::INT: {
-					d = *(int*)src;
-				} break;
-				case glTFComponentType::FLOAT: {
-					d = *(float*)src;
-				} break;
-				}
-
-				*dest++ = d;
-				src += layout.component_size;
-			}
-		}
-	}
-	
-	std::vector<double> decode_accessor(const glTF& gltf, size_t accessor, bool for_vertex)
-	{
-		const glTFAccessor& a = gltf.m_accessors[accessor];
-
-		glTFComponentLayout layout = component_layout(a.type, a.component_type);
-
-		std::vector<double> dest_buffer;
-		dest_buffer.resize(layout.num_components * a.count);
-
-		if(a.buffer_view == -1)
-			return dest_buffer;
-
-		decode_buffer_view(gltf, a, layout, dest_buffer.data(), for_vertex);
-
-		if(a.sparse.count > 0)
-		{
-			std::vector<double> indices;
-			indices.resize(a.sparse.count);
-			int indices_component_size = component_type_size[size_t(a.sparse.indices.component_type) - 5120U];
-
-			glTFAccessor indices_accessor = { a.sparse.indices.buffer_view, a.sparse.indices.byte_offset, a.sparse.indices.component_type, false, a.sparse.count, glTFType::SCALAR };
-			glTFComponentLayout indices_layout = { 1, indices_component_size, 0, 0, indices_component_size };
-			decode_buffer_view(gltf, indices_accessor, indices_layout, indices.data(), false);
-
-			std::vector<double> data;
-			data.resize(layout.num_components * a.sparse.count);
-			glTFAccessor values_accessor = { a.sparse.values.buffer_view, a.sparse.values.byte_offset, a.component_type, a.normalized, a.sparse.count, a.type };
-			decode_buffer_view(gltf, values_accessor, layout, data.data(), for_vertex);
-
-			for(size_t i = 0; i < indices.size(); i++)
-			{
-				int write_offset = int(indices[i]) * layout.num_components;
-
-				for(int j = 0; j < layout.num_components; j++)
-					dest_buffer[write_offset + j] = data[i * layout.num_components + j];
-			}
-		}
-
-		return dest_buffer;
-	}
-
-	template <class T>
-	std::vector<T> unpack_accessor(const glTF& gltf, size_t accessor, bool for_vertex)
-	{
-		std::vector<double> attribs = decode_accessor(gltf, accessor, for_vertex);
-		std::vector<T> ret;
-		vector_cast(attribs, ret);
-		return ret;
-	}
-
-	template <class T, size_t size>
-	std::vector<T> unpack_accessor(const glTF& gltf, size_t accessor, bool for_vertex)
-	{
-		std::vector<double> attribs = decode_accessor(gltf, accessor, for_vertex);
-		std::vector<T> ret(attribs.size() / size);
-		using U = std::remove_pointer_t<decltype(value_ptr(ret.front()))>;
-		std::transform(attribs.begin(), attribs.end(), value_ptr(ret.front()), [](double v) { return static_cast<U>(v); });
-		return ret;
-	}
-
-	template <class T>
-	int pack_accessor(glTF& gltf, int buffer_index, glTFAccessor& accessor, const std::vector<T>& values, bool for_vertex)
-	{
-		std::vector<double> attribs(values.size());
-		std::transform(values.begin(), values.end(), attribs.begin(), [](int v) { return static_cast<double>(v); });
-		return encode_accessor(gltf, buffer_index, accessor, attribs, for_vertex);
-	}
-
-	template <class T, size_t size>
-	int pack_accessor(glTF& gltf, int buffer_index, glTFAccessor& accessor, const std::vector<T>& values, bool for_vertex)
-	{
-		std::vector<double> attribs(values.size() * size);
-		using U = std::remove_pointer_t<decltype(value_ptr(values.front()))>;
-		std::transform(value_ptr(values.front()), value_ptr(values.back()) + size, attribs.begin(), [](U v) { return static_cast<double>(v); });
-		return encode_accessor(gltf, buffer_index, accessor, attribs, for_vertex);
-	}
-
-	template <class T, size_t size>
-	int pack_accessor_float(glTF& gltf, int buffer_index, const std::vector<T>& values, bool for_vertex)
-	{
-		static_assert(size > 0 && size <= 4, "incorrect size");
-		glTFAccessor accessor = { 0, 0, glTFComponentType::FLOAT, false, int(values.size()), glTFType(size - 1) };
-		int result = pack_accessor<T, size>(gltf, buffer_index, accessor, values, for_vertex);
-		std::vector<T> debug = unpack_accessor<T, size>(gltf, result, for_vertex);
-		return result;
 	}
 
 	void export_attributes(glTF& gltf, int buffer_index, const MeshPacker& mesh, glTFAttributes& attributes)
@@ -511,16 +198,20 @@ namespace mud
 			mesh.m_uv0s = unpack_accessor<vec2, 2>(gltf, attributes.TEXCOORD_0, true);
 		if(attributes.TEXCOORD_1 != -1)
 		{
-			std::vector<vec2> uv1s = unpack_accessor<vec2, 2>(gltf, attributes.TEXCOORD_1, true);
-			if(!std::equal(uv1s.begin() + 1, uv1s.end(), uv1s.begin())) // probably full of zeroes, skip it
+			vector<vec2> uv1s = unpack_accessor<vec2, 2>(gltf, attributes.TEXCOORD_1, true);
+			// add it only if not filled with zeroes
+			if(find_if(uv1s, [](const vec2& uv) { return uv != vec2(0.f);}) != uv1s.end())
 				mesh.m_uv1s = uv1s;
 		}
 		if(attributes.COLOR_0 != -1)
 		{
 			if(gltf.m_accessors[attributes.COLOR_0].type == glTFType::VEC4)
 				mesh.m_colours = unpack_accessor<Colour, 4>(gltf, attributes.COLOR_0, true);
-			//else if(gltf.accessors[attributes.COLOR_0].type == glTFType::VEC3)
-			//	mesh.m_colours = unpack_accessor<Colour, 4>(gltf, attributes.COLOR_0, true);
+			else if(gltf.m_accessors[attributes.COLOR_0].type == glTFType::VEC3)
+			{
+				vector<vec3> colours = unpack_accessor<vec3, 3>(gltf, attributes.COLOR_0, true);
+				mesh.m_colours = convert<Colour, vec3>(colours, [](const vec3& v) { return to_colour(v); });
+			}
 		}
 		if(attributes.JOINTS_0 != -1)
 			mesh.m_bones = unpack_accessor<ivec4, 4>(gltf, attributes.JOINTS_0, true);
@@ -530,7 +221,7 @@ namespace mud
 
 	void import_meshes(const glTF& gltf, Import& state, const ImportConfig& config)
 	{
-		std::map<string, int> duplicate_names;
+		map<string, int> duplicate_names;
 
 		size_t index = 0;
 		for(const glTFMesh& gltf_mesh : gltf.m_meshes)
@@ -544,9 +235,14 @@ namespace mud
 			if(config.m_suffix != "")
 				model_name += ":" + config.m_suffix;
 
-			if(state.m_gfx_system.models().get(model_name.c_str()) && !config.m_force_reimport)
+			Model* existing = state.m_gfx.models().get(model_name.c_str());
+			if(existing && !config.m_force_reimport)
+			{
+				state.m_models.push_back(existing);
 				continue;
-			Model& model = state.m_gfx_system.models().create(model_name.c_str());
+			}
+
+			Model& model = state.m_gfx.models().create(model_name.c_str());
 
 			size_t primindex = 0;
 			for(const glTFPrimitive& primitive : gltf_mesh.primitives)
@@ -554,7 +250,7 @@ namespace mud
 				string name = model_name + ":" + to_string(primindex++);
 				bool occluder = false;
 
-				//printf("DEBUG: importing mesh %s\n", name.c_str());
+				//printf("[debug] importing mesh %s\n", name.c_str());
 
 				if(primitive.material != -1)
 				{
@@ -567,12 +263,12 @@ namespace mud
 					}
 				}
 
-				Mesh& mesh = state.m_gfx_system.meshes().construct(name.c_str(), config.m_cache_geometry || occluder);
+				Mesh& mesh = model.add_mesh(name.c_str(), config.m_cache_geometry || occluder);
 				state.m_meshes.push_back(&mesh);
 				model.add_item(mesh, bxidentity());
 
 				MeshPacker packer;
-#ifndef MUD_PLATFORM_EMSCRIPTEN
+#ifndef TWO_PLATFORM_EMSCRIPTEN
 				//packer.m_quantize = true;
 #endif
 
@@ -581,54 +277,61 @@ namespace mud
 
 				if(primitive.indices != -1)
 				{
-					std::vector<int> indices = unpack_accessor<int>(gltf, primitive.indices, false);
-					packer.m_indices = std::vector<uint32_t>(indices.begin(), indices.end());
+					vector<int> indices = unpack_accessor<int>(gltf, primitive.indices, false);
+					packer.m_indices = convert<uint32_t, int>(indices);
 				}
-
-				std::vector<MeshPacker> morphs;
 
 				for(const glTFMorphTarget& morph_target : primitive.targets)
 				{
-					morphs.emplace_back(packer);
-
-					MeshPacker& morph_shape = morphs.back();
-					morph_shape.m_indices = {};
+					MeshPacker morph;
+					
+					auto test = gltf.m_accessors[morph_target.POSITION].type;
 
 					if(morph_target.POSITION != -1)
-						morph_shape.m_positions = unpack_accessor<vec3, 3>(gltf, morph_target.POSITION, true);
+						morph.m_positions = unpack_accessor<vec3, 3>(gltf, morph_target.POSITION, true);
 					if(morph_target.NORMAL != -1)
-						morph_shape.m_normals = unpack_accessor<vec3, 3>(gltf, morph_target.NORMAL, true);
+						morph.m_normals = unpack_accessor<vec3, 3>(gltf, morph_target.NORMAL, true);
 					if(morph_target.TANGENT != -1)
 					{
-						std::vector<vec3> tangents = unpack_accessor<vec3, 3>(gltf, morph_target.TANGENT, true);
-						morph_shape.m_tangents.resize(tangents.size());
+						vector<vec3> tangents = unpack_accessor<vec3, 3>(gltf, morph_target.TANGENT, true);
+						morph.m_tangents.resize(tangents.size());
 
 						for(size_t i = 0; i < packer.m_tangents.size(); ++i)
-							morph_shape.m_tangents[i] = vec4{ tangents[i], packer.m_tangents[i].w };
+							morph.m_tangents[i] = { tangents[i], packer.m_tangents[i].w };
 					}
 
-					morphs.push_back(morph_shape);
+					mesh.morph(morph);
 				}
 
 				if(primitive.material != -1)
 					mesh.m_material = state.m_materials[primitive.material];
 
-				if(packer.m_tangents.empty() && !packer.m_uv0s.empty())
-					packer.generate_tangents();
-				if(packer.m_tangents.empty() && packer.m_uv0s.empty())
-					printf("WARNING: mesh %s imported without tangents (no uvs)\n", name.c_str());
+				// @todo add external control for this behavior (normals/flat normals etc...)
+				if(packer.m_normals.empty())
+					packer.gen_normals();
 
-#ifdef MUD_PLATFORM_EMSCRIPTEN
-				mesh.write(PLAIN, packer, false);
-#else
-				mesh.write(PLAIN, packer, config.m_optimize_geometry);
+				if(packer.m_tangents.empty() && !packer.m_normals.empty() && !packer.m_uv0s.empty())
+					packer.gen_tangents();
+				if(packer.m_tangents.empty() && packer.m_uv0s.empty())
+					printf("[warning] mesh %s imported without tangents (no uvs)\n", name.c_str());
+
+				bool optimize = config.m_optimize_geometry;
+#ifdef TWO_PLATFORM_EMSCRIPTEN
+				optimize = false;
 #endif
-				//mesh.write(PLAIN, packer);
+
+				if(config.m_no_transforms)
+				{
+					const mat4 transform = config.m_transform * derive_transform(gltf, gltf.m_nodes[gltf_mesh.node]);
+					mesh.xwrite(packer, transform);
+				}
+				else
+					mesh.write(packer, optimize);
 			}
 
 			if(model.m_items.size() == 0)
 			{
-				state.m_gfx_system.models().destroy(model_name.c_str());
+				state.m_gfx.models().destroy(model_name.c_str());
 				state.m_models.push_back(nullptr);
 				continue;
 			}
@@ -650,38 +353,40 @@ namespace mud
 		{
 			glTFMaterialPBR pbr_material = gltf_material.pbr_metallic_roughness;
 
-			material.m_pbr_block.m_enabled = true;
-			material.m_pbr_block.m_albedo.m_value = to_colour(pbr_material.base_color_factor);
+			//material.m_base.m_shader_color = ShaderColor::Vertex;
+			//material.m_base.m_flat_shaded = true;
+
+			material.m_pbr.m_albedo.m_value = to_colour(pbr_material.base_color_factor);
 
 			if(pbr_material.base_color_texture.index != -1)
 			{
-				material.m_pbr_block.m_albedo.m_value = Colour::White;
-				material.m_pbr_block.m_albedo.m_texture = get_texture(gltf, state, pbr_material.base_color_texture.index);
+				material.m_pbr.m_albedo.m_value = Colour::White;
+				material.m_pbr.m_albedo = get_texture(gltf, state, pbr_material.base_color_texture.index);
 			}
 
-			material.m_pbr_block.m_metallic.m_value = pbr_material.metallic_factor;
-			material.m_pbr_block.m_roughness.m_value = pbr_material.roughness_factor;
+			material.m_pbr.m_metallic.m_value = pbr_material.metallic_factor;
+			material.m_pbr.m_roughness.m_value = pbr_material.roughness_factor;
 
 			if(pbr_material.metallic_roughness_texture.index != -1)
 			{
 				Texture* texture = get_texture(gltf, state, pbr_material.metallic_roughness_texture.index);
-				material.m_pbr_block.m_metallic.m_texture = texture;
-				material.m_pbr_block.m_metallic.m_channel = TextureChannel::Blue;
-				material.m_pbr_block.m_roughness.m_texture = texture;
-				material.m_pbr_block.m_roughness.m_channel = TextureChannel::Green;
+				material.m_pbr.m_metallic = texture;
+				material.m_pbr.m_metallic.m_channel = TextureChannel::Blue;
+				material.m_pbr.m_roughness = texture;
+				material.m_pbr.m_roughness.m_channel = TextureChannel::Green;
 			}
 		}
 
 		if(gltf_material.normal_texture.index != -1)
 		{
-			material.m_pbr_block.m_normal.m_texture = get_texture(gltf, state, gltf_material.normal_texture.index);
-			material.m_pbr_block.m_normal.m_value = gltf_material.normal_texture.scale;
+			material.m_lit.m_normal = get_texture(gltf, state, gltf_material.normal_texture.index);
+			material.m_lit.m_normal.m_value = gltf_material.normal_texture.scale;
 		}
 
 		if(gltf_material.occlusion_texture.index != -1)
 		{
-			material.m_pbr_block.m_ambient_occlusion.m_texture = get_texture(gltf, state, gltf_material.occlusion_texture.index);
-			material.m_pbr_block.m_ambient_occlusion.m_channel = TextureChannel::Red;
+			material.m_lit.m_occlusion = get_texture(gltf, state, gltf_material.occlusion_texture.index);
+			material.m_lit.m_occlusion.m_channel = TextureChannel::Red;
 		}
 
 		vec3 emissive = gltf_material.emissive_factor;
@@ -689,20 +394,27 @@ namespace mud
 		emissive *= vec3(gltf_material.pbr_metallic_roughness.base_color_factor);
 #endif
 		float emissive_factor = (emissive.r + emissive.g + emissive.b) / 3.f;
-		material.m_pbr_block.m_emissive.m_value = to_colour(vec4(emissive / emissive_factor, emissive_factor));
+		material.m_lit.m_emissive.m_value = to_colour(vec4(emissive / emissive_factor, emissive_factor));
 
 		if(gltf_material.emissive_texture.index != -1)
 		{
-			material.m_pbr_block.m_emissive.m_texture = get_texture(gltf, state, gltf_material.emissive_texture.index);
-			material.m_pbr_block.m_emissive.m_value = Colour::Black;
-			material.m_pbr_block.m_emissive.m_value.m_a = emissive_factor;
+			material.m_lit.m_emissive = get_texture(gltf, state, gltf_material.emissive_texture.index);
+			material.m_lit.m_emissive.m_value = Colour::Black;
+			material.m_lit.m_emissive.m_value.a = emissive_factor;
 		}
 
-		if(gltf_material.double_sided)
-			material.m_base_block.m_cull_mode = CullMode::None;
+		//if(gltf_material.double_sided)
+		//	material.m_base.m_cull_mode = CullMode::None;
 
 		if(gltf_material.alpha_mode != glTFAlphaMode::OPAQUE)
-			material.m_base_block.m_is_alpha = true;
+		{
+			material.m_alpha.m_is_alpha = true;
+			material.m_alpha.m_alpha = material.m_pbr.m_albedo.m_value.a;
+			material.m_base.m_depth_draw = DepthDraw::Disabled;
+		}
+
+		if(gltf_material.alpha_mode == glTFAlphaMode::BLEND)
+			material.m_base.m_blend_mode = BlendMode::Alpha;
 	}
 
 	void import_materials(const glTF& gltf, Import& state)
@@ -711,7 +423,7 @@ namespace mud
 		for(const glTFMaterial& gltf_material : gltf.m_materials)
 		{
 			string name = gltf_material.name == "" ? state.m_file + ":" + to_string(index++) : gltf_material.name;
-			Material& material = state.m_gfx_system.fetch_material(name.c_str(), "pbr/pbr", false);
+			Material& material = state.m_gfx.fetch_material(name.c_str(), "pbr/pbr", false);
 			import_material(gltf, state, gltf_material, material);
 			state.m_materials.push_back(&material);
 		}
@@ -726,37 +438,42 @@ namespace mud
 			}
 
 		for(size_t i = 0; i < gltf.m_nodes.size(); i++)
+		{
+			if(gltf.m_nodes[i].mesh != -1)
+				gltf.m_meshes[gltf.m_nodes[i].mesh].node = i;
+
 			for(size_t j = 0; j < gltf.m_nodes[i].children.size(); j++)
 			{
 				int child = gltf.m_nodes[i].children[j];
 				gltf.m_nodes[child].parent = int(i);
 			}
+		}
 	}
 
-	void create_bone(const glTF& gltf, const glTFNode& node, Skeleton& skeleton, int parent)
+	void create_bone(const glTF& gltf, const glTFNode& node, Skeleton& skeleton, uint32_t parent)
 	{
-		//printf("INFO:      - adding bone %s\n", node.name.c_str());
-		Bone& bone = skeleton.add_bone(node.name.c_str(), parent);
+		//printf("[info]      - adding bone %s index %i\n", node.name.c_str(), skeleton.m_bones.size());
+		uint32_t bone = skeleton.add_bone(node.name.c_str(), parent);
 
 		for(int child : node.children)
 			if(gltf.m_nodes[child].is_joint)
-				create_bone(gltf, gltf.m_nodes[child], skeleton, bone.m_index);
+				create_bone(gltf, gltf.m_nodes[child], skeleton, bone);
 	}
 
 	void create_skeleton(const glTF& gltf, Import& state, Model& model, int node, int num_bones)
 	{
 		const glTFNode& skeleton_node = gltf.m_nodes[node];
 
-		printf("INFO: Gltf - adding skeleton %s\n", skeleton_node.name.c_str());
+		printf("[info] Gltf - adding skeleton %s\n", skeleton_node.name.c_str());
 		model.m_rig->m_skeleton = { skeleton_node.name.c_str(), num_bones };
 		state.m_skeletons[node] = &model.m_rig->m_skeleton;
 
-		create_bone(gltf, skeleton_node, model.m_rig->m_skeleton, -1);
+		create_bone(gltf, skeleton_node, model.m_rig->m_skeleton, UINT32_MAX);
 	}
 
 	void import_skeletons(glTF& gltf, Import& state, Model& model)
 	{
-		std::map<int, int> skeleton_sizes;
+		map<int, int> skeleton_sizes;
 
 		for(const glTFSkin& skin : gltf.m_skins)
 			skeleton_sizes[skin.skeleton] = max(int(skin.joints.size()), skeleton_sizes[skin.skeleton]);
@@ -770,11 +487,11 @@ namespace mud
 
 		for(glTFSkin& gltf_skin : gltf.m_skins)
 		{
-			printf("INFO: Gltf - adding skin %s\n", gltf_skin.name.c_str());
-			model.m_rig->m_skins.emplace_back(*state.m_skeletons[gltf_skin.skeleton], int(gltf_skin.joints.size())); // gltf_skin.name
+			printf("[info] Gltf - adding skin %s\n", gltf_skin.name.c_str());
+			model.m_rig->m_skins.push_back({ *state.m_skeletons[gltf_skin.skeleton], int(gltf_skin.joints.size()) }); // gltf_skin.name
 			Skin& skin = model.m_rig->m_skins.back();
 
-			std::vector<mat4> bind_matrices;
+			vector<mat4> bind_matrices;
 
 			if(gltf_skin.inverse_bind_matrices != -1)
 				bind_matrices = unpack_accessor<mat4, 16>(gltf, gltf_skin.inverse_bind_matrices, false);
@@ -786,9 +503,9 @@ namespace mud
 	}
 
 	template <class T>
-	void import_track(const glTFNode& node, glTFInterpolation interpolation, const std::vector<float>& times, const std::vector<T>& values, Animation& animation, size_t bone, AnimationTarget target)
+	void import_track(glTFInterpolation interpolation, const string& name, span<float> times, span<T> values, Animation& animation, size_t node, AnimTarget target)
 	{
-		AnimationTrack track = { animation, bone, node.name.c_str(), target };
+		AnimTrack track = { animation, node, name.c_str(), target };
 
 		track.m_interpolation = interpolation == glTFInterpolation::STEP ? Interpolation::Nearest
 																		 : Interpolation::Linear;
@@ -798,26 +515,34 @@ namespace mud
 		animation.tracks.push_back(track);
 	}
 
-	void import_animation(const glTF& gltf, Import& state, size_t index, Skeleton& skeleton)
+	void import_animation(const glTF& gltf, Import& state, size_t index, Rig* rig = nullptr)
 	{
 		const glTFAnimation& gltf_anim = gltf.m_animations[index];
 
-		Animation& animation = state.m_gfx_system.animations().construct(gltf_anim.name.c_str());
-		skeleton.m_animations.push_back(&animation);
+		Animation& animation = state.m_gfx.animations().construct(gltf_anim.name.c_str());
+		state.m_animations.push_back(&animation);
 
 		animation.m_length = 0.f;
 
-		printf("INFO: Gltf - importing animation %s\n", animation.m_name.c_str());
+		printf("[info] Gltf - importing animation %s\n", animation.m_name.c_str());
 
 		for(const glTFAnimationChannel& channel : gltf_anim.channels)
 		{
 			const glTFAnimationSampler& sampler = gltf_anim.samplers[channel.sampler];
 			const glTFNode& node = gltf.m_nodes[channel.target.node];
 
-			Bone* bone = skeleton.find_bone(node.name.c_str());
-			size_t bone_index = bone ? bone->m_index : SIZE_MAX;
+			size_t node_index = SIZE_MAX;
+			if(node.is_joint)
+			{
+				uint32_t bone = rig->m_skeleton.bone_index(node.name.c_str());
+				node_index = bone != UINT32_MAX ? bone : SIZE_MAX;
+			}
+			else
+			{
+				node_index = channel.target.node;
+			}
 
-			std::vector<float> times = unpack_accessor<float>(gltf, sampler.input, false);
+			vector<float> times = unpack_accessor<float>(gltf, sampler.input, false);
 
 			float length = 0.f;
 
@@ -828,25 +553,33 @@ namespace mud
 
 			if(channel.target.path == "translation")
 			{
-				std::vector<vec3> translations = unpack_accessor<vec3, 3>(gltf, sampler.output, false);
-				import_track(node, sampler.interpolation, times, translations, animation, bone_index, AnimationTarget::Position); // member(&Bone::m_position)
+				const vector<vec3> translations = unpack_accessor<vec3, 3>(gltf, sampler.output, false);
+				import_track<vec3>(sampler.interpolation, node.name, times, translations, animation, node_index, AnimTarget::Position);
 			}
 			else if(channel.target.path == "rotation")
 			{
-				std::vector<quat> rotations = unpack_accessor<quat, 4>(gltf, sampler.output, false);
-				import_track(node, sampler.interpolation, times, rotations, animation, bone_index, AnimationTarget::Rotation); // member(&Bone::m_rotation)
+				const vector<quat> rotations = unpack_accessor<quat, 4>(gltf, sampler.output, false);
+				import_track<quat>(sampler.interpolation, node.name, times, rotations, animation, node_index, AnimTarget::Rotation);
 			}
 			else if(channel.target.path == "scale")
 			{
-				std::vector<vec3> scales = unpack_accessor<vec3, 3>(gltf, sampler.output, false);
-				import_track(node, sampler.interpolation, times, scales, animation, bone_index, AnimationTarget::Scale); // member(&Bone::m_scale)
+				const vector<vec3> scales = unpack_accessor<vec3, 3>(gltf, sampler.output, false);
+				import_track<vec3>(sampler.interpolation, node.name, times, scales, animation, node_index, AnimTarget::Scale);
 			}
 			else if(channel.target.path == "weights")
 			{
-				std::vector<float> weights = unpack_accessor<float>(gltf, sampler.output, false);
-				size_t track_key_size = gltf.m_meshes[node.mesh].weights.size();
-				// mud doesn't implement morph targets so far :/ this 
-				UNUSED(weights); UNUSED(track_key_size);
+				const vector<float> weights = unpack_accessor<float>(gltf, sampler.output, false);
+				const size_t key_size = gltf.m_meshes[node.mesh].weights.size();
+
+				vector<vector<float>> track;
+				for(size_t i = 0; i < weights.size(); i += key_size)
+				{
+					vector<float>& key = push(track);
+					for(size_t n = 0; n < key_size; ++n)
+						key.push_back(weights[i + n]);
+				}
+
+				import_track<vector<float>>(sampler.interpolation, node.name, times, track, animation, node_index, AnimTarget::Weights);
 			}
 		}
 	}
@@ -857,62 +590,45 @@ namespace mud
 		rig.m_skins.reserve(gltf.m_skins.size());
 
 		import_skeletons(gltf, state, model);
-
-		for(size_t i = 0; i < gltf.m_animations.size(); i++)
-			import_animation(gltf, state, int(i), rig.m_skeleton);
 	}
 
-	mat4 derive_transform(const glTF& gltf, const glTFNode& node)
+	void import_animations(glTF& gltf, Import& state, Rig* rig = nullptr)
 	{
-		// not handling the matrix case here : waiting for c++17 optionals since matrix is almost never used
-		if(node.parent > -1)
-			return derive_transform(gltf, gltf.m_nodes[node.parent]) * node.matrix;
-		else
-			return node.matrix;
+		for(size_t i = 0; i < gltf.m_animations.size(); i++)
+			import_animation(gltf, state, int(i), rig);
 	}
 
 	void import_items(const glTF& gltf, Import& state, const ImportConfig& config)
 	{
+		state.m_nodes.reserve(gltf.m_nodes.size());
+		
+		uint32_t i = 0;
 		for(const glTFNode& node : gltf.m_nodes)
 		{
 			if(config.filter_element(node.name))
 				continue;
 
+			static const mat4 identity = bxidentity();
+			const mat4 transform = config.m_no_transforms
+				? identity
+				: config.m_transform * derive_transform(gltf, node);
+
+			state.m_nodes.push_back(Node3(transform, node.parent));
+			Node3& n = state.m_nodes.back();
+
 			if(node.mesh > -1)
 			{
 				Model* model = state.m_models[node.mesh];
-				if(!model) continue;
-				mat4 node_transform = config.m_transform * derive_transform(gltf, node);
-				state.m_items.push_back({ node_transform, model, node.skin });
+				if(!model) { i++; continue; }
+				const size_t item = state.m_items.size();
+				state.m_items.push_back({ i, model, node.skin });
 			}
+
+			i++;
 
 			//if(node.camera)
 			//	;
 		}
-	}
-
-	void unpack_gltf(const string& path, const string& file, glTF& gltf)
-	{
-		json data;
-
-		bool glb = false; // to_lower(path).ends_with("glb")
-		if(glb)
-		{
-			std::vector<uint8_t> buffer;
-			parse_glb(path + file + ".glb", data, buffer);
-			gltf.m_binary_buffers.push_back(buffer);
-		}
-		else
-		{
-			parse_json_file(path + file + ".gltf", data);
-		}
-
-		json asset = data["asset"];
-		string version = asset["version"].string_value();
-
-		static FromJson unpacker = gltf_unpacker();
-		Var gltfvar = Ref(&gltf);
-		unpack(unpacker, gltfvar, data);
 	}
 
 	void import_gltf(glTF& gltf, Import& state, const ImportConfig& config)
@@ -926,51 +642,28 @@ namespace mud
 		import_items(gltf, state, config);
 	}
 
-	void export_repack(GfxSystem& gfx_system, glTF& gltf, const string& path, const string& file)
+	void export_repack(glTF& gltf, const string& path, const string& file)
 	{
-		gltf.m_buffers.clear();
-		gltf.m_buffer_views.clear();
-		gltf.m_accessors.clear();
-		gltf.m_binary_buffers.clear();
-
-		glTFBuffer buffer;
-		buffer.name = file;
-		buffer.uri = file + ".repack.bin";
-		buffer.byte_length = 0;
-
-		gltf.m_binary_buffers.emplace_back();
-		gltf.m_buffers.push_back(buffer);
-
-		size_t model_index = 0;
-		for(glTFMesh& gltf_mesh : gltf.m_meshes)
+		auto repack = [](glTF& gltf, const string& name, glTFPrimitive& primitive)
 		{
-			string model_name = gltf_mesh.name == "" ? file + ":" + to_string(model_index++) : gltf_mesh.name;
+			GfxSystem& gfx = *(GfxSystem*)gltf.m_user;
+			Mesh* mesh = gfx.meshes().find([&](Mesh& mesh) { return mesh.m_name == name; });
+			if(!mesh) return;
+			MeshPacker packer;
+			packer.unpack(mesh->m_cache, bxidentity());
+			primitive.attributes = {};
+			export_attributes(gltf, 0, packer, primitive.attributes);
+			primitive.indices = export_indices(gltf, 0, packer); 
+		};
 
-			size_t mesh_index = 0;
-			for(glTFPrimitive& primitive : gltf_mesh.primitives)
-			{
-				string name = model_name + ":" + to_string(mesh_index++);
-				Mesh* mesh = gfx_system.meshes().find([&](Mesh& mesh) { return mesh.m_name == name; });
-				if(!mesh) continue;
-				MeshPacker packer;
-				mesh->read(packer, bxidentity());
-				primitive.attributes = {};
-				export_attributes(gltf, 0, packer, primitive.attributes);
-				primitive.indices = export_indices(gltf, 0, packer);
-			}
-		}
-
-		write_binary_file(path + buffer.uri, gltf.m_binary_buffers[0]);
-
-		ToJson packer = gltf_packer();
-		pack_json_file(packer, Ref(&gltf), path + file + ".repack.gltf");
+		repack_gltf(gltf, path, file, repack);
 	}
 
 	void ImporterGltf::import(Import& state, const string& filepath, const ImportConfig& config)
 	{
-		printf("INFO: gltf - loading scene %s\n", filepath.c_str());
+		printf("[info] gltf - loading scene %s\n", filepath.c_str());
 
-		glTF gltf;
+		glTF gltf = { &m_gfx };
 		unpack_gltf(state.m_path, state.m_file, gltf);
 
 		import_gltf(gltf, state, config);
@@ -978,49 +671,54 @@ namespace mud
 
 	void ImporterGltf::import_model(Model& model, const string& filepath, const ImportConfig& config)
 	{
-		printf("INFO: gltf - loading model %s\n", filepath.c_str());
+		printf("[info] gltf - loading model %s\n", filepath.c_str());
 
-		Import state = { m_gfx_system, filepath, config };
+		Import state = { m_gfx, filepath, config };
 
-		glTF gltf;
+		glTF gltf = { &m_gfx };
 		unpack_gltf(state.m_path, state.m_file, gltf);
 
 		import_gltf(gltf, state, config);
 		import_rig(gltf, state, model);
+		import_animations(gltf, state, model.m_rig);
 
 		for(const Import::Item& item : state.m_items)
 		{
-			for(const ModelItem& model_item : item.model->m_items)
-				model.add_item(*model_item.m_mesh, item.transform, item.skin);
+			const Node3& node = state.m_nodes[item.node];
+			for(const ModelElem& elem : item.model->m_items)
+				model.add_item(*elem.m_mesh, node.m_transform, item.skin);
 		}
+
+		for(Animation* anim : state.m_animations)
+			model.m_anims.push_back(anim);
 
 		model.prepare();
 	}
 
 	void ImporterGltf::import_prefab(Prefab& prefab, const string& filepath, const ImportConfig& config)
 	{
-		printf("INFO: gltf - loading prefab %s\n", filepath.c_str());
+		printf("[info] gltf - loading prefab %s\n", filepath.c_str());
 
-		Import state = { m_gfx_system, filepath, config };
+		Import state = { m_gfx, filepath, config };
 
-		glTF gltf;
+		glTF gltf = { &m_gfx };
 		unpack_gltf(state.m_path, state.m_file, gltf);
 
 		import_gltf(gltf, state, config);
-		import_to_prefab(m_gfx_system, prefab, state, config.m_flags);
+		import_animations(gltf, state);
+		import_to_prefab(m_gfx, prefab, state, config.m_flags);
 	}
 
 	void ImporterGltf::repack(const string& filepath, const ImportConfig& config)
 	{
 		UNUSED(config);
-		printf("INFO: gltf - repacking asset %s\n", filepath.c_str());
+		printf("[info] gltf - repacking asset %s\n", filepath.c_str());
 
 		string path = file_directory(filepath);
 		string file = file_name(filepath);
 
-		glTF gltf;
+		glTF gltf = { &m_gfx };
 		unpack_gltf(path, file, gltf);
-		//import_gltf(gltf, state, config);
-		export_repack(m_gfx_system, gltf, path, file);
+		export_repack(gltf, path, file);
 	}
 }

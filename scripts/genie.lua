@@ -1,6 +1,6 @@
--- mud library
+-- two library
 
-solution "mud"
+solution "two"
 	configurations {
 		"Debug",
 		"Release",
@@ -18,6 +18,8 @@ PROJECT_DIR = path.getabsolute("..")
 BUILD_DIR = path.join(path.getabsolute(".."), "build")
 
 dofile "toolchain.lua"
+dofile "two.lua"
 
-dofile "mud.lua"
-dofile "mud_example.lua"
+two_libs();
+
+dofile "two_example.lua"

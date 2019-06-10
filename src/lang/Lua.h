@@ -4,26 +4,18 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <infra/Array.h>
-#include <infra/NonCopy.h>
-#include <type/Any.h>
-#include <type/Unique.h>
+#ifndef TWO_MODULES
+#include <stl/string.h>
+#include <stl/memory.h>
 #endif
 #include <lang/Forward.h>
 #include <lang/Script.h>
 
-#ifndef  MUD_CPP_20
-#include <string>
-#endif
-
-namespace mud
+namespace two
 {
-	using string = std::string;
-
 	class LuaContext;
 
-	export_ class refl_ MUD_LANG_EXPORT LuaInterpreter final : public Interpreter
+	export_ class refl_ TWO_LANG_EXPORT LuaInterpreter final : public Interpreter
 	{
 	public:
 		LuaInterpreter(bool import_symbols);
@@ -31,14 +23,14 @@ namespace mud
 
 		virtual void declare_types() final;
 
-		virtual Var get(cstring name, Type& type) final;
-		virtual void set(cstring name, Var value) final;
+		virtual Var get(const string& name, const Type& type) final;
+		virtual void set(const string& name, const Var& value) final;
 
-		virtual Var getx(array<cstring> path, Type& type) final;
-		virtual void setx(array<cstring> path, Var value) final;
+		virtual Var getx(span<cstring> path, const Type& type) final;
+		virtual void setx(span<cstring> path, const Var& value) final;
 
-		virtual void call(cstring code, Var* result = nullptr) final;
+		virtual void call(const string& code, Var* result = nullptr) final;
 
-		unique_ptr<LuaContext> m_context;
+		unique<LuaContext> m_context;
 	};
 }

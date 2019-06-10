@@ -4,25 +4,22 @@
 
 #pragma once
 
+#include <stl/stddef.h>
+#include <stdint.h>
 #include <type/Forward.h>
 #include <type/Cls.h>
 
-#ifndef MUD_CPP_20
-#include <cstddef>
-#endif
-
-namespace mud // export_ namespace mud// @todo evaluate export at namespace level ?
+namespace two // export_ namespace two// @todo evaluate export at namespace level ?
 {
-	export_ using Id = unsigned int;
 	export_ using cstring = const char*;
 
-	export_ struct MUD_TYPE_EXPORT Address
+	export_ struct TWO_TYPE_EXPORT Address
 	{
 		char value[16];
 		bool operator==(const Address& other) const;
 	};
 
-	export_ class refl_ MUD_TYPE_EXPORT Type
+	export_ class refl_ TWO_TYPE_EXPORT Type
 	{
 	public:
 		explicit Type();
@@ -35,15 +32,15 @@ namespace mud // export_ namespace mud// @todo evaluate export at namespace leve
 
 		Type(Type&&) = delete;
 
-		attr_ Id m_id;
+		attr_ uint32_t m_id;
 		attr_ cstring m_name;
 		attr_ size_t m_size;
 		attr_ Type* m_base = nullptr;
 
-		bool is(Type& type) const;
+		bool is(const Type& type) const;
 
 		template <class T>
-		inline bool is() const { return this->is(mud::type<T>()); }
+		inline bool is() const { return this->is(two::type<T>()); }
 
 		static Type& type() { static Type ty(0); return ty; }
 
@@ -77,13 +74,19 @@ namespace mud // export_ namespace mud// @todo evaluate export at namespace leve
 
 	export_ template <class T, class U>
 	inline const T* try_as(const U& object) { if(object.m_type.template is<T>()) return &static_cast<const T&>(object); else return nullptr; }
+	
+	export_ template <class T, class U>
+	constexpr size_t member_offset(U T::*member)
+	{
+		return (char*)&((T*)nullptr->*member) - (char*)nullptr;
+	}
 
 	export_ template <class T_Method>
 	Address member_address(T_Method p)
 	{
 		Address result = {};
 		for(size_t i = 0; i < sizeof p; ++i)
-			result.value[i] = reinterpret_cast<char *>(&p)[i];
+			result.value[i] = reinterpret_cast<char*>(&p)[i];
 		return result;
 	}
 }

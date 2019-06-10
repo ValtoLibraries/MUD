@@ -4,18 +4,18 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
 #include <math/Colour.h>
 #include <math/Vec.h>
 #endif
 #include <ui/Forward.h>
 #include <ui/Frame/Dim.h>
 
-namespace mud
+namespace two
 {
 	using cstring = const char*;
 
-	export_ struct refl_ MUD_UI_EXPORT Shadow
+	export_ struct refl_ TWO_UI_EXPORT Shadow
 	{
 	public:
 		constr_ Shadow(float xpos, float ypos, float blur, float spread, Colour colour = Colour::AlphaBlack)
@@ -37,8 +37,9 @@ namespace mud
 		float d_radius;
 	};
 
-	export_ struct refl_ MUD_UI_EXPORT Paint
+	export_ struct refl_ TWO_UI_EXPORT Paint
 	{
+		Paint() {}
 		Paint(Colour fill_colour) : m_fill_colour(fill_colour), m_stroke_colour(Colour::None), m_stroke_width(0.f) {}
 		Paint(Colour stroke_colour, float stroke_width) : m_fill_colour(Colour::None), m_stroke_colour(stroke_colour), m_stroke_width(stroke_width) {}
 		Paint(Colour fill_colour, Colour stroke_colour, float stroke_width) : m_fill_colour(fill_colour), m_stroke_colour(stroke_colour), m_stroke_width(stroke_width) {}
@@ -47,17 +48,17 @@ namespace mud
 		attr_ float m_stroke_width;
 	};
 
-	export_ struct refl_ MUD_UI_EXPORT TextPaint
+	export_ struct refl_ TWO_UI_EXPORT TextPaint
 	{
 		attr_ cstring m_font;
 		attr_ Colour m_colour;
 		attr_ float m_size;
-		attr_ Dim2<Align> m_align;
+		attr_ v2<Align> m_align;
 		attr_ bool m_text_break;
 		attr_ bool m_text_wrap;
 	};
 
-	export_ struct refl_ MUD_UI_EXPORT Gradient
+	export_ struct refl_ TWO_UI_EXPORT Gradient
 	{
 		attr_ Colour m_start;
 		attr_ Colour m_end;

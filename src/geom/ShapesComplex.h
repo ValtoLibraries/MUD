@@ -4,74 +4,70 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <infra/Array.h>
+#ifndef TWO_MODULES
+#include <stl/vector.h>
+#include <stl/span.h>
 #endif
 #include <geom/Forward.h>
 #include <geom/Shape.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#include <array>
-#endif
-
-namespace mud
+namespace two
 {
-	export_ struct refl_ MUD_GEOM_EXPORT Polygon final : public Shape
+	export_ struct refl_ TWO_GEOM_EXPORT Polygon final : public Shape
 	{
 	public:
 		constr_ Polygon();
-		constr_ Polygon(std::vector<vec3> vertices);
+		constr_ Polygon(span<vec3> vertices);
 
-		std::vector<vec3> m_vertices;
+		vector<vec3> m_vertices;
 
-		virtual object_ptr<Shape> clone() const;
+		virtual object<Shape> clone() const;
 	};
 
-	export_ struct refl_ MUD_GEOM_EXPORT Box final : public Shape
+	export_ struct refl_ TWO_GEOM_EXPORT Box final : public Shape
 	{
 	public:
 		constr_ Box();
-		Box(array<vec3> vertices);
+		Box(span<vec3> vertices);
 
 		Box(const Cube& cube);
 
-		std::array<vec3, 8> m_vertices;
+		vec3 m_vertices[8];
 
-		virtual object_ptr<Shape> clone() const;
+		virtual object<Shape> clone() const;
 	};
 
-	export_ struct refl_ MUD_GEOM_EXPORT Points final : public Shape
+	export_ struct refl_ TWO_GEOM_EXPORT Points final : public Shape
 	{
 	public:
 		constr_ Points();
-		constr_ Points(const std::vector<vec3>& points);
+		constr_ Points(span<vec3> points);
 
-		attr_ std::vector<vec3> m_points;
+		attr_ vector<vec3> m_points;
 
-		virtual object_ptr<Shape> clone() const;
+		virtual object<Shape> clone() const;
 	};
 
-	export_ struct refl_ MUD_GEOM_EXPORT Grid3 final : public Shape
+	export_ struct refl_ TWO_GEOM_EXPORT Grid3 final : public Shape
 	{
 	public:
 		constr_ Grid3();
-		constr_ Grid3(const uvec2& size, const std::vector<vec3>& points = {});
+		constr_ Grid3(const uvec2& size, span<vec3> points = {});
 
 		attr_ uvec2 m_size;
-		attr_ std::vector<vec3> m_points;
+		attr_ vector<vec3> m_points;
 
-		virtual object_ptr<Shape> clone() const;
+		virtual object<Shape> clone() const;
 	};
 
-	export_ struct refl_ MUD_GEOM_EXPORT ConvexHull final : public Shape
+	export_ struct refl_ TWO_GEOM_EXPORT ConvexHull final : public Shape
 	{
 	public:
 		constr_ ConvexHull();
-		constr_ ConvexHull(const std::vector<vec3>& vertices);
+		constr_ ConvexHull(span<vec3> vertices);
 
-		attr_ std::vector<vec3> m_vertices;
+		attr_ vector<vec3> m_vertices;
 
-		virtual object_ptr<Shape> clone() const;
+		virtual object<Shape> clone() const;
 	};
 }

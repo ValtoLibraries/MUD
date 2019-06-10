@@ -6,9 +6,10 @@
 
 #include <bgfx/bgfx.h>
 
-#ifdef MUD_MODULES
-module mud.gfx.pbr;
+#ifdef TWO_MODULES
+module two.gfx.pbr;
 #else
+#include <math/Vec.hpp>
 #include <gfx/RenderTarget.h>
 #include <gfx/Filter.h>
 #include <gfx/Pipeline.h>
@@ -18,75 +19,52 @@ module mud.gfx.pbr;
 #include <gfx-pbr/Filters/Glow.h>
 #include <gfx-pbr/Filters/Blur.h>
 #include <gfx-pbr/Filters/Tonemap.h>
+#include <gfx-pbr/Gpu/Glow.hpp>
 #endif
 
 #define MAX_GLOW_LEVELS 7
 
-namespace mud
+namespace two
 {
-	BlockGlow::BlockGlow(GfxSystem& gfx_system, BlockFilter& filter, BlockCopy& copy, BlockBlur& blur)
-		: GfxBlock(gfx_system, *this)
-		, m_filter(filter)
-		, m_copy(copy)
-		, m_blur(blur)
-		, m_bleed_program(gfx_system.programs().create("filter/glow_bleed"))
-		, m_merge_program(gfx_system.programs().create("filter/glow"))
-	{
-		static cstring options[1] = { "GLOW_FILTER_BICUBIC" };
-		m_shader_block->m_options = { options, 1 };
+	GpuState<Glow> GpuState<Glow>::me;
 
-		m_blur.m_program.register_block(*this);
+	BlockGlow::BlockGlow(GfxSystem& gfx, BlockFilter& filter, BlockCopy& copy, BlockBlur& blur)
+		: GfxBlock(gfx, *this)
+		, m_bleed_program(gfx.programs().create("filter/glow_bleed"))
+		, m_merge_program(gfx.programs().create("filter/glow"))
+	{
+		m_options = { "GLOW_FILTER_BICUBIC" };
+
+		blur.m_program.register_block(*this);
 		m_merge_program.register_block(*this);
 	}
 
 	void BlockGlow::init_block()
 	{
-		u_uniform.createUniforms();
+		GpuState<Glow>::me.init();
 	}
 
-	void BlockGlow::begin_render(Render& render)
+
+	void debug_glow(GfxSystem& gfx, Render& render, RenderTarget& target)
 	{
-		UNUSED(render);
-#ifdef DEBUG_GLOW
-		BlockCopy& copy = *m_gfx_system.m_pipeline->block<BlockCopy>();
-		copy.debug_show_texture(render, render.m_target->m_cascade.m_texture, vec4(0.f), false, false, false, 1);
-		copy.debug_show_texture(render, render.m_target->m_ping_pong.last(), vec4(0.f));
-#endif
+		gfx.m_copy->debug_show_texture(render, target.m_cascade.m_texture, vec4(0.f), 1);
+		gfx.m_copy->debug_show_texture(render, target.m_ping_pong.last(), vec4(0.f));
 	}
 
-	void BlockGlow::begin_pass(Render& render)
+	void glow_bleed(GfxSystem& gfx, Render& render, BlockGlow& block, Glow& glow)
 	{
-		UNUSED(render);
-	}
-
-	void BlockGlow::submit_pass(Render& render)
-	{
-		if(render.m_filters && render.m_filters->m_glow.m_enabled)
-			this->render(render, render.m_filters->m_glow);
-	}
-
-	void BlockGlow::render(Render& render, Glow& glow)
-	{
-		this->glow_bleed(render, glow);
-		this->glow_blur(render, glow);
-		this->glow_merge(render, glow);
-	}
-
-	void BlockGlow::glow_bleed(Render& render, Glow& glow)
-	{
-		bgfx::setTexture(uint8_t(TextureSampler::Source0), m_filter.u_uniform.s_source_0, render.m_target->m_diffuse);
+		gfx.m_filter->source0(render.m_target->m_diffuse);
 		//bgfx::setUniform(m_blur.u_uniform.u_exposure, &m_tonemap.m_exposure);
 
-		vec4 glow_params = { 0.f, glow.m_bloom, glow.m_bleed_threshold, glow.m_bleed_scale };
-		bgfx::setUniform(u_uniform.u_glow_params_0, &glow_params);
+		GpuState<Glow>::me.upload(glow);
 
-		m_filter.submit_quad(*render.m_target, render.composite_pass(), render.m_target->m_ping_pong.swap(), m_bleed_program.default_version(), render.m_viewport.m_rect);
+		Pass pass = render.composite_pass("glow bleed");
+		gfx.m_filter->quad(pass, render.m_target->m_ping_pong.swap(), block.m_bleed_program);
 	}
 
-	void BlockGlow::glow_blur(Render& render, Glow& glow)
+	void glow_blur(GfxSystem& gfx, Render& render, BlockBlur& blur, Glow& glow)
 	{
 		UNUSED(glow);
-		uvec4 rect = render.m_viewport.m_rect;
 
 		static BlurKernel kernel = {
 			{ 0.174938f, 0.165569f, 0.140367f, 0.106595f, 0.165569f, 0.140367f, 0.106595f },
@@ -101,38 +79,46 @@ namespace mud
 
 		for(uint8_t i = 0; i < (max_level + 1); i++)
 		{
-			m_blur.gaussian_pass(render, rect, i, true, kernel);
-			m_blur.gaussian_pass(render, rect, i, false, kernel);
+			blur.gaussian_pass(render, *render.m_target, render.m_rect, i, true, kernel);
+			blur.gaussian_pass(render, *render.m_target, render.m_rect, i, false, kernel);
 
 			//bool blit_support = (bgfx::getCaps()->supported & BGFX_CAPS_TEXTURE_BLIT) != 0;
 			bool blit_support = false;
 
-			RenderQuad quad = { render.m_target->source_quad(vec4(rect), true), render.m_target->dest_quad_mip(vec4(rect), i + 1, true), true };
-			
-			if(blit_support)
-				bgfx::blit(render.composite_pass(),
-						   render.m_target->m_cascade.m_texture, i + 1, uint16_t(rect.x), uint16_t(rect.y), 0,
-						   render.m_target->m_ping_pong.last(), 0, uint16_t(rect.x), uint16_t(rect.y), 0, uint16_t(rect_w(rect)), uint16_t(rect_h(rect)), 1);
-			else
-				m_copy.submit_quad(*render.m_target->m_cascade.m_mips[i + 1], render.composite_pass(), render.m_target->m_ping_pong.last(), quad);
+			RenderQuad quad = { render.m_rect, render.m_rect, true };
+
+			Pass pass = render.composite_pass("glow blit");
+			//if(blit_support)
+			//	bgfx::blit(pass.m_index,
+			//			   target.m_cascade.m_texture, i + 1, uint16_t(rect.x), uint16_t(rect.y), 0,
+			//			   target.m_ping_pong.last(), 0, uint16_t(rect.x), uint16_t(rect.y), 0, uint16_t(rect.width), uint16_t(rect.height), 1);
+			//else
+			gfx.m_copy->submit(pass, *render.m_target->m_cascade.m_fbos[i + 1], render.m_target->m_ping_pong.last(), quad);
 		}
 	}
 
-	void BlockGlow::glow_merge(Render& render, Glow& glow)
+	void glow_merge(GfxSystem& gfx, Render& render, BlockGlow& block, Glow& glow)
 	{
-		ShaderVersion shader_version(&m_merge_program);
+		ProgramVersion program = { block.m_merge_program };
 
-		bgfx::setTexture(uint8_t(TextureSampler::Source0), m_filter.u_uniform.s_source_0, render.m_target->m_post_process.last());
+		program.set_option(block.m_index, GLOW_FILTER_BICUBIC, glow.m_bicubic_filter);
 
-		shader_version.set_option(m_index, GLOW_FILTER_BICUBIC, glow.m_bicubic_filter);
+		gfx.m_filter->source0(render.m_target->m_post.last());
+		gfx.m_filter->source1(render.m_target->m_cascade.m_texture);
 
-		bgfx::setTexture(uint8_t(TextureSampler::Source1), m_filter.u_uniform.s_source_1, render.m_target->m_cascade.m_texture);
+		GpuState<Glow>::me.upload(glow);
 
-		vec4 glow_params = { glow.m_intensity, 0.f, float(render.m_target->m_size.x), float(render.m_target->m_size.y) };
-		bgfx::setUniform(u_uniform.u_glow_params_1, &glow_params);
-		bgfx::setUniform(u_uniform.u_glow_levels_1_4, &glow.m_levels_1_4);
-		bgfx::setUniform(u_uniform.u_glow_levels_5_8, &glow.m_levels_5_8);
+		Pass pass = render.composite_pass("glow merge");
+		gfx.m_filter->quad(pass, render.m_target->m_post.swap(), program);
+	}
 
-		m_filter.submit_quad(*render.m_target, render.composite_pass(), render.m_target->m_post_process.swap(), m_merge_program.version(shader_version), render.m_viewport.m_rect);
+	void pass_glow(GfxSystem& gfx, Render& render, Glow& glow)
+	{
+		static BlockGlow& block = *gfx.m_renderer.block<BlockGlow>();
+		static BlockBlur& blur = *gfx.m_renderer.block<BlockBlur>();
+
+		glow_bleed(gfx, render, block, glow);
+		glow_blur(gfx, render, blur, glow);
+		glow_merge(gfx, render, block, glow);
 	}
 }

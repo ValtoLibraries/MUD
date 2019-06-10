@@ -1,20 +1,21 @@
-//  Copyright (c) 2016 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #pragma once
 
-#include <mud/Forward.h>
-#include <infra/String.h>
+#include <frame/Forward.h>
+#include <infra/StringOps.h>
 
-using namespace mud;
+using namespace two;
 
-Material& milky_white(GfxSystem& gfx_system, const string& name = "milky_white");
-Material& mirror(GfxSystem& gfx_system);
-Material& fabric_08(GfxSystem& gfx_system);
-Material& paving_stones_08(GfxSystem& gfx_system);
-Material& paving_stones_11(GfxSystem& gfx_system);
-Material& rocks_01(GfxSystem& gfx_system);
-Material& wood_floor_05(GfxSystem& gfx_system);
+Material& phong_white(GfxSystem& gfx, const string& name = "milky_white");
+Material& milky_white(GfxSystem& gfx, const string& name = "milky_white");
+Material& mirror(GfxSystem& gfx);
+Material& fabric_08(GfxSystem& gfx);
+Material& paving_stones_08(GfxSystem& gfx);
+Material& paving_stones_11(GfxSystem& gfx);
+Material& rocks_01(GfxSystem& gfx);
+Material& wood_floor_05(GfxSystem& gfx);
 
 void ex_03_materials(Shell& app, Widget& parent, Dockbar& dockbar);

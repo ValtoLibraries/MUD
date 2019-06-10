@@ -4,21 +4,23 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.ui;
+#ifdef TWO_MODULES
+module two.ui;
 #else
+#include <stl/algorithm.h>
 #include <infra/Vector.h>
+#include <tree/Graph.hpp>
 #include <ui/Container.h>
-#include <ui/Structs/Container.h>
-#include <ui/Structs/Widget.h>
+#include <ui/ContainerStruct.h>
+#include <ui/WidgetStruct.h>
 #include <ui/Sheet.h>
 #include <ui/ScrollSheet.h>
 #include <ui/Frame/Solver.h>
 #endif
 
-namespace mud
+namespace two
 {
-	Table::Table(Widget* parent, void* identity, array<float> weights)
+	Table::Table(Widget* parent, void* identity, span<float> weights)
 		: Widget(parent, identity)
 		, m_weights(to_vector(weights))
 	{}
@@ -35,9 +37,9 @@ namespace ui
 		return scroll_sheet(parent, styles().list);
 	}
 
-	Table& columns(Widget& parent, array<float> weights)
+	Table& columns(Widget& parent, span<float> weights)
 	{
-		Table& self = parent.suba<Table, array<float>>(weights);
+		Table& self = parent.suba<Table, span<float>>(weights);
 		self.init(styles().table);
 
 		as<TableSolver>(*self.m_frame.m_solver).update(self.m_weights);
@@ -45,26 +47,26 @@ namespace ui
 		return self;
 	}
 	
-	Table& table(Widget& parent, size_t columns, array<float> weights)
+	Table& table(Widget& parent, size_t columns, span<float> weights)
 	{
 		if(weights.size() > 0)
-			return parent.suba<Table, array<float>>(weights);
+			return parent.suba<Table, span<float>>(weights);
 		else
 			return parent.suba<Table, size_t>(columns);
 	}
 
-	Table& table(Widget& parent, array<cstring> columns, array<float> weights)
+	Table& table(Widget& parent, span<cstring> columns, span<float> weights)
 	{
 		Table& self = table(parent, columns.size(), weights);
 		self.init(styles().table);
 
-		Widget& header = grid_sheet(self, styles().table_head, DIM_X, self.m_weights); // [this](Frame& first, Frame& second) { this->resize(first, second); }
+		Widget& header = grid_sheet(self, styles().table_head, Axis::X, self.m_weights); // [this](Frame& first, Frame& second) { this->resize(first, second); }
 
 		as<TableSolver>(*self.m_frame.m_solver).update(self.m_weights);
 
 		for(size_t i = 0; i < columns.size(); ++i)
 		{
-			Widget& column = spanner(header, styles().column_header, DIM_X, self.m_weights[i]);
+			Widget& column = spanner(header, styles().column_header, Axis::X, self.m_weights[i]);
 			label(column, columns[i]);
 		}
 
@@ -82,7 +84,7 @@ namespace ui
 		return widget(parent, table_styles().separator);
 	}
 
-	Widget& toggle_header(Widget& parent, Style& header_style, Style& toggle_style, array<cstring> elements, bool& open)
+	Widget& toggle_header(Widget& parent, Style& header_style, Style& toggle_style, span<cstring> elements, bool& open)
 	{
 		Widget& self = button(parent, header_style);
 		Widget& button = toggle(self, toggle_style, open);
@@ -91,7 +93,7 @@ namespace ui
 		return self;
 	}
 
-	Expandbox& expandbox(Widget& parent, array<cstring> elements, bool open)
+	Expandbox& expandbox(Widget& parent, span<cstring> elements, bool open)
 	{
 		Expandbox& self = twidget<Expandbox>(parent, expandbox_styles().expandbox, open);
 		self.m_header = &toggle_header(self, expandbox_styles().header, expandbox_styles().toggle, elements, self.m_open);
@@ -106,7 +108,7 @@ namespace ui
 		return expandbox(parent, { &name, 1 }, open);
 	}
 
-	TreeNode& tree_node(Widget& parent, array<cstring> elements, bool leaf, bool open)
+	TreeNode& tree_node(Widget& parent, span<cstring> elements, bool leaf, bool open)
 	{
 		TreeNode& self = twidget<TreeNode>(parent, treenode_styles().treenode, open);
 		self.m_header = &toggle_header(self, treenode_styles().header, leaf ? treenode_styles().no_toggle : treenode_styles().toggle, elements, self.m_open);
@@ -152,6 +154,8 @@ namespace ui
 	{
 		Tabber& self = twidget<Tabber>(parent, tabber_styles().tabber);
 		self.m_head = &widget(self, tabber_styles().head);
+		widget(self, tabber_styles().edge);
+		//separator(self);
 		self.m_body = &widget(self, tabber_styles().body);
 		self.m_index = 0;
 		return self;

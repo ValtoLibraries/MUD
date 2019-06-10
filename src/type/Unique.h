@@ -4,20 +4,17 @@
 
 #pragma once
 
+#include <stl/memory.h>
+
+#ifdef TWO_TRACK_MEMORY
 #include <type/Cls.h>
-
-#ifndef MUD_CPP_20
-#include <memory>
-
-#ifdef MUD_TRACK_MEMORY
-#include <functional>
-#include <type_traits>
-#endif
+#include <stl/traits.h>
+#include <stl/function.h>
 #endif
 
-namespace mud
+namespace two
 {
-#ifdef MUD_TRACK_MEMORY
+#ifdef TWO_TRACK_MEMORY
 	template <class T>
 	struct object_ptr_tracker
 	{
@@ -33,25 +30,22 @@ namespace mud
 	}
 
 	template <class T>
-	using object_ptr = std::unique_ptr<T, std::function<void(void*)>>;
+	using object = unique<T, function<void(void*)>>;
 
-	template<class T, class... Types>
-	inline typename std::enable_if<!std::is_array<T>::value, object_ptr<T>>::type make_object(Types&&... args)
+	template <class T, class... Types>
+	inline object<T> oconstruct(Types&&... args)
 	{
 		object_ptr_tracker<T>::increment();
-		return (object_ptr<T>(new T(std::forward<Types>(args)...), &delete_tracked<T>));
+		return (object<T>(new T(static_cast<Types&&>(args)...), &delete_tracked<T>));
 	}
 #else
 	export_ template <class T>
-	using object_ptr = std::unique_ptr<T>;
+	using object = unique<T>;
 
-	export_ template <typename T, typename... Args>
-	object_ptr<T> make_object(Args&&... args)
+	export_ template <class T, typename... Args>
+	object<T> oconstruct(Args&&... args)
 	{
-		return std::make_unique<T>(std::forward<Args>(args)...);
+		return construct<T>(static_cast<Args&&>(args)...);
 	}
 #endif
-
-	export_ using std::unique_ptr;
-	export_ using std::make_unique;
 }

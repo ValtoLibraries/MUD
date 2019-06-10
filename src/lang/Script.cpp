@@ -4,25 +4,28 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.lang;
+#ifdef TWO_MODULES
+module two.lang;
 #else
 #include <type/Indexer.h>
-#include <ecs/Proto.h>
+#include <type/Var.h>
+#include <type/Any.h>
+#include <type/Proto.h>
 #include <lang/Types.h>
 #include <lang/Script.h>
 #include <lang/Lua.h>
 #endif
 
-namespace mud
+namespace two
 {
-	Script::Script(Type& type, cstring name, const Signature& signature)
-		: Callable(name, signature.m_params, signature.m_returnval)
-		, m_index(index(mud::type<Script>(), Ref(this, type)))
+	Script::Script(Type& type, const string& name, const Signature& signature)
+		: Callable(name.c_str(), signature.m_params, signature.m_return_type)
+		, m_index(index(two::type<Script>(), Ref(this, type)))
 		, m_type(type)
 		, m_name(name)
 		, m_signature(signature)
 	{
+		Callable::m_name = m_name.c_str();
 		m_signature.m_params = m_params;
 	}
 
@@ -34,7 +37,13 @@ namespace mud
 	Interpreter::Interpreter()
 	{}
 
-	void Interpreter::call(const TextScript& script, array<Var> args, Var* result)
+	Var Interpreter::get(const string& name, const Type& type) { UNUSED(name); UNUSED(type); return Var(); }
+	void Interpreter::set(const string& name, const Var& value) { UNUSED(name); UNUSED(value); }
+
+	Var Interpreter::getx(span<cstring> path, const Type& type) { UNUSED(path); UNUSED(type); return Var(); }
+	void Interpreter::setx(span<cstring> path, const Var& value) { UNUSED(path); UNUSED(value); }
+
+	void Interpreter::call(const TextScript& script, span<void*> args, void*& result)
 	{
 		m_script = &script;
 		script.m_runtime_errors.clear();
@@ -42,10 +51,11 @@ namespace mud
 
 		for(const Param& param : script.m_signature.m_params)
 		{
-			this->set(param.m_name, args[param.m_index]);
+			this->set(param.m_name, Ref(args[param.m_index], *param.m_type));
 		}
 
-		this->call(script.m_script.c_str(), result);
+		this->call(script.m_script, nullptr);
+		UNUSED(result);
 	}
 
 	string Interpreter::flush()
@@ -55,23 +65,20 @@ namespace mud
 		return output;
 	}
 
-	TextScript::TextScript(cstring name, Language language, const Signature& signature)
+	TextScript::TextScript(const string& name, Language language, const Signature& signature)
 		: Script(type<TextScript>(), name, signature)
 		, m_language(language)
 	{}
 
-	void TextScript::operator()(array<Var> args, Var& result) const
+	void TextScript::operator()(span<void*> args, void*& result) const
 	{
-		m_interpreter->call(*this, args, result.none() ? nullptr : &result);
+		m_interpreter->call(*this, args, result);
 	}
 
-	ScriptClass::ScriptClass(const string& name, const std::vector<Type*>& parts)
+	ScriptClass::ScriptClass(const string& name, span<Type*> parts)
 		: m_name(name)
-		, m_type(m_name.c_str())
-		, m_class(m_type)
-	{
-		g_prototypes[m_type.m_id] = make_unique<Prototype>(m_class);
-		for(Type* type : parts)
-			g_prototypes[m_type.m_id]->add_part(*type);
-	}
+		, m_class_type(m_name.c_str())
+		, m_class(m_class_type)
+		, m_prototype(m_class_type, parts)
+	{}
 }

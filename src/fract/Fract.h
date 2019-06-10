@@ -1,7 +1,9 @@
 #pragma once
 
-#ifndef MUD_MODULES
-#include <ecs/Proto.h>
+#ifndef TWO_MODULES
+#include <stl/vector.h>
+#include <stl/map.h>
+#include <stl/memory.h>
 #include <math/Colour.h>
 #include <math/Image256.h>
 #include <math/Vec.h>
@@ -9,17 +11,10 @@
 #endif
 #include <fract/Forward.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#include <map>
-#include <memory>
-#endif
-
-namespace mud
+namespace two
 {
-	MUD_FRACT_EXPORT func_ void generate_fract(uvec2 resolution, const Pattern& pattern, Image256& output_image);
+	TWO_FRACT_EXPORT func_ void generate_fract(uvec2 resolution, const Pattern& pattern, Image256& output_image);
 
-	//typedef std::function<size_t(const Pattern&, float, float, float)> PatternSampler;
 	typedef uint32_t(*PatternSampler)(const Pattern&, float, float, float);
 
 	export_ enum class refl_ PatternSampling : unsigned int
@@ -33,7 +28,7 @@ namespace mud
 	uint32_t sampleXY(const Pattern& pattern, float x, float y, float depth);
 	uint32_t sampleZ(const Pattern& pattern, float x, float y, float depth);
 
-	export_ struct refl_ MUD_FRACT_EXPORT Pattern
+	export_ struct refl_ TWO_FRACT_EXPORT Pattern
 	{
 	public:
 		constr_ Pattern(Palette palette, PatternSampling sampling, float precision = 1.f, size_t step = 1);
@@ -49,7 +44,7 @@ namespace mud
 		PatternSampler m_sampler;
 	};
 
-	export_ struct refl_ MUD_FRACT_EXPORT FractTab
+	export_ struct refl_ TWO_FRACT_EXPORT FractTab
 	{
 	public:
 		FractTab();
@@ -84,16 +79,16 @@ namespace mud
 		float angle_offset_a;
 	};
 
-	export_ class refl_ MUD_FRACT_EXPORT Fract
+	export_ class refl_ TWO_FRACT_EXPORT Fract
 	{
 	public:
 		constr_ Fract(size_t num_tabs = 75);
 
 		meth_ void generate(size_t num_tabs = 75);
 		meth_ void regen();
-		meth_ void render(const Rect& rect, const Pattern& pattern, uvec2 resolution, Image256& output_image);
-		meth_ void render_whole(const Pattern& pattern, uvec2 resolution, Image256& output_image);
-		meth_ void render_grid(uvec2 size, const Pattern& pattern, uvec2 resolution, std::vector<Image256>& output_images);
+		meth_ void render(const Rect& rect, const Pattern& pattern, const uvec2& resolution, Image256& output_image);
+		meth_ void render_whole(const Pattern& pattern, const uvec2& resolution, Image256& output_image);
+		meth_ void render_grid(const uvec2& size, const Pattern& pattern, const uvec2& resolution, vector<Image256>& output_images);
 
 		int inverse_point(float& x, float& y);		
 
@@ -104,10 +99,10 @@ namespace mud
 
 		attr_ size_t m_num_tabs;
 		size_t m_update;
-		std::vector<FractTab> m_tabs;
+		vector<FractTab> m_tabs;
 	};
 
-	export_ class refl_ MUD_FRACT_EXPORT FractSample
+	export_ class refl_ TWO_FRACT_EXPORT FractSample
 	{
 	public:
 		constr_ FractSample(Fract& fract, const Rect& rect, uvec2 resolution);

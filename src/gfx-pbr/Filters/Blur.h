@@ -4,12 +4,12 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
 #include <gfx/Renderer.h>
 #include <gfx/Program.h>
 #endif
 
-namespace mud
+namespace two
 {
 	enum ShaderOptionBlur : unsigned int
 	{
@@ -21,14 +21,19 @@ namespace mud
 	{
 		void createUniforms()
 		{
-			u_blur_params = bgfx::createUniform("u_blur_params", bgfx::UniformType::Vec4);
+			u_blur_p0 = bgfx::createUniform("u_blur_p0", bgfx::UniformType::Vec4);
 			u_blur_kernel_0_3 = bgfx::createUniform("u_blur_kernel_0_3", bgfx::UniformType::Vec4);
 			u_blur_kernel_4_7 = bgfx::createUniform("u_blur_kernel_4_7", bgfx::UniformType::Vec4);
 		}
 
-		bgfx::UniformHandle u_blur_params;
+		bgfx::UniformHandle u_blur_p0;
 		bgfx::UniformHandle u_blur_kernel_0_3;
 		bgfx::UniformHandle u_blur_kernel_4_7;
+	};
+
+	struct gpu_ GpuBlurKernel
+	{
+		attr_ gpu_ float m_kernel[8];
 	};
 
 	struct BlurKernel
@@ -37,19 +42,18 @@ namespace mud
 		float m_vertical[5];
 	};
 
-	export_ class refl_ MUD_GFX_PBR_EXPORT BlockBlur : public GfxBlock
+	export_ class refl_ TWO_GFX_PBR_EXPORT BlockBlur : public GfxBlock
 	{
 	public:
-		BlockBlur(GfxSystem& gfx_system, BlockFilter& filter);
+		BlockBlur(GfxSystem& gfx, BlockFilter& filter);
 
 		virtual void init_block() override;
 
 		virtual void begin_render(Render& render) override;
-		virtual void begin_pass(Render& render) override;
 		
-		void blur(Render& render);
+		void blur(Render& render, RenderTarget& target);
 
-		void gaussian_pass(Render& render, uvec4& rect, uint8_t lod, bool horizontal, const BlurKernel& kernel);
+		void gaussian_pass(Render& render, RenderTarget& target, const vec4& rect, uint8_t lod, bool horizontal, const BlurKernel& kernel);
 
 		BlockFilter& m_filter;
 

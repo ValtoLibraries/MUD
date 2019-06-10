@@ -4,14 +4,14 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.tool;
+#ifdef TWO_MODULES
+module two.tool;
 #else
 #include <tool/Types.h>
 #include <tool/Tools/WorkPlaneTool.h>
 #endif
 
-namespace mud
+namespace two
 {
 	WorkPlaneAction::WorkPlaneAction(Plane& workPlane, const Plane& plane)
 		: m_workPlane(workPlane)
@@ -36,8 +36,8 @@ namespace mud
 
 	void WorkPlaneTool::activate()
 	{
-		m_action = make_object<WorkPlaneAction>(*m_context.m_work_plane, m_plane);
-		this->commit(std::move(m_action));
+		m_action = oconstruct<WorkPlaneAction>(*m_context.m_work_plane, m_plane);
+		this->commit(move(m_action));
 		m_state = ToolState::Done;
 	}
 }

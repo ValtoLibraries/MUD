@@ -4,17 +4,18 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.pool;
+#ifdef TWO_MODULES
+module two.pool;
 #else
 #include <infra/Config.h>
 #include <pool/ObjectPool.h>
+#include <pool/ObjectPool.hpp>
 //#include <refl/Class.h>
 #endif
 
-namespace mud
+namespace two
 {
-	std::vector<unique_ptr<Pool>> g_pools = std::vector<unique_ptr<Pool>>(c_max_types);
+	vector<unique<Pool>> g_pools = vector<unique<Pool>>(c_max_types);
 
 	ObjectPool::ObjectPool()
 		: m_pools(c_max_types)

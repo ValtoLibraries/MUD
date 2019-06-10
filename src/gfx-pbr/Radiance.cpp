@@ -6,12 +6,13 @@
 
 #include <bgfx/bgfx.h>
 
-#ifdef MUD_MODULES
-module mud.gfx.pbr;
+#ifdef TWO_MODULES
+module two.gfx.pbr;
 #else
-#include <infra/Vector.h>
+#include <stl/algorithm.h>
 #include <gfx/Scene.h>
 #include <gfx/Texture.h>
+#include <gfx/Material.h>
 #include <gfx/RenderTarget.h>
 #include <gfx/Asset.h>
 #include <gfx/GfxSystem.h>
@@ -20,16 +21,20 @@ module mud.gfx.pbr;
 #include <gfx-pbr/Radiance.h>
 #endif
 
-namespace mud
+#include <cstdio>
+
+namespace two
 {
-	BlockRadiance::BlockRadiance(GfxSystem& gfx_system, BlockFilter& filter, BlockCopy& copy)
-		: DrawBlock(gfx_system, type<BlockRadiance>())
+	BlockRadiance::BlockRadiance(GfxSystem& gfx, BlockFilter& filter, BlockCopy& copy)
+		: DrawBlock(gfx, type<BlockRadiance>())
 		, m_filter(filter)
 		, m_copy(copy)
-		, m_prefilter_program(gfx_system.programs().create("filter/prefilter_envmap"))
+		, m_prefilter_program(gfx.programs().create("filter/prefilter_envmap"))
 	{
-		static cstring options[2] = { "RADIANCE_ENVMAP", "RADIANCE_ARRAY" };
-		m_shader_block->m_options = { options, 2 };
+		m_options = { "RADIANCE_ENVMAP", "RADIANCE_CUBE" };
+
+		m_prefilter_program.register_block(filter);
+		m_prefilter_program.register_block(*this);
 	}
 
 	void BlockRadiance::init_block()
@@ -48,144 +53,147 @@ namespace mud
 
 	void BlockRadiance::begin_render(Render& render)
 	{
-		if(!render.m_environment || !render.m_environment->m_radiance.m_texture)
+		if(!render.m_env || !render.m_env->m_radiance.m_texture)
 			return;
 
-		if(!render.m_environment->m_radiance.m_preprocessed)
-			m_prefilter_queue.push_back(&render.m_environment->m_radiance);
+		if(!render.m_env->m_radiance.m_preprocessed && render.m_env->m_radiance.m_filter)
+			m_prefilter_queue.push_back(&render.m_env->m_radiance);
 
 #ifdef DEBUG_RADIANCE
-		if(bgfx::isValid(render.m_environment->m_radiance.m_roughness_array))
+		if(bgfx::isValid(render.m_env->m_radiance.m_filtered))
 		{
-			BlockCopy& copy = *m_gfx_system.m_pipeline->block<BlockCopy>();
-			copy.debug_show_texture(render, render.m_environment->m_radiance.m_roughness_array, vec4(0.f), false, false, false, 2);
+			m_gfx.m_copy->debug_show_texture(render, render.m_env->m_radiance.m_filtered, vec4(0.f), false, false, false, 2);
 		}
 #endif
 	}
 
-	void BlockRadiance::begin_pass(Render& render)
+	Texture* radiancemap(Radiance& radiance)
+	{
+		Texture* const filtered = radiance.m_filtered;
+		Texture* const reflection = radiance.m_texture;
+		if(filtered && filtered->valid())
+			return filtered;
+		else if(reflection && reflection->valid() && !radiance.m_filter)
+			return reflection;
+		else
+			return nullptr;
+	}
+
+	void BlockRadiance::options(Render& render, const DrawElement& element, ProgramVersion& program) const
+	{
+		const bool enable = !element.m_material->m_lit.m_no_envmap;
+		Texture* radiance = radiancemap(render.m_env->m_radiance);
+
+		if(enable && radiance)
+			program.set_option(m_index, RADIANCE_ENVMAP);
+		if(enable && radiance && radiance->m_is_cube)
+			program.set_option(m_index, RADIANCE_CUBE);
+	}
+
+	void BlockRadiance::submit(Render& render, const Pass& pass) const
 	{
 		UNUSED(render);
+		uint32_t stage = uint32_t(TextureSampler::Radiance);
+		bgfx::setViewUniform(pass.m_index, u_radiance.s_radiance, &stage);
 	}
 
-	void BlockRadiance::begin_draw_pass(Render& render)
+	void BlockRadiance::submit(Render& render, const DrawElement& element, const Pass& pass) const
 	{
-		UNUSED(render);
-	}
+		UNUSED(element);
+		bgfx::Encoder& encoder = *pass.m_encoder;
 
-	void BlockRadiance::options(Render& render, ShaderVersion& shader_version) const
-	{
-		bgfx::TextureHandle radiance = render.m_environment->m_radiance.m_roughness_array;
-
-		if(bgfx::isValid(radiance))
-			shader_version.set_option(m_index, RADIANCE_ENVMAP);
-	}
-
-	void BlockRadiance::submit(Render& render, const Pass& render_pass) const
-	{
-		bgfx::Encoder& encoder = *render_pass.m_encoder;
-		bgfx::TextureHandle radiance = render.m_environment->m_radiance.m_roughness_array;
-
-		if(bgfx::isValid(radiance))
-			encoder.setTexture(uint8_t(TextureSampler::Radiance), u_radiance.s_radiance_map, radiance);
+		if(Texture* radiance = radiancemap(render.m_env->m_radiance))
+			encoder.setTexture(uint8_t(TextureSampler::Radiance), *radiance);
 	}
 
 	void BlockRadiance::prefilter_radiance(Radiance& radiance)
 	{
-		if(m_prefiltered.find(radiance.m_texture->m_texture.idx) != m_prefiltered.end())
+		if(m_prefiltered.find(radiance.m_texture) != m_prefiltered.end())
 		{
-			radiance.m_roughness_array = { m_prefiltered[radiance.m_texture->m_texture.idx] };
+			radiance.m_filtered = m_prefiltered[radiance.m_texture];
 			radiance.m_preprocessed = true;
 			return;
 		}
 
-		if(!bgfx::isValid(radiance.m_texture->m_texture))
+		//if(!radiance.m_texture->valid() || radiance.m_texture->m_is_cube)
+		if(!radiance.m_texture->valid())// || radiance.m_texture->m_is_cube)
 			return;
 
 		constexpr int roughness_levels = 8;
 
-#define MUD_RADIANCE_MIPMAPS
+		const bool cube = radiance.m_texture->m_is_cube;
+		const uvec2 size = cube
+			? radiance.m_texture->m_size
+			: m_gfx.main_target().m_size;
 
-		if(bgfx::isValid(radiance.m_roughness_array))
-			bgfx::destroy(radiance.m_roughness_array);
+		const uint64_t flags = BGFX_TEXTURE_RT | TEXTURE_CLAMP;
 
-		RenderTarget& target = *m_gfx_system.context().m_target;
-		uint16_t width = uint16_t(target.m_size.x); //radiance.m_texture->m_width;
-		uint16_t height = uint16_t(target.m_size.y); //radiance.m_texture->m_height;
+		//bgfx::TextureFormat::Enum format = bgfx::TextureFormat::RGBA16F;
+		TextureFormat format = radiance.m_texture->m_format;
+		if(!bgfx::isTextureValid(1, cube, 1, bgfx::TextureFormat::Enum(format), flags))
+			format = TextureFormat::RGB10A2;
 
-#ifdef MUD_RADIANCE_MIPMAPS
-		uint16_t texture_layers = 1;
-		bool mips = true;
-#else
-		uint16_t texture_layers = roughness_levels;
-		bool mips = false;
-#endif
-
-		bgfx::TextureFormat::Enum format = bgfx::TextureFormat::RGBA16F;
-		if(!bgfx::isTextureValid(1, mips, texture_layers, format, BGFX_TEXTURE_RT | GFX_TEXTURE_CLAMP))
-			format = bgfx::TextureFormat::RGB10A2;
-
-		if(!bgfx::isTextureValid(1, mips, texture_layers, format, BGFX_TEXTURE_RT | GFX_TEXTURE_CLAMP))
+		if(!bgfx::isTextureValid(1, cube, 1, bgfx::TextureFormat::Enum(format), flags))
 		{
-			printf("WARNING: could not prefilter env map roughness levels\n");
+			printf("[warning] could not prefilter env map roughness levels\n");
 			return;
 		}
 
-		bool blit_support = false; // (bgfx::getCaps()->supported & BGFX_CAPS_TEXTURE_BLIT) != 0;
+		Texture& filtered = m_gfx.textures().create(radiance.m_texture->m_name + "_filtered");
+		filtered = { size, true, format, flags, cube };
 
-		if(blit_support)
-			radiance.m_roughness_array = bgfx::createTexture2D(width, height, mips, texture_layers, format, BGFX_TEXTURE_BLIT_DST | GFX_TEXTURE_CLAMP);
-		else
-			radiance.m_roughness_array = bgfx::createTexture2D(width, height, mips, texture_layers, format, BGFX_TEXTURE_RT | GFX_TEXTURE_CLAMP);
+		//const uint8_t view_id = Render::s_preprocess_pass_id; //render.preprocess_pass();
 
-		bgfx::TextureHandle radiance_array = radiance.m_roughness_array;
-
-		uint8_t view_id = Render::s_preprocess_pass_id; //render.preprocess_pass();
-
-		auto blit_to_array = [&](bgfx::TextureHandle texture, uvec2 size, int level)
+		auto blit_level = [&](Texture& source, const uvec2& size, int level, int face = 0)
 		{
-			if(blit_support)
-			{
-				bgfx::blit(view_id + 1, radiance_array, 0, 0, 0, uint16_t(level), texture, 0, 0, 0, 0, uint16_t(size.x), uint16_t(size.y), 1);
-				bgfx::frame();
-			}
-			else
-			{
-				bgfx::Attachment attachment = { radiance_array, uint16_t(mips ? level : 0), uint16_t(mips ? 0 : level), BGFX_RESOLVE_NONE };
-				FrameBuffer render_target = { size, bgfx::createFrameBuffer(1, &attachment, false) };
-				m_copy.submit_quad(render_target, view_id + 1, texture);
-				bgfx::frame();
-			}
+			const uvec2 level_size = uvec2(size.x >> level, size.y >> level);
+			bgfx::Attachment attach = { bgfx::Access::Write, filtered, uint16_t(level), uint16_t(face), BGFX_RESOLVE_NONE };
+			FrameBuffer render_target = { level_size, filtered, { attach } }; // @todo fix ownership
+			m_copy.submit(Pass(), render_target, source, RenderQuad());
+			bgfx::frame();
 		};
 
-		blit_to_array(radiance.m_texture->m_texture, { width, height }, 0);
+		const uint16_t num_faces = cube ? 6 : 1;
 
-		for(uint16_t i = 1; i < roughness_levels; i++)
+		for(uint16_t i = 0; i < roughness_levels; i++)
 		{
-			uvec2 size = mips ? uvec2(width >> i, height >> i) : uvec2(width, height);
-			FrameBuffer copy_target = { size, format, GFX_TEXTURE_POINT };
+			const uvec2 level_size = uvec2(size.x >> i, size.y >> i);
+			FrameBuffer target = { level_size, format, TEXTURE_POINT };
 
-			bgfx::setTexture(uint8_t(TextureSampler::Source0), m_filter.u_uniform.s_source_0, radiance_array, GFX_TEXTURE_POINT);
+			for(uint16_t face = 0; face < num_faces; ++face)
+			{
+				ProgramVersion program = { m_prefilter_program };
 
-			int source_level = i - 1;
-			bgfx::setUniform(m_filter.u_uniform.u_source_0_level, &source_level);
+				const int source_level = i == 0 ? 0 : i - 1;
+				Texture& source = i == 0 ? *radiance.m_texture : filtered;
+				m_filter.source0p(source, program, source_level, TEXTURE_POINT);
 
-			float roughness = i / float(roughness_levels - 1);
-#ifdef MUD_PLATFORM_EMSCRIPTEN
-			float num_samples = 64;
+				float roughness = i / float(roughness_levels - 1);
+#ifdef TWO_PLATFORM_EMSCRIPTEN
+				constexpr uint num_samples = 64;
 #else
-			float num_samples = 512;
+				constexpr uint num_samples = 512;
 #endif
-			vec4 prefilter_params = { roughness, float(num_samples), 0.f, 0.f };
-			bgfx::setUniform(u_prefilter.u_prefilter_envmap_params, &prefilter_params);
+				const vec4 prefilter_p0 = { roughness, float(num_samples), 0.f, 0.f };
+				bgfx::setUniform(u_prefilter.u_prefilter_envmap_p0, &prefilter_p0);
 
-			bgfx::ProgramHandle program = m_prefilter_program.default_version();
-			m_filter.submit_quad(copy_target, view_id, program, 0U, true);
+				if(cube)
+				{
+					constexpr vec3 up[6] = { y3, y3, -z3, z3, y3, y3 };
+					constexpr vec3 dir[6] = { x3, -x3, y3, -y3, z3, -z3 };
 
-			blit_to_array(bgfx::getTexture(copy_target.m_fbo), size, i);
+					const mat4 cubemat = bxlookat(vec3(0.f), vec3(0.f) + dir[face], up[face]);
+					bgfx::setUniform(u_prefilter.u_prefilter_cube, &cubemat);
+				}
+
+				m_filter.submit(Pass(), target, program, RenderQuad(), 0U, true);
+
+				blit_level(target.m_tex, size, i, face);
+			}
 		}
 
-		m_prefiltered[radiance.m_texture->m_texture.idx] = radiance.m_roughness_array.idx;
+		m_prefiltered[radiance.m_texture] = &filtered;
+		radiance.m_filtered = &filtered;
 		radiance.m_preprocessed = true;
 	}
 }

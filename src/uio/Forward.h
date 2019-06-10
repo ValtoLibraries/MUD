@@ -1,5 +1,3 @@
-
-
 #pragma once
 
 #include <infra/Config.h>
@@ -15,48 +13,12 @@
 #include <ctx/Forward.h>
 #include <ui/Forward.h>
 
-#ifndef MUD_UIO_EXPORT
-#define MUD_UIO_EXPORT MUD_IMPORT
+#ifndef TWO_UIO_EXPORT
+#define TWO_UIO_EXPORT TWO_IMPORT
 #endif
 
-
-    
-    
-
-namespace std {
-
-    
-    
-}
-
-namespace mud {
-namespace ui {
-
-    
-    
-}
-}
-
-namespace glm {
-
-    
-    
-}
-
-namespace bgfx {
-
-    
-    
-}
-
-namespace json11 {
-
-    
-    
-}
-
-namespace mud {
-
+namespace two
+{
     enum class EditNestMode : unsigned int;
     enum class EditorHint : unsigned int;
     
@@ -70,31 +32,9 @@ namespace mud {
     class DispatchInput;
 }
 
-namespace mud {
-namespace detail {
-
-    
-    
+#ifdef TWO_META_GENERATOR
+namespace stl
+{
+	export_ extern template class refl_ seque_ vector<two::Var>;
 }
-}
-
-namespace mud {
-namespace gfx {
-
-    
-    
-}
-}
-
-namespace bimg {
-
-    
-    
-}
-
-namespace bx {
-
-    
-    
-}
-
+#endif

@@ -4,17 +4,19 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.geom;
+#ifdef TWO_MODULES
+module two.geom;
 #else
 #include <math/Axis.h>
 #include <math/Math.h>
+#include <math/Grid.hpp>
+#include <math/Vec.hpp>
 #include <math/Random.h>
 #include <geom/Poisson.h>
 #include <geom/Shapes.h>
 #endif
 
-namespace mud
+namespace two
 {
 	Poisson::Poisson(vec2 size, float maxRadius)
 		: Distribution()
@@ -27,23 +29,23 @@ namespace mud
 	void Poisson::pushPoint(const Point& point)
 	{
 		size_t index = gridIndex(point);
-		m_points.emplace_back(point);
-		m_unprocessed.emplace_back(point);
-		m_grid[index].emplace_back(point);
+		m_points.push_back(point);
+		m_unprocessed.push_back(point);
+		m_grid[index].push_back(point);
 	}
 
 	Distribution::Point Poisson::randomPointAround(const Point& point, float radius)
 	{
 		float distance = point.radius + radius;
 
-		float rr = m_overlap ? random_scalar(point.radius, distance)
-							 : random_scalar(distance, distance * 2.f);
-		float rt = random_scalar(0.f, float(2.f * c_pi));
+		float rr = m_overlap ? randf(point.radius, distance)
+							 : randf(distance, distance * 2.f);
+		float rt = randf(0.f, c_2pi);
 
 		float x = rr * sin(rt) + point.position.x;
 		float y = rr * cos(rt) + point.position.y;
 
-		return Point(vec3(x, y, 0.f), radius);
+		return { vec3(x, y, 0.f), radius };
 	}
 
 	bool Poisson::checkSpace(const Point& point)
@@ -53,7 +55,7 @@ namespace mud
 		auto neighbours = m_grid.neighbours(index, 2);
 		neighbours.push_back(&m_grid.at(index));
 
-		for(std::vector<Point>* cell : neighbours)
+		for(vector<Point>* cell : neighbours)
 			for(Point& other : *cell)
 			{
 				float dist = m_overlap ? point.radius : point.radius + other.radius;
@@ -81,7 +83,7 @@ namespace mud
 		if(m_points.empty())
 		{
 			if(!m_start_from_center)
-				pushPoint({ vec3(random_scalar(0.f, m_size.x), random_scalar(0.f, m_size.y), 0.f), radius });
+				pushPoint({ vec3(randf(0.f, m_size.x), randf(0.f, m_size.y), 0.f), radius });
 			else
 				pushPoint({ vec3(0.5f, 0.5f, 0.f), radius });
 			return true;
@@ -89,7 +91,7 @@ namespace mud
 
 		while(!m_unprocessed.empty())
 		{
-			size_t index = random_integer(size_t(0), m_unprocessed.size() - 1);
+			uint index = randi(0U, uint(m_unprocessed.size()) - 1);
 			Point& refpoint = m_unprocessed[index];
 
 			for(; refpoint.visits < m_k; ++refpoint.visits)
@@ -122,30 +124,30 @@ namespace mud
 			continue;
 	}
 
-	std::vector<vec3> Poisson::distribute(float radius)
+	vector<vec3> Poisson::distribute(float radius)
 	{
 		while(insertPoint(radius))
 			continue;
 
-		std::vector<vec3> result;
+		vector<vec3> result;
 		for(Point& point : m_points)
 		{
 			vec3 position = { point.position.x - m_size.x / 2.f, 0.f, point.position.y - m_size.y / 2.f };
-			result.emplace_back(position);
+			result.push_back(position);
 		}
 		return result;
 	}
 
-	std::vector<Circle> Poisson::distribute_circles(float radius)
+	vector<Circle> Poisson::distribute_circles(float radius)
 	{
-		std::vector<vec3> distribution = this->distribute(radius);
-		std::vector<Circle> result;
+		vector<vec3> distribution = this->distribute(radius);
+		vector<Circle> result;
 		for(vec3& point : distribution)
-			result.emplace_back(point, radius, Axis::Y);
+			result.push_back({ point, radius, Axis::Y });
 		return result;
 	}
 
-	std::vector<vec3> distribute_poisson(vec2 size, float radius)
+	vector<vec3> distribute_poisson(vec2 size, float radius)
 	{
 		Poisson distribution = { size, radius };
 		return distribution.distribute(radius);

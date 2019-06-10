@@ -3,14 +3,16 @@
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #include <infra/Cpp20.h>
+#include <climits>
 
-#ifdef MUD_MODULES
-module mud.noise;
+#ifdef TWO_MODULES
+module two.noise;
 #else
+#include <math/Random.h>
 #include <noise/Noise.h>
 #endif
 
-namespace mud
+namespace two
 {
 	Noise::Noise(int seed)
 		: FastNoise(seed)
@@ -18,7 +20,7 @@ namespace mud
 	
 	float noise_2d(float x, float y, Noise::NoiseType noise_type, float frequency, Noise::Interp interp)
 	{
-		static Noise n = { random_integer(INT_MIN, INT_MAX) };
+		static Noise n = { randi(INT_MIN, INT_MAX) };
 		n.SetNoiseType(noise_type);
 		n.SetFrequency(frequency);
 		n.SetInterp(interp);
@@ -27,7 +29,7 @@ namespace mud
 
 	float noise_3d(float x, float y, float z, Noise::NoiseType noise_type, float frequency, Noise::Interp interp)
 	{
-		static Noise n = { random_integer(INT_MIN, INT_MAX) };
+		static Noise n = { randi(INT_MIN, INT_MAX) };
 		n.SetNoiseType(noise_type);
 		n.SetFrequency(frequency);
 		n.SetInterp(interp);
@@ -37,7 +39,7 @@ namespace mud
 	float noise_fract_2d(float x, float y, Noise::NoiseType noise_type, float frequency, Noise::Interp interp, 
 									  Noise::FractalType fractal_type, int octaves, float lacunarity, float gain)
 	{
-		static Noise n = { random_integer(INT_MIN, INT_MAX) };
+		static Noise n = { randi(INT_MIN, INT_MAX) };
 		n.SetNoiseType(noise_type);
 		n.SetFrequency(frequency);
 		n.SetInterp(interp);
@@ -51,7 +53,7 @@ namespace mud
 	float noise_fract_3d(float x, float y, float z, Noise::NoiseType noise_type, float frequency, Noise::Interp interp,
 									  Noise::FractalType fractal_type, int octaves, float lacunarity, float gain)
 	{
-		static Noise n = { random_integer(INT_MIN, INT_MAX) };
+		static Noise n = { randi(INT_MIN, INT_MAX) };
 		n.SetNoiseType(noise_type);
 		n.SetFrequency(frequency);
 		n.SetInterp(interp);
@@ -62,7 +64,7 @@ namespace mud
 		return n.GetNoise(x, y, z);
 	}
 
-	void noise_field_2d(array_3d<float>& output_values, Noise::NoiseType noise_type, float frequency, Noise::Interp interp)
+	void noise_field_2d(vector3d<float>& output_values, Noise::NoiseType noise_type, float frequency, Noise::Interp interp)
 	{
 		for(size_t x = 0; x < output_values.m_x; ++x)
 			for(size_t y = 0; y < output_values.m_y; ++y)
@@ -71,7 +73,7 @@ namespace mud
 				}
 	}
 
-	void noise_field_3d(array_3d<float>& output_values, Noise::NoiseType noise_type, float frequency, Noise::Interp interp)
+	void noise_field_3d(vector3d<float>& output_values, Noise::NoiseType noise_type, float frequency, Noise::Interp interp)
 	{
 		for(size_t x = 0; x < output_values.m_x; ++x)
 			for(size_t y = 0; y < output_values.m_y; ++y)

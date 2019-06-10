@@ -4,25 +4,53 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
+#ifdef TWO_MODULES
 #include <cstdlib>
-module mud.math;
+module two.math;
 #else
-//#include <refl/Convert.h>
+#include <stl/span.h>
 #include <math/Types.h>
-#include <math/VecOps.h>
+#include <math/Vec.hpp>
 #include <math/Math.h>
 #include <math/Grid.h>
 #include <math/Axes.h>
+#include <math/Range.h>
 #endif
 
-namespace mud
+namespace two
 {
+	template struct Range<vec3>;
+    template struct Range<quat>;
+    template struct Range<float>;
+    template struct Range<uint32_t>;
+    template struct Range<Colour>;
+
+	template struct v2<float>;
+	template struct v3<float>;
+	template struct v4<float>;
+
+	template struct v2<int>;
+	template struct v3<int>;
+	template struct v4<int>;
+
+	template struct v2<uint>;
+	template struct v3<uint>;
+	template struct v4<uint>;
+
+	template struct v2<bool>;
+	template struct v3<bool>;
+	template struct v4<bool>;
+
 #ifndef M_PI
 	const float c_pi = 3.14159265358979323846f;
 #else
 	const float c_pi = M_PI;
 #endif
+	const float c_invpi = 1.f / c_pi;
+	const float c_2pi = c_pi * 2.f;
+	const float c_tau = c_pi * 2.f;
+	const float c_pi2 = c_pi / 2.f;
+	const float c_pi4 = c_pi / 4.f;
 
 	void register_math_conversions()
 	{
@@ -32,31 +60,6 @@ namespace mud
 		TypeConverter::me().default_converter<vec3, uvec3>();
 #endif
 	}
-
-	const vec3 X3 = { 1.f, 0.f, 0.f };
-	const vec3 Y3 = { 0.f, 1.f, 0.f };
-	const vec3 Z3 = { 0.f, 0.f, 1.f };
-
-	const vec3 Zero3 = { 0.f, 0.f, 0.f };
-	const vec3 Unit3 = { 1.f, 1.f, 1.f };
-
-	const Side c_sides[6] = { Side::Right, Side::Left, Side::Up, Side::Down, Side::Back, Side::Front };
-
-	const vec3 c_axes[3]			 = {  X3,  Y3,  Z3 };
-	const vec3 c_tangents[6]		 = {  Y3,  Z3,  Y3 };
-	const vec3 c_binormals[6]		 = {  Z3,  X3,  X3 };
-
-	const vec3 c_dirs[6]			 = {  X3, -X3,  Y3, -Y3,  Z3, -Z3 };
-	const vec3 c_dirs_tangents[6]	 = {  Y3, -Z3, -Z3,  X3,  Y3,  X3 };
-	const vec3 c_dirs_normals[6]	 = { -Z3,  Y3,  X3, -Z3,  X3,  Y3 };
-
-	const quat ZeroQuat = { 1.f, 0.f, 0.f, 0.f };
-
-	const vec2 Zero2 = { 0.f, 0.f };
-	const vec2 Unit2 = { 1.f, 1.f };
-
-	const vec4 Zero4 = { 0.f, 0.f, 0.f, 0.f };
-	const vec4 Rect4 = { 0.f, 0.f, 1.f, 1.f };
 
 	quat average_quat(quat& cumulative, const quat& rotation, const quat& first, uint32_t count)
 	{
@@ -68,10 +71,10 @@ namespace mud
 		return normalize(cumulative * factor);
 	}
 
-	Transform average_transforms(array<Transform*> transforms)
+	Transform average_transforms(span<Transform*> transforms)
 	{
 		Transform average;
-		average.m_scale = Zero3;
+		average.m_scale = vec3(0.f);
 
 		quat cumulative = { 0.f, 0.f, 0.f, 0.f };
 
@@ -88,11 +91,6 @@ namespace mud
 		return average;
 	}
 
-	using std::sin;
-	using std::cos;
-
-	using std::abs;
-
 	float nsinf(float a) { return (sinf(a) + 1.f) / 2.f; } // @kludge can't be inline because we identify reflected functions through their pointer 
 	float ncosf(float a) { return (cosf(a) + 1.f) / 2.f; }
 
@@ -101,20 +99,21 @@ namespace mud
 
 	quat look_dir(const vec3& direction, const vec3& forward)
 	{
-		float d = dot(forward, direction);
+		const vec3 dir = normalize(direction);
+		const float d = dot(forward, dir);
 
 		if(abs(d - (-1.0f)) < 0.000001f)
-			return axis_angle(Y3, c_pi);
+			return axis_angle(y3, c_pi);
 		if(abs(d - (1.0f)) < 0.000001f)
 			return ZeroQuat;
 
-		vec3 axis = normalize(cross(-Z3, direction));
+		const vec3 axis = normalize(cross(forward, dir));
 		return axis_angle(axis, acos(d));
 	}
 
 	quat look_at(const vec3& source, const vec3& dest, const vec3& forward)
 	{
-		vec3 direction = normalize(dest - source);
+		const vec3 direction = normalize(dest - source);
 		return look_dir(direction, forward);
 	}
 
@@ -163,7 +162,7 @@ namespace mud
 		float closest_dot = 0.f;
 		for(Axis a : { Axis::X, Axis::Y, Axis::Z })
 		{
-			float product = std::abs(dot(direction, to_vec3(a)));
+			float product = abs(dot(direction, to_vec3(a)));
 			if(a == Axis::X || product > closest_dot)
 			{
 				axis = a;
@@ -174,35 +173,30 @@ namespace mud
 		return axis;
 	}
 
-	float float_shortest_angle(float angle1, float angle2)
+	float shortest_angle(float a, float b)
 	{
-		return min((2.f * c_pi) - std::abs(angle1 - angle2), std::abs(angle1 - angle2));
+		return min(c_2pi - abs(a - b), abs(a - b));
 	}
 
-	float trigo_angle(const vec3& vec1, const vec3& vec2)
+	float trigo_angle(const vec3& a, const vec3& b)
 	{
-		float angle = shortest_angle(vec1, vec2);
-		
-		if(angle < 0)
-			angle += 2 * c_pi;
-
+		float angle = shortest_angle(a, b);
+		if(angle < 0) angle += c_2pi;
 		return angle;
 	}
 
-#ifdef MUD_NO_GLM
-	float shortest_angle(const vec3& vec1, const vec3& vec2)
+	float shortest_angle(const vec3& a, const vec3& b)
 	{
-		return oriented_angle(vec1, vec2, Y3);
+		return oriented_angle(a, b, y3);
 	}
-#else
+
+#if 0
 	float shortest_angle(const vec3& vec1, const vec3& vec2)
 	{
 		float a = angle(vec1, vec2);
+		if(a == 0.f) return a;
 
-		if(a == 0.f)
-			return a;
-
-		vec3 clockwise = rotate(vec1, a, Y3);
+		vec3 clockwise = rotate(vec1, a, y3);
 		flatten(clockwise);
 
 		if(angle(vec2, clockwise) > 0.001f)
@@ -267,8 +261,8 @@ namespace mud
 	{
 		return
 		{
-			rect_w(rect), 0.f, 0.f, 0.f,
-			0.f, rect_h(rect), 0.f, 0.f,
+			rect.width, 0.f, 0.f, 0.f,
+			0.f, rect.height, 0.f, 0.f,
 			0.f, 0.f, 1.f, 0.f,
 			rect.x, rect.y, 0.f, 1.f
 		};
@@ -279,16 +273,16 @@ namespace mud
 		mat4 result;
 		for(mat4::length_type i = 0; i < 4; ++i)
 			for(mat4::length_type j = 0; j < 4; ++j)
-				result[i][j] = std::abs(mat[i][j]);
+				result[i][j] = abs(mat[i][j]);
 		return result;
 	}
 
-	void grid(const uvec3& size, std::vector<uvec3>& output_coords)
+	void grid(const uvec3& size, vector<uvec3>& output_coords)
 	{
-		for(size_t z = 0; z < size.z; ++z)
-			for(size_t y = 0; y < size.y; ++y)
-				for(size_t x = 0; x < size.x; ++x)
-					output_coords.emplace_back(x, y, z);
+		for(uint z = 0; z < size.z; ++z)
+			for(uint y = 0; y < size.y; ++y)
+				for(uint x = 0; x < size.x; ++x)
+					output_coords.push_back({ x, y, z });
 	}
 
 	vec3 grid_center(const uvec3& coord, float cell_size)
@@ -301,7 +295,7 @@ namespace mud
 		return vec3(coord) * cell_size + cell_size * 0.5f;
 	}
 
-	void index_list(uint32_t size, std::vector<uint32_t>& output_indices)
+	void index_list(uint32_t size, vector<uint32_t>& output_indices)
 	{
 		for(uint32_t i = 0; i < size; ++i)
 			output_indices.push_back(i);

@@ -6,8 +6,8 @@
 
 #include <bgfx/bgfx.h>
 
-#ifdef MUD_MODULES
-module mud.gfx.pbr;
+#ifdef TWO_MODULES
+module two.gfx.pbr;
 #else
 #include <gfx/RenderTarget.h>
 #include <gfx/Asset.h>
@@ -15,89 +15,57 @@ module mud.gfx.pbr;
 #include <gfx-pbr/Types.h>
 #include <gfx-pbr/Filters/DofBlur.h>
 #include <gfx-pbr/Filters/Tonemap.h>
+#include <gfx-pbr/Gpu/DofBlur.hpp>
 #endif
 
-namespace mud
+namespace two
 {
-	BlockDofBlur::BlockDofBlur(GfxSystem& gfx_system, BlockFilter& filter)
-		: GfxBlock(gfx_system, *this)
+	GpuState<DofBlur> GpuState<DofBlur>::me;
+
+	BlockDofBlur::BlockDofBlur(GfxSystem& gfx, BlockFilter& filter)
+		: GfxBlock(gfx, *this)
 		, m_filter(filter)
-		, m_program(gfx_system.programs().create("filter/dof_blur"))
+		, m_program(gfx.programs().create("filter/dof_blur"))
 	{
-		static cstring options[1] = { "DOF_FIRST_PASS" };
-		m_shader_block->m_options = { options, 1 };
+		m_options = { "DOF_FIRST_PASS" };
 		m_program.register_block(*this);
 	}
 
 	void BlockDofBlur::init_block()
 	{
-		u_uniform.createUniforms();
+		GpuState<DofBlur>::me.init();
 	}
 
-	void BlockDofBlur::begin_render(Render& render)
+	void pass_dofblur(GfxSystem& gfx, Render& render, const DofBlur& blur)
 	{
-		UNUSED(render);
-	}
-	
-	void BlockDofBlur::begin_pass(Render& render)
-	{
-		UNUSED(render);
-	}
-	
-	void BlockDofBlur::submit_pass(Render& render)
-	{
-		if(render.m_filters && render.m_filters->m_dof_blur.m_enabled)
-			this->render(render, render.m_filters->m_dof_blur);
-	}
+		static BlockDofBlur& block = *gfx.m_renderer.block<BlockDofBlur>();
 
-	void BlockDofBlur::render(Render& render, const DofBlur& blur)
-	{
-		submit_blur_pass(render, blur, true);
-		submit_blur_pass(render, blur, false);//, BGFX_STATE_BLEND_ALPHA);
-	}
-
-	void BlockDofBlur::submit_blur_pass(Render& render, const DofBlur& blur, bool first_pass, uint64_t bgfx_state)
-	{
-		ShaderVersion shader_version = { &m_program };
-		shader_version.set_option(m_index, DOF_FIRST_PASS, first_pass);
-
-		vec4 dof_near_params =
+		auto blur_pass = [](GfxSystem& gfx, Render& render, RenderTarget& target, const DofBlur& blur, bool first_pass, uint64_t bgfx_state = 0)
 		{
-			blur.m_near_distance,
-			blur.m_near_distance - blur.m_near_transition,
-			blur.m_near_radius,
-			1.f / blur.m_near_radius,
+			ProgramVersion program = { block.m_program };
+			program.set_option(block.m_index, DOF_FIRST_PASS, first_pass);
+
+			GpuState<DofBlur>::me.upload(blur);
+
+			if(first_pass)
+			{
+				gfx.m_filter->source0(target.m_diffuse, TEXTURE_CLAMP | TEXTURE_POINT);
+			}
+			else
+			{
+				gfx.m_filter->source0(target.m_ping_pong.last(), TEXTURE_CLAMP | TEXTURE_POINT);
+				gfx.m_filter->source1(target.m_diffuse, TEXTURE_CLAMP | TEXTURE_POINT);
+			}
+
+			gfx.m_filter->sourcedepth(target.m_depth);
+
+			FrameBuffer& fbo = first_pass ? target.m_ping_pong.swap() : target.m_post.swap();
+
+			Pass pass = render.composite_pass("dof blur");
+			gfx.m_filter->quad(pass, fbo, program, bgfx_state);
 		};
 
-		vec4 dof_far_params =
-		{
-			blur.m_far_distance,
-			blur.m_far_distance + blur.m_far_transition,
-			blur.m_far_radius,
-			0.f
-		};
-
-		vec4 dof_params = { blur.m_max_coc_radius, 0.f, 0.f, 0.f };
-
-		bgfx::setUniform(u_uniform.u_dof_near_params, &dof_near_params);
-		bgfx::setUniform(u_uniform.u_dof_far_params, &dof_far_params);
-		bgfx::setUniform(u_uniform.u_dof_params, &dof_params);
-
-		if(first_pass)
-		{
-			bgfx::setTexture(uint8_t(TextureSampler::Source0), m_filter.u_uniform.s_source_0, render.m_target->m_diffuse, GFX_TEXTURE_CLAMP | GFX_TEXTURE_POINT);
-		}
-		else
-		{
-			bgfx::setTexture(uint8_t(TextureSampler::Source0), m_filter.u_uniform.s_source_0, render.m_target->m_ping_pong.last(), GFX_TEXTURE_CLAMP | GFX_TEXTURE_POINT);
-			bgfx::setTexture(uint8_t(TextureSampler::Source1), m_filter.u_uniform.s_source_1, render.m_target->m_diffuse, GFX_TEXTURE_CLAMP | GFX_TEXTURE_POINT);
-		}
-
-		bgfx::setTexture(uint8_t(TextureSampler::SourceDepth), m_filter.u_uniform.s_source_depth, render.m_target->m_depth);
-
-		bgfx::FrameBufferHandle target = first_pass ? render.m_target->m_ping_pong.swap() : render.m_target->m_post_process.swap();
-
-		m_filter.submit_quad(*render.m_target, render.composite_pass(),
-							 target, m_program.version(shader_version), render.m_viewport.m_rect, bgfx_state);
+		blur_pass(gfx, render, *render.m_target, blur, true);
+		blur_pass(gfx, render, *render.m_target, blur, false);//, BGFX_STATE_BLEND_ALPHA);
 	}
 }

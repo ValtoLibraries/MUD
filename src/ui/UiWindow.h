@@ -4,33 +4,29 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <infra/NonCopy.h>
-#include <infra/Strung.h>
-#include <type/Unique.h>
+#ifndef TWO_MODULES
+#include <stl/string.h>
+#include <stl/vector.h>
+#include <stl/map.h>
+#include <stl/memory.h>
 #include <math/Timer.h>
 #include <math/ImageAtlas.h>
 #endif
 #include <ui/Forward.h>
-#include <ui/Render/Renderer.h>
+#include <ui/UiRenderer.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#include <map>
-#endif
-
-namespace mud
+namespace two
 {
-	export_ struct refl_ MUD_UI_EXPORT Clipboard
+	export_ struct refl_ TWO_UI_EXPORT Clipboard
 	{
 		Clipboard() {}
 		Clipboard(const string& text, bool line_mode) : m_text(text), m_line_mode(line_mode) {}
 		attr_ string m_text = "";
 		attr_ bool m_line_mode = false;
-		attr_ std::vector<string> m_pasted = {};
+		attr_ vector<string> m_pasted = {};
 	};
 
-	export_ class refl_ MUD_UI_EXPORT UiWindow : public NonCopy
+	export_ class refl_ TWO_UI_EXPORT UiWindow
 	{
 	public:
 		UiWindow(Context& context, Vg& vg, User* user = nullptr);
@@ -38,15 +34,14 @@ namespace mud
 
 		void init();
 		bool input_frame();
-		void render_frame();
+		void render_frame(uint16_t view);
 		void shutdown();
 
-		void init_styles();
-		void reset_styles();
+		meth_ void reset_styles();
 
-		void resize(uint16_t width, uint16_t height);
+		void resize(const uvec2& size, const uvec2& fb_size);
 
-		Image& create_image(cstring image, uvec2 size, uint8_t* data, bool filtering = true);
+		Image& create_image(cstring image, const uvec2& size, span<uint8_t> data, bool filtering = true);
 		void remove_image(Image& image);
 		Image* find_image(cstring name);
 
@@ -55,27 +50,24 @@ namespace mud
 		void load_resources();
 
 	public:
-		const string m_resource_path;
+		attr_ const string m_resource_path;
 
-		Context& m_context;
-		Vg& m_vg;
+		attr_ Context& m_context;
+		attr_ Vg& m_vg;
 
 		UiRenderer m_renderer;
 
-		std::vector<object_ptr<Image>> m_images;
+		vector<unique<Image>> m_images;
 		ImageAtlas m_atlas;
 
-		float m_width;
-		float m_height;
+		attr_ uvec2 m_size;
+		attr_ Colour m_colour = Colour(0.f);
+		attr_ bool m_shutdown = false;
 
 		Clipboard m_clipboard;
 
-		object_ptr<Ui> m_root_sheet;
-
-		bool m_shutdown = false;
+		unique<Ui> m_ui;
 
 		User* m_user = nullptr;
-
-		static std::map<string, Style*> s_styles;
 	};
 }

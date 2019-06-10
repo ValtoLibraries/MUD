@@ -4,16 +4,16 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <ui/Structs/RootSheet.h>
+#ifndef TWO_MODULES
+#include <ui/UiRoot.h>
 #endif
 #include <gfx-ui/Forward.h>
 
-namespace mud
+namespace two
 {
 	class SpaceQuad;
 
-	export_ class refl_ MUD_GFX_UI_EXPORT SpaceSheet : public Ui
+	export_ class refl_ TWO_GFX_UI_EXPORT SpaceSheet : public Ui
 	{
 	public:
 		SpaceSheet(Widget& parent, SpaceViewport& viewport);
@@ -31,10 +31,9 @@ namespace mud
 		SpaceViewport& m_viewer;
 		//GfxDynamicTexture& m_texture;
 
-		float m_width;
-		float m_height;
+		vec2 m_size;
 
-		unique_ptr<SpaceQuad> m_quad;
+		unique<SpaceQuad> m_quad;
 
 		float m_size_ratio;
 	};

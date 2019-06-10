@@ -4,50 +4,54 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <infra/Array.h>
-#include <jobs/Job.h>
+#ifndef TWO_MODULES
+#include <stl/vector.h>
+#include <stl/string.h>
+#include <stl/function.h>
+#include <stl/span.h>
 #include <type/Unique.h>
 #endif
+#include <geom/Primitive.h>
+#include <geom/Symbol.h>
 #include <gfx/Forward.h>
-#ifndef MUD_BGFX_EXPORT
-#define MUD_BGFX_EXPORT MUD_GFX_EXPORT
+#include <gfx/Renderer.h>
+#ifndef TWO_BGFX_EXPORT
+#define TWO_BGFX_EXPORT TWO_GFX_EXPORT
 #endif
 #include <bgfx/BgfxSystem.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#include <functional>
-#endif
-
-#include <bgfx/bgfx.h>
-
-#ifndef MUD_MODULES
 namespace bx
 {
 	struct FileReaderI;
 	struct FileWriterI;
 }
-#endif
 
-namespace mud
+namespace bgfx
 {
-	export_ class refl_ MUD_GFX_EXPORT GfxContext : public BgfxContext
+	struct Encoder;
+}
+
+namespace two
+{
+	class Vg;
+
+	export_ class refl_ TWO_GFX_EXPORT GfxWindow : public BgfxContext
 	{
 	public:
-		GfxContext(GfxSystem& gfx_system, cstring name, int width, int height, bool fullScreen, bool init);
-		~GfxContext();
+		GfxWindow(GfxSystem& gfx, const string& name, const uvec2& size, bool fullscreen, bool main = true);
+		~GfxWindow();
 
-		virtual void reset(uint16_t width, uint16_t height) override;
+		virtual void reset_fb(const uvec2& size) override;
 
-		GfxSystem& m_gfx_system;
+		GfxSystem& m_gfx;
+		Vg* m_vg = nullptr;
 
-		object_ptr<RenderTarget> m_target;
+		object<RenderTarget> m_target;
 
 		uint16_t m_vg_handle = UINT16_MAX;
-		std::function<uint16_t()> m_reset_vg;
+		using ResetVg = uint16_t(*)(GfxWindow&, Vg&); ResetVg m_reset_vg;
 
-		std::vector<Viewport*> m_viewports;
+		vector<Viewport*> m_viewports;
 	};
 
 	template <class T_Asset>
@@ -59,17 +63,22 @@ namespace mud
 	export_ struct LocatedFile
 	{
 		LocatedFile() {}
-		LocatedFile(cstring location, cstring name, cstring extension, size_t extension_index) : m_location(location), m_name(name), m_extension(extension), m_extension_index(extension_index) {}
-		cstring m_location = nullptr;
-		cstring m_name = nullptr;
-		cstring m_extension = nullptr;
+		LocatedFile(string location, string name, string extension, size_t extension_index)
+			: m_located(true), m_location(location), m_name(name), m_extension(extension), m_extension_index(extension_index)
+		{}
+		bool m_located = false;
+		string m_location;
+		string m_name;
+		string m_extension;
 		size_t m_extension_index = 0;
+		string path(bool ext) { return m_location + "/" + m_name + (ext ? m_extension : ""); }
+		explicit operator bool() { return m_located; }
 	};
 
-	export_ class refl_ MUD_GFX_EXPORT GfxSystem : public BgfxSystem
+	export_ class refl_ TWO_GFX_EXPORT GfxSystem : public BgfxSystem
 	{
 	public:
-		GfxSystem(array<cstring> resource_paths);
+		constr_ GfxSystem(const string& resource_path);
 		~GfxSystem();
 
 		JobSystem* m_job_system = nullptr;
@@ -77,29 +86,44 @@ namespace mud
 		bgfx::Encoder* m_encoders[8] = {};
 		size_t m_num_encoders = 0;
 
-		virtual void begin_frame() final;
-		virtual bool next_frame() final;
+		attr_ Renderer m_renderer;
 
-		virtual object_ptr<Context> create_context(cstring name, int width, int height, bool full_screen) final;
+		attr_ BlockCopy* m_copy = nullptr;
+		attr_ BlockFilter* m_filter = nullptr;
 
-		void init(GfxContext& context);
-		void init_pipeline();
+		attr_ bool m_flip_y = false;
 
-		meth_ void add_resource_path(cstring path);
+		attr_ RenderFrame m_render_frame;
 
-		void set_renderer(Shading shading, Renderer& renderer);
-		Renderer& renderer(Shading shading);
+		meth_ RenderTarget& main_target();
 
-		void render(Renderer& renderer, GfxContext& context, Viewport& viewport, RenderFrame& frame);
+		virtual bool begin_frame() final;
+		virtual void end_frame() final;
+
+		void render_contexts();
+
+		void init(GfxWindow& context);
+
+		using PipelineDecl = void(*)(GfxSystem& gfx, Renderer& pipeline, bool deferred);
+		void init_pipeline(PipelineDecl pipeline);
+
+		meth_ void default_pipeline();
+
+		meth_ void add_resource_path(const string& path, bool relative = true);
+
+		void set_renderer(Shading shading, const RenderFunc& renderer);
+		RenderFunc renderer(Shading shading);
+
+		void render(Shading shading, RenderFunc renderer, RenderTarget& target, Viewport& viewport);
 		RenderFrame render_frame();
 
-		GfxContext& context(size_t index = 0);
+		GfxWindow& context(size_t index = 0);
 
 		bx::FileReaderI& file_reader();
 		bx::FileWriterI& file_writer();
 
-		LocatedFile locate_file(cstring file);
-		LocatedFile locate_file(cstring file, array<cstring> extensions);
+		LocatedFile locate_file(const string& file);
+		LocatedFile locate_file(const string& file, span<string> extensions);
 
 		TPool<Mesh>& meshes();
 		TPool<Rig>& rigs();
@@ -109,7 +133,7 @@ namespace mud
 		attr_ AssetStore<Program>& programs();
 		attr_ AssetStore<Material>& materials();
 		attr_ AssetStore<Model>& models();
-		attr_ AssetStore<ParticleGenerator>& particles();
+		attr_ AssetStore<Flow>& flows();
 		attr_ AssetStore<Prefab>& prefabs();
 
 		void add_importer(ModelFormat format, Importer& importer);
@@ -118,18 +142,19 @@ namespace mud
 		Texture& default_texture(TextureHint hint);
 
 		meth_ Material& debug_material();
-		meth_ Material& fetch_material(cstring name, cstring shader, bool builtin = true);
+		meth_ Model& create_model(const string& name);
+		meth_ Model& create_model_geo(const string& name, const MeshPacker& geometry, bool readback = false, bool optimize = false);
+		meth_ Model& create_model_gpu(const string& name, const GpuMesh& gpu_mesh, bool readback = false, bool optimize = false);
+		meth_ Material& fetch_material(const string& name, const string& shader, bool builtin = true);
 		meth_ Material& fetch_image256_material(const Image256& image);
 
-		meth_ Model& fetch_symbol(const Symbol& symbol, const Shape& shape, DrawMode draw_mode);
-		meth_ Material& fetch_symbol_material(const Symbol& symbol, DrawMode draw_mode);
+		meth_ Model& shape(const Shape& shape, const Symbol& symbol = {}, DrawMode draw_mode = PLAIN);
+		meth_ Material& symbol_material(const Symbol& symbol, DrawMode draw_mode = PLAIN);
 
 		void create_debug_materials();
 
 	public:
 		struct Impl;
-		unique_ptr<Impl> m_impl;
-
-		unique_ptr<Pipeline> m_pipeline;
+		unique<Impl> m_impl;
 	};
 }

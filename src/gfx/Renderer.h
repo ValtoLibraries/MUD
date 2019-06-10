@@ -4,77 +4,95 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <math/Math.h>
+#ifndef TWO_MODULES
+#include <stl/memory.h>
+#include <stl/span.h>
+#include <stl/vector.h>
+#include <math/Vec.h>
+#include <ecs/Entity.h>
 #include <type/Cls.h>
-#include <infra/Array.h>
-#include <infra/NonCopy.h>
 #include <type/Unique.h>
 #endif
 #include <gfx/Forward.h>
+#include <gfx/Frustum.h>
 #include <gfx/Shader.h>
+#include <gfx/Shot.h>
 
-#include <cstdint>
+#include <stdint.h>
 
 #include <bgfx/bgfx.h>
 
-namespace mud
-{
-#define GFX_TEXTURE_CLAMP BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP
-#define GFX_TEXTURE_CLAMP_UVW BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP | BGFX_SAMPLER_W_CLAMP
-#define GFX_TEXTURE_POINT BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT
+#define ZONES_BUFFER 0
+#define MATERIALS_BUFFER 0
+#define LIGHTS_BUFFER 0
 
-	MUD_GFX_EXPORT const bgfx::VertexDecl& vertex_decl(uint32_t vertex_format);
+#define ZONES_LIGHTS_BUFFER 0
+
+namespace two
+{
+#define TEXTURE_CLAMP  BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP
+#define TEXTURE_CLAMP3 BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP | BGFX_SAMPLER_W_CLAMP
+#define TEXTURE_POINT  BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT
+
+#ifdef TWO_PLATFORM_EMSCRIPTEN
+// webgl doesn't usually support sampling depth textures with filtering on
+#define TEXTURE_DEPTH TEXTURE_POINT
+#else
+#define TEXTURE_DEPTH 0
+#endif
+
+	TWO_GFX_EXPORT const bgfx::VertexDecl& vertex_decl(uint32_t vertex_format);
 
 	export_ enum class refl_ TextureSampler : unsigned int
 	{
+		// Screen
 		Source0 = 0,
 		Source1 = 1,
 		Source2 = 2,
 		Source3 = 3,
 		SourceDepth = 3,
 
+		// Material
 		Color = 0,
 		Albedo = 0,
-		Metallic = 1,
-		Roughness = 2,
-		Emissive = 3,
-		Normal = 4,
-		AO = 11,
-		Depth = 12,
+		Diffuse = 0,
+		Alpha = 1,
+		Metallic = 2,
+		Specular = 2,
+		Roughness = 3,
+		Shininess = 3,
+		Emissive = 4,
+		Normal = 5,
+		AO = 6,
+		Displace = 7,
+		Depth = 7,
 
-		Skeleton = 5,
-		ShadowCSM = 6,
-		ShadowAtlas = 7,
-		Radiance = 8,
-		ReflectionProbe = 9,
-		GIProbe = 10,
-		Lights = 13,
-		Clusters = 14,
-		LightRecords = 15,
-		Lightmap = 7,  // can't be 16 because max samplers... FIX THIS
-	};
+		// User
+		// probably the least likely to collide with a user defined material
+		User0 = 12,
+		User1 = 13,
+		User2 = 14,
+		User3 = 15,
+		User4 = 6,
+		User5 = 7,
 
-	export_ enum class PassType : unsigned int
-	{
-		VoxelGI,
-		Lightmap,
-		Shadowmap,
-		Probes,
-		Clear,
-		Depth,
-		Geometry,
-		Lights,
-		Opaque,
-		Background,
-		Particles,
-		Alpha,
-		Unshaded,
-		Effects,
-		PostProcess,
-		Flip,
+		// Scene
+		Radiance = 10,
+		Shadow = 11,
+		Lightmap = 12,
+		ReflectionProbe = 13,
+		GIProbe = 14,
 
-		Count
+		// Model
+		Skeleton = 15,
+
+		// Buffers
+		Zones = 0,
+		Materials = 8,
+		Lights = 9,
+
+		Clusters = 13,	   // collides with Lightmap
+		LightRecords = 14, // collides with GIProbe
 	};
 
 	export_ enum class refl_ Lighting : unsigned int
@@ -95,6 +113,16 @@ namespace mud
 		return (uint(lighting) & uint(option)) != 0;
 	}
 
+	enum class GpuStorage
+	{
+		Uniform,
+		Buffer,
+		Texture,
+	};
+
+	template <class T>
+	struct GpuState {};
+
 	/*
 	initial idea (reality is quite far from that)
 	blocks
@@ -107,221 +135,199 @@ namespace mud
 	passes are the unit of renderer work
 	both are orthogonal
 	*/
-
-	export_ struct MUD_GFX_EXPORT Pass
+	export_ struct refl_ TWO_GFX_EXPORT Pass
 	{
-		RenderTarget* m_target = nullptr;
-		bgfx::FrameBufferHandle m_fbo = BGFX_INVALID_HANDLE;
-		Viewport* m_viewport = nullptr;
-		uint64_t m_bgfx_state = 0;
+		attr_ string m_name;
+		attr_ RenderTarget* m_target = nullptr;
+		attr_ FrameBuffer* m_fbo = nullptr;
+		attr_ Viewport* m_viewport = nullptr;
+		attr_ vec4 m_rect = vec4(0.f);
+		attr_ uint64_t m_bgfx_state = 0;
 		bgfx::Encoder* m_encoder = nullptr;
+		attr_ PassType m_pass_type;
 
-		bool m_use_mrt = false;
-		uint8_t m_index = 0;
-		uint8_t m_sub_pass = 0;
+		attr_ bool m_use_mrt = false;
+		attr_ uint8_t m_index = 0;
 	};
 
-	export_ struct refl_ MUD_GFX_EXPORT RenderFrame
+	export_ struct refl_ TWO_GFX_EXPORT RenderFrame
 	{
-		RenderFrame(uint32_t frame, float time, float delta, uint8_t render_pass) : m_frame(frame), m_time(time), m_delta_time(delta), m_render_pass(render_pass) {}
-		uint32_t m_frame;
-		float m_time;
-		float m_delta_time;
-		uint8_t m_render_pass;
-		uint32_t m_num_draw_calls = 0;
-		uint32_t m_num_vertices = 0;
-		uint32_t m_num_triangles = 0;
+		attr_ uint32_t m_frame;
+		attr_ float m_time;
+		attr_ float m_delta_time;
+		attr_ uint8_t m_render_pass;
+
+		attr_ uint32_t m_num_draw_calls = 0;
+		attr_ uint32_t m_num_vertices = 0;
+		attr_ uint32_t m_num_triangles = 0;
 	};
 
-	struct RenderFilters;
+	using RenderFunc = void(*)(GfxSystem&, Render&);
 
-	export_ struct MUD_GFX_EXPORT Render : public NonCopy
+	export_ struct refl_ TWO_GFX_EXPORT Render
 	{
-		Render(Shading shading, Viewport& viewport, RenderTarget& target, RenderFrame& frame);
-		Render(Shading shading, Viewport& viewport, bgfx::FrameBufferHandle& target_fbo, RenderFrame& frame);
+		constr_ Render() {}
+		constr_ Render(Shading shading, Viewport& viewport, RenderTarget& target, RenderFrame& frame);
+		constr_ Render(Shading shading, Viewport& viewport, RenderTarget& target, FrameBuffer& target_fbo, RenderFrame& frame);
 		~Render();
 
-		Shading m_shading;
-		Scene& m_scene;
-		RenderTarget* m_target;
-		bgfx::FrameBufferHandle m_target_fbo;
-		Viewport& m_viewport;
-		Camera& m_camera;
-		RenderFrame& m_frame;
+		attr_ Shading m_shading;
+		attr_ Scene* m_scene;
+		attr_ RenderTarget* m_target;
+		attr_ FrameBuffer* m_fbo;
+		attr_ Viewport* m_viewport;
+		attr_ vec4 m_rect;
+		attr_ Camera* m_camera;
+		attr_ RenderFrame* m_frame;
 
-		unique_ptr<Frustum> m_frustum;
+		RenderFunc m_renderer;
 
-		Environment* m_environment = nullptr;
-		RenderFilters* m_filters = nullptr;
+		attr_ Frustum m_frustum;
 
-		Lighting m_lighting = Lighting::None;
-		bool m_needs_mrt = false;
-		bool m_is_mrt = false;
-		bool m_needs_depth_prepass = false;
+		attr_ Zone* m_env = nullptr;
+		Entt m_filters;
+
+		attr_ Lighting m_lighting = Lighting::None;
+		attr_ bool m_vflip = false;
+		attr_ bool m_needs_mrt = false;
+		attr_ bool m_is_mrt = false;
 
 		//ShadowAtlas* m_shadow_atlas = nullptr;
 		//ReflectionAtlas* m_reflection_atlas = nullptr;
 
-		uint8_t m_picking_pass_index = s_picking_pass_id;
-		uint8_t m_preprocess_pass_index = s_preprocess_pass_id;
-		uint8_t m_pass_index = s_render_pass_id;
-		uint8_t m_debug_pass_index = s_debug_pass_id;
-		uint8_t m_sub_pass_index = 0;
+		attr_ uint8_t m_pass_index = s_render_pass_id;
 
-		unique_ptr<Shot> m_shot;
+		uint8_t m_picking_pass_index = s_picking_pass_id;
+		uint8_t m_debug_pass_index = s_debug_pass_id;
+
+		Shot m_shot;
 
 		uint32_t m_num_draw_calls = 0;
 		uint32_t m_num_vertices = 0;
 		uint32_t m_num_triangles = 0;
 
-		Pass next_pass(const char* name, bool subpass = false);
-		uint8_t next_pass_id() { return m_pass_index++; }
+		meth_ void subrender(const Render& render);
+
+		meth_ Pass next_pass(cstring name, PassType type);
+		meth_ Pass composite_pass(cstring name, FrameBuffer& fbo, const vec4& rect);
+		Pass composite_pass(cstring name);
 
 		uint8_t picking_pass() { return m_picking_pass_index++; }
-		uint8_t preprocess_pass() { return m_preprocess_pass_index++; }
-		uint8_t composite_pass() { return m_pass_index++; }
 		uint8_t debug_pass() { return m_debug_pass_index++; }
 
-		void set_uniforms(bgfx::Encoder& encoder) const;
+		void set_uniforms(const Pass& pass) const;
 
 		static const uint8_t s_picking_pass_id = 1;
-		static const uint8_t s_preprocess_pass_id = 20;
-		static const uint8_t s_shadow_atlas_pass_id = 50;
-		static const uint8_t s_reflection_probe_pass_id = 70;
 		static const uint8_t s_render_pass_id = 100;
-		static const uint8_t s_debug_pass_id = 240;
-		static const uint8_t s_resolve_pass_id = 254;
-		static const uint8_t s_final_draw_pass_id = 254;
-		static const uint8_t s_ui_pass_id = 255;
+		static const uint8_t s_debug_pass_id = 245;
 	};
 
-	export_ class refl_ MUD_GFX_EXPORT GfxBlock
+	export_ class refl_ TWO_GFX_EXPORT GfxBlock : public ShaderBlock
 	{
 	public:
-		GfxBlock(GfxSystem& gfx_system, Type& type);
+		GfxBlock(GfxSystem& gfx, Type& type);
 		virtual ~GfxBlock();
 
 		template <class T>
-		GfxBlock(GfxSystem& gfx_system, T& self) : GfxBlock(gfx_system, type<T>()) { UNUSED(self); }
+		GfxBlock(GfxSystem& gfx, T& self) : GfxBlock(gfx, type<T>()) { UNUSED(self); }
 
 		virtual void init_block() = 0;
 		virtual void begin_frame(const RenderFrame& frame) { UNUSED(frame); }
 
-		virtual void begin_render(Render& render) = 0;
-		virtual void begin_pass(Render& render) = 0;
+		virtual void begin_render(Render& render) { UNUSED(render); }
 		virtual void submit_pass(Render& render) { UNUSED(render); }
 
-		GfxSystem& m_gfx_system;
+		GfxSystem& m_gfx;
 		attr_ Type& m_type;
-		attr_ uint8_t m_index;
-
-		unique_ptr<ShaderBlock> m_shader_block;
 
 		bool m_draw_block = false;
-
-		static uint8_t s_block_index;
 	};
 
-	export_ class refl_ MUD_GFX_EXPORT DrawBlock : public GfxBlock
+	export_ class refl_ TWO_GFX_EXPORT DrawBlock : public GfxBlock
 	{
 	public:
-		DrawBlock(GfxSystem& gfx_system, Type& type) : GfxBlock(gfx_system, type) { m_draw_block = true; }
+		DrawBlock(GfxSystem& gfx, Type& type) : GfxBlock(gfx, type) { m_draw_block = true; }
 
-		virtual void begin_draw_pass(Render& render) = 0;
-
-		virtual void options(Render& render, ShaderVersion& shader_version) const = 0;
-		virtual void submit(Render& render, const Pass& render_pass) const = 0;
-		virtual void submit(Render& render, const DrawElement& element, const Pass& render_pass) const { UNUSED(element); this->submit(render, render_pass); }
+		virtual void options(Render& render, const DrawElement& element, ProgramVersion& program) const { UNUSED(render); UNUSED(element); UNUSED(program); }
+		virtual void submit(Render& render, const Pass& pass) const = 0;
+		virtual void submit(Render& render, const DrawElement& element, const Pass& pass) const = 0;
 	};
 
-	export_ class MUD_GFX_EXPORT RenderPass
-	{
-	public:
-		RenderPass(GfxSystem& gfx_system, const char* name, PassType pass_type);
-		virtual ~RenderPass() {}
-
-		virtual void submit_render_pass(Render& render) = 0;
-
-		void blocks_begin_render(Render& render) { for(GfxBlock* block : m_gfx_blocks) block->begin_render(render); }
-		void blocks_begin_draw_pass(Render& render) { for(DrawBlock* block : m_draw_blocks) block->begin_draw_pass(render); }
-		void blocks_begin_pass(Render& render) { for(GfxBlock* block : m_gfx_blocks) block->begin_pass(render); }
-
-		GfxSystem& m_gfx_system;
-		const char* m_name;
-		PassType m_pass_type;
-		array<GfxBlock*> m_gfx_blocks;
-		array<DrawBlock*> m_draw_blocks;
-	};
-	
-	export_ struct MUD_GFX_EXPORT DrawElement
+	export_ struct TWO_GFX_EXPORT DrawElement
 	{
 		DrawElement() {}
-		DrawElement(Item& item, const Program& program, const ModelItem& model, const Material& material, const Skin* skin = nullptr);
+		DrawElement(Item& item, const Program& program, const ModelElem& model, const Material& material, const Skin* skin, uint64_t sort_key);
+
 		Item* m_item = nullptr;
-		const Program* m_program = nullptr;
-		const ModelItem* m_model = nullptr;
+		const ModelElem* m_elem = nullptr;
 		const Material* m_material = nullptr;
 		const Skin* m_skin = nullptr;
 
 		uint64_t m_sort_key = 0;
-		ShaderVersion m_shader_version = {};
+		ProgramVersion m_program = {};
 		uint64_t m_bgfx_state = 0;
 		bgfx::ProgramHandle m_bgfx_program = BGFX_INVALID_HANDLE;
+
+		void set_program(const Program& program);
 	};
 
-	export_ struct MUD_GFX_EXPORT DrawCluster
+	export_ struct TWO_GFX_EXPORT DrawCluster
 	{
-		ShaderVersion m_shader_version = {};
+		ProgramVersion m_shader_version = {};
 		uint64_t m_bgfx_state = 0;
-		array<Light*> m_lights = {};
+		span<Light*> m_lights = {};
 	};
 
-	export_ class MUD_GFX_EXPORT DrawPass : public RenderPass
+	export_ class refl_ TWO_GFX_EXPORT Renderer
 	{
 	public:
-		DrawPass(GfxSystem& gfx_system, const char* name, PassType pass_type);
-		~DrawPass();
-
-		void init_blocks();
-		void add_element(Render& render, DrawElement element);
-
-		virtual void submit_render_pass(Render& render) final;
-
-		void gather_draw_elements(Render& render);
-		void submit_draw_elements(bgfx::Encoder& encoder, Render& render, Pass& render_pass, size_t first, size_t count) const;
-
-		virtual uint8_t num_draw_passes(Render& render) { UNUSED(render); return 1; }
-		virtual void next_draw_pass(Render& render, Pass& render_pass) = 0;
-		virtual void queue_draw_element(Render& render, DrawElement& element) = 0;
-
-		struct Impl;
-		unique_ptr<Impl> m_impl;
-	};
-
-	export_ class MUD_GFX_EXPORT Renderer : public NonCopy
-	{
-	public:
-		Renderer(GfxSystem& gfx_system, Pipeline& pipeline, Shading shading);
+		Renderer(GfxSystem& gfx);
 		~Renderer();
 
-		GfxSystem& m_gfx_system;
-		Pipeline& m_pipeline;
-		Shading m_shading;
+		GfxSystem& m_gfx;
 
 		struct Impl;
-		unique_ptr<Impl> m_impl;
+		unique<Impl> m_impl;
 
-		void init();
+		void submit(Render& render, RenderFunc renderer);
+		void render(Render& render, RenderFunc renderer);
+		void subrender(Render& render, Render& sub, RenderFunc renderer);
 
-		bool has_block(GfxBlock& gfx_block);
-		void add_block(GfxBlock& gfx_block);
+		meth_ void gather(Render& render);
+		meth_ void begin(Render& render);
+		meth_ void end(Render& render);
 
-		void render(Render& render);
-		void subrender(Render& render, Render& sub);
+		using Enqueue = bool(*)(GfxSystem&, Render&, Pass&, DrawElement&);
+		using Submit = void(*)(GfxSystem&, Render&, Pass&, const DrawElement&);
 
-		RenderPass& add_pass(unique_ptr<RenderPass> pass);
+		void begin_render_pass(Render& render, PassType pass_type);
+		void submit_render_pass(Render& render, Pass& pass, Submit submit);
 
-		template <class T_Pass, class... T_Args>
-		T_Pass& add_pass(T_Args&&... args) { return as<T_Pass>(add_pass(make_unique<T_Pass>(std::forward<T_Args>(args)...))); }
+		void shader_options(Render& render, Pass& pass, ProgramVersion& version) const;
+		void element_options(Render& render, Pass& pass, DrawElement& element);
+		void add_element(Render& render, Pass& pass, DrawElement element);
+		void clear_draw_elements(Render& render, Pass& pass);
+		void gather_draw_elements(Render& render, Pass& pass);
+		void submit_draw_elements(bgfx::Encoder& encoder, Render& render, Pass& pass, Submit submit, size_t first, size_t count) const;
+		DrawElement draw_element(Item& item, const ModelElem& elem) const;
+
+		void submit(bgfx::Encoder& encoder, Render& render, Pass& pass, Submit submit, const DrawElement& element) const;
+
+		void pass(Render& render, Pass& pass, Enqueue enqueue, Submit submit = nullptr, bool sorted = false);
+		void sorted_pass(Render& render, Pass& pass, Enqueue enqueue, Submit submit = nullptr);
+		void direct_pass(Render& render, Pass& pass, Enqueue enqueue, Submit submit = nullptr);
+
+		using GatherFunc = void(*)(Scene&, Render&);
+		GatherFunc m_gather_func;
+
+		template <class T_Block>
+		T_Block* block() { for(auto& block : m_gfx_blocks) if(&(block->m_type) == &type<T_Block>()) return &as<T_Block>(*block); return nullptr; }
+
+		template <class T_Block, class... Args>
+		T_Block& add_block(Args&&... args) { m_gfx_blocks.push_back(make_unique<T_Block>(static_cast<Args&&>(args)...)); return as<T_Block>(*m_gfx_blocks.back()); }
+
+		vector<unique<GfxBlock>> m_gfx_blocks;
+
+		table<PassType, vector<GfxBlock*>> m_pass_blocks;
 	};
 }

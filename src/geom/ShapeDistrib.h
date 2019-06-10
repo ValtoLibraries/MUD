@@ -4,24 +4,21 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
+#include <stl/vector.h>
 #include <type/Dispatch.h>
 #include <infra/Global.h>
 #include <math/Vec.h>
 #endif
 #include <geom/Forward.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#endif
-
-namespace mud
+namespace two
 {
-	export_ class MUD_GEOM_EXPORT RandomShapePoint : public Dispatch<vec3>, public LazyGlobal<RandomShapePoint>
+	export_ class TWO_GEOM_EXPORT RandomShapePoint : public Dispatch<vec3>, public LazyGlobal<RandomShapePoint>
 	{
 	public:
 		RandomShapePoint();
 	};
 
-	export_ MUD_GEOM_EXPORT std::vector<vec3> distribute_shape(const Shape& shape, size_t count);
+	export_ TWO_GEOM_EXPORT vector<vec3> distribute_shape(const Shape& shape, size_t count);
 }

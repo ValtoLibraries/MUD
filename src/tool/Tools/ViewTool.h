@@ -4,14 +4,13 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <math/Vec.h>
-#include <math/Math.h>
+#ifndef TWO_MODULES
+#include <math/Vec.hpp>
 #endif
 #include <tool/Forward.h>
 #include <tool/Tool.h>
 
-namespace mud
+namespace two
 {
 	export_ class refl_ ViewAction : public EditorAction
 	{
@@ -59,11 +58,11 @@ namespace mud
 	{
 		ViewTools(ToolContext& context) : m_context(context) {}
 		ToolContext& m_context;
-		ViewTool m_top		= { m_context, "Top View",	   Y3 };
-		ViewTool m_bottom	= { m_context, "Bottom View", -Y3 };
-		ViewTool m_front	= { m_context, "Front View",  -Z3 };
-		ViewTool m_back		= { m_context, "Back View",	   Z3 };
-		ViewTool m_left		= { m_context, "Left View",	   X3 };
-		ViewTool m_right	= { m_context, "Right View",  -X3 };
+		ViewTool m_top		= { m_context, "Top View",	   y3 };
+		ViewTool m_bottom	= { m_context, "Bottom View", -y3 };
+		ViewTool m_front	= { m_context, "Front View",  -z3 };
+		ViewTool m_back		= { m_context, "Back View",	   z3 };
+		ViewTool m_left		= { m_context, "Left View",	   x3 };
+		ViewTool m_right	= { m_context, "Right View",  -x3 };
 	};
 }

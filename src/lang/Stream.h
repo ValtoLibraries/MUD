@@ -4,23 +4,19 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
+#include <stl/vector.h>
+#include <infra/StringOps.h>
 #include <type/Var.h>
-#include <infra/String.h>
 #endif
 #include <lang/Forward.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#include <functional>
-#endif
-
-namespace mud
+namespace two
 {
-	typedef std::vector<size_t> StreamIndex;
-	typedef std::vector<size_t> Topology;
+	typedef vector<size_t> StreamIndex;
+	typedef vector<size_t> Topology;
 
-	/*export_ struct MUD_LANG_EXPORT StreamBranch : public StreamIndex
+	/*export_ struct TWO_LANG_EXPORT StreamBranch : public StreamIndex
 	{
 		StreamBranch(StreamIndex index);
 
@@ -28,9 +24,9 @@ namespace mud
 		bool empty;
 	};
 
-	export_ struct MUD_LANG_EXPORT Flow
+	export_ struct TWO_LANG_EXPORT Flow
 	{
-		std::vector<StreamBranch> branches;
+		vector<StreamBranch> branches;
 		Topology topology;
 	};*/
 
@@ -40,10 +36,11 @@ namespace mud
 		const Topology& m_topology;
 	};
 
-	export_ class refl_ MUD_LANG_EXPORT StreamBranch
+	export_ class refl_ TWO_LANG_EXPORT StreamBranch
 	{
 	public:
-		StreamBranch(Stream* stream, Var value, StreamIndex index);
+		StreamBranch();
+		StreamBranch(Stream* stream, const Var& value, StreamIndex index);
 
 		Var& value(const StreamIndex& index) { return this->branch(index).m_value; }
 
@@ -54,16 +51,23 @@ namespace mud
 
 		void copy(const StreamBranch& branch);
 
-		typedef std::function<void(StreamBranch&)> Visitor;
-		void visit(bool leafs, const Visitor& visitor);
-		
+		template <class Visitor>
+		void visit(bool leafs, const Visitor& visitor)
+		{
+			for(auto& branch : m_branches)
+				branch.visit(leafs, visitor);
+
+			if(!leafs || m_branches.size() == 0)
+				visitor(*this);
+		}
+
 		StreamBranch& branch(const StreamIndex& index);
 
 		StreamBranch* find_branch(const StreamIndex& branch, size_t depth);
 		StreamBranch* find_branch(const StreamIndex& branch) { return this->find_branch(branch, m_depth); }
 
 		void write(const Var& value, bool multiplex = true);
-		bool read(Var& value, Type* expected_type, bool ref);
+		bool read(Var& value, const Type* expected_type, bool ref);
 
 		void write(const StreamLocation& location, const Var& value, bool multiplex = true) { this->branch(location.m_index).write(value, multiplex); }
 		//void write(const Var& value, bool multiplex = true) { this->branch({ 0 }).write(value, multiplex); }
@@ -75,7 +79,7 @@ namespace mud
 		bool m_valid = true;
 		//bool m_empty = false;
 
-		std::vector<StreamBranch> m_branches;
+		vector<StreamBranch> m_branches;
 	};
 
 
@@ -86,11 +90,11 @@ namespace mud
 		SM_GRAFT
 	};
 
-	export_ class refl_ MUD_LANG_EXPORT Stream : public StreamBranch
+	export_ class refl_ TWO_LANG_EXPORT Stream : public StreamBranch
 	{
 	public:
 		Stream();
-		Stream(Var value, bool nullable, bool reference);
+		Stream(const Var& value, bool nullable, bool reference);
 		Stream(const Stream& stream);
 		Stream& operator=(const Stream& stream);
 
@@ -106,7 +110,7 @@ namespace mud
 		size_t m_num_invalid = 0;
 
 		Var m_default;
-		Type* m_type = nullptr;
+		const Type* m_type = nullptr;
 		bool m_nullable = false;
 		bool m_reference = false;
 

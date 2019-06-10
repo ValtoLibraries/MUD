@@ -6,12 +6,12 @@
 
 #include <type/Forward.h>
 
-export_ namespace mud
+export_ namespace two
 {}
 
-namespace mud
+namespace two
 {
-	export_ extern MUD_TYPE_EXPORT const unsigned int c_max_types;
+	export_ constexpr unsigned int c_max_types = 1000U;
 
 	class Type;
 

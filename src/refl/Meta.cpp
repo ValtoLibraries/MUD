@@ -4,43 +4,53 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.refl;
+#ifdef TWO_MODULES
+module two.refl;
 #else
+#include <stl/algorithm.h>
+#include <infra/ToString.h>
+#include <type/Types.h>
+#include <type/Any.h>
 #include <refl/Meta.h>
 #include <refl/MetaDecl.h>
 #include <refl/Class.h>
 #include <refl/Enum.h>
 #include <refl/Convert.h>
-#include <type/Types.h>
-#include <type/Any.h>
-#include <infra/StringConvert.h>
 #include <refl/Injector.h>
-//#include <ecs/Proto.h>
-//#include <ecs/Entity.h>
-#include <infra/Vector.h>
-//#include <srlz/Serial.h>
 #endif
 
-namespace mud
-{
-	std::vector<Meta*> g_meta = std::vector<Meta*>(c_max_types);
-	std::vector<Class*> g_class = std::vector<Class*>(c_max_types);
-	std::vector<Enum*> g_enu = std::vector<Enum*>(c_max_types);
-	std::vector<Convert*> g_convert = std::vector<Convert*>(c_max_types);
+#include <cstring>
+#include <cstdio>
 
+namespace two
+{
+	vector<Meta*> g_meta = vector<Meta*>(c_max_types);
+	vector<Class*> g_class = vector<Class*>(c_max_types);
+	vector<Enum*> g_enu = vector<Enum*>(c_max_types);
+	vector<Convert*> g_convert = vector<Convert*>(c_max_types);
+	vector<Iterable*> g_iterable = vector<Iterable*>(c_max_types);
+	vector<Sequence*> g_sequence = vector<Sequence*>(c_max_types);
+
+#if 0
 	template <>
 	void init_string<void>() {}
+
+	template <>
+	void init_string<void*>() {}
 
 	template <>
 	void init_string<cstring>() {}
 
 	template <>
+	void init_assign<void*>() {}
+
+	template <>
 	void init_assign<cstring>() {}
+#endif
 
 	bool is_string(Type& type)
 	{
-		return type.is<string>() || type.is<cstring>() || type.is<string>();
+		return type.is<string>() || type.is<cstring>();
 	}
 
 	string get_string(Member& member, Ref value)
@@ -48,9 +58,9 @@ namespace mud
 		if(member.m_type->is<cstring>())
 			return val<cstring>(member.get(value));
 		else if(member.m_type->is<string>())
-			return val<string>(member.get(value)).c_str();
-		else
 			return val<string>(member.get(value));
+		else
+			return to_string(member.get(value));
 	}
 
 	Meta::Meta(Type& type, Namespace* location, cstring name, size_t size, TypeClass type_class, bool is_array)
@@ -65,7 +75,7 @@ namespace mud
 		g_meta[type.m_id] = this;
 	}
 
-	Enum::Enum(Type& type, bool scoped, const std::vector<cstring>& names, const std::vector<uint32_t>& values, const std::vector<Var>& vars)
+	Enum::Enum(Type& type, bool scoped, span<cstring> names, span<uint32_t> values, span<void*> vars)
 		: m_type(type)
 		, m_scoped(scoped)
 		, m_names(names)
@@ -76,9 +86,14 @@ namespace mud
 
 		for(size_t i = 0; i < m_names.size(); ++i)
 		{
-			size_t index = m_values[i];
-			m_map.resize(index + 1);
-			m_map[index] = m_names[i];
+			size_t value = m_values[i];
+			if(value > size_t(1 << 16))
+			{
+				printf("[warning] enum value %s::%s above 2^16, something is fishy\n", type.m_name, m_names[i]);
+				continue;
+			}
+			m_reverse.resize(value + 1);
+			m_reverse[value] = m_names[i];
 		}
 	}
 
@@ -87,17 +102,17 @@ namespace mud
 		for(uint32_t i = 0; i < uint32_t(m_names.size()); ++i)
 			if(strcmp(name, m_names[i]) == 0)
 				return m_values[i];
-		printf("WARNING: fetching unknown Enum %s value : %s\n", m_type.m_name, name);
+		printf("[warning] fetching unknown Enum %s value : %s\n", m_type.m_name, name);
 		return m_values[0];
 	}
 
-	uint32_t Enum::value(const Var& value)
+	uint32_t Enum::value(Ref value)
 	{
-		size_t size = meta(m_type).m_size;
+		const size_t size = m_type.m_size;
 		for(uint32_t i = 0; i < uint32_t(m_vars.size()); ++i)
-			if(memcmp(value.m_ref.m_value, m_vars[i].m_ref.m_value, size) == 0)
+			if(memcmp(value.m_value, m_vars[i], size) == 0)
 				return m_values[i];
-		printf("WARNING: fetching unknown Enum %s index : %s\n", m_type.m_name, to_string(value).c_str());
+		printf("[warning] fetching unknown Enum %s index : %s\n", m_type.m_name, to_string(value).c_str());
 		return 0;
 	}
 
@@ -106,7 +121,17 @@ namespace mud
 		for(uint32_t i = 0; i < uint32_t(m_names.size()); ++i)
 			if(strcmp(name, m_names[i]) == 0)
 				return i;
-		printf("WARNING: fetching unknown Enum %s index : %s\n", m_type.m_name, name);
+		printf("[warning] fetching unknown Enum %s index : %s\n", m_type.m_name, name);
+		return 0;
+	}
+
+	uint32_t Enum::index(Ref value)
+	{
+		const size_t size = m_type.m_size;
+		for(uint32_t i = 0; i < uint32_t(m_vars.size()); ++i)
+			if(memcmp(value.m_value, m_vars[i], size) == 0)
+				return i;
+		printf("[warning] fetching unknown Enum %s index : %s\n", m_type.m_name, to_string(value).c_str());
 		return 0;
 	}
 
@@ -118,11 +143,10 @@ namespace mud
 		g_class[type.m_id] = this;
 	}
 
-	Class::Class(Type& type, std::vector<Type*> bases, std::vector<size_t> bases_offsets, std::vector<Constructor> constructors, std::vector<CopyConstructor> copy_constructors,
-				 std::vector<Member> members, std::vector<Method> methods, std::vector<Static> static_members)
+	Class::Class(Type& type, span<Type*> bases, span<size_t> bases_offsets, span<Constructor> constructors, span<CopyConstructor> copy_constructors,
+				 span<Member> members, span<Method> methods, span<Static> static_members)
 		: m_type(&type)
 		, m_meta(&meta(type))
-		, m_root(&type)
 		, m_bases(bases)
 		, m_bases_offsets(bases_offsets)
 		, m_constructors(constructors)
@@ -130,6 +154,7 @@ namespace mud
 		, m_members(members)
 		, m_methods(methods)
 		, m_static_members(static_members)
+		, m_root(&type)
 	{
 		g_class[type.m_id] = this;
 	}
@@ -137,14 +162,14 @@ namespace mud
 	Class::~Class()
 	{}
 
-	void Class::inherit(std::vector<Type*> types)
+	void Class::inherit(span<Type*> types)
 	{
-		for(Type* type : types)
-			if(g_class[type->m_id])
-			{
-				vector_prepend(m_members, cls(*type).m_members);
-				vector_prepend(m_methods, cls(*type).m_methods);
-			}
+		//for(Type* type : types)
+		//	if(g_class[type->m_id])
+		//	{
+		//		prepend(m_members, cls(*type).m_members);
+		//		prepend(m_methods, cls(*type).m_methods);
+		//	}
 	}
 
 	void Class::setup_class()
@@ -186,7 +211,7 @@ namespace mud
 			}
 	}
 
-	Ref Class::upcast(Ref object, Type& base)
+	Ref Class::upcast(Ref object, const Type& base)
 	{
 		if(!object) return object;
 		for(size_t i = 0; i < m_bases.size(); ++i)
@@ -198,7 +223,7 @@ namespace mud
 		return object;
 	}
 
-	Ref Class::downcast(Ref object, Type& base)
+	Ref Class::downcast(Ref object, const Type& base)
 	{
 		if(!object) return object;
 		for(size_t i = 0; i < m_bases.size(); ++i)
@@ -243,20 +268,20 @@ namespace mud
 
 	bool Class::has_member(cstring name)
 	{
-		return vector_has_pred(m_members, [&](const Member& member) { return strcmp(member.m_name, name) == 0; });
+		return has_pred(m_members, [&](const Member& member) { return strcmp(member.m_name, name) == 0; });
 	}
 
 	bool Class::has_method(cstring name)
 	{
-		return vector_has_pred(m_methods, [&](const Method& method) { return strcmp(method.m_name, name) == 0; });
+		return has_pred(m_methods, [&](const Method& method) { return strcmp(method.m_name, name) == 0; });
 	}
 
-	Member& Class::member(Address address)
+	Member& Class::member(size_t offset)
 	{
 		for(Member& look : m_members)
-			if(look.m_address == address)
+			if(look.m_offset == offset)
 				return look;
-		printf("ERROR: retrieving member\n");
+		printf("[ERROR] retrieving member\n");
 		return m_members[0];
 	}
 
@@ -265,18 +290,18 @@ namespace mud
 		for(Method& look : m_methods)
 			if(look.m_address == address)
 				return look;
-		printf("ERROR: retrieving method\n");
+		printf("[ERROR] retrieving method\n");
 		return m_methods[0];
 	}
 
-	bool Class::has_member(Address address)
+	bool Class::has_member(size_t offset)
 	{
-		return vector_has_pred(m_members, [&](const Member& look) { return look.m_address == address; });
+		return has_pred(m_members, [&](const Member& look) { return look.m_offset == offset; });
 	}
 
 	bool Class::has_method(Address address)
 	{
-		return vector_has_pred(m_methods, [&](const Method& look) { return look.m_address == address; });
+		return has_pred(m_methods, [&](const Method& look) { return look.m_address == address; });
 	}
 
 	const Constructor* Class::constructor(ConstructorIndex index) const
@@ -293,22 +318,22 @@ namespace mud
 	{
 		for(const Constructor& constructor : m_constructors)
 		{
-			size_t min_args = constructor.m_arguments.size() - 1 - constructor.m_num_defaults;
-			size_t max_args = constructor.m_arguments.size() - 1;
+			size_t min_args = constructor.m_params.size() - 1 - constructor.m_num_defaults;
+			size_t max_args = constructor.m_params.size() - 1;
 			if(arguments >= min_args && arguments <= max_args)
 				return &constructor;
 		}
 		return nullptr;
 	}
 
-	bool Class::is(Type& component)
+	bool Class::is(const Type& component)
 	{
-		return vector_find(m_components, [&](Member* member) { return member->m_type->is(component); }) != nullptr;
+		return find(m_components, [&](Member* member) { return member->m_type->is(component); }) != nullptr;
 	}
 
-	Ref Class::as(Ref object, Type& component)
+	Ref Class::as(Ref object, const Type& component)
 	{
-		Member* member = *vector_find(m_components, [&](Member* member) { return member->m_type->is(component); });
+		Member* member = *find(m_components, [&](Member* member) { return member->m_type->is(component); });
 		return cls(*member->m_type).upcast(member->get(object), component);
 	}
 
@@ -321,17 +346,23 @@ namespace mud
 	void copy_construct(Ref dest, Ref source)
 	{
 		if(is_basic(*dest.m_type))
-			memcpy(dest.m_value, source.m_value, meta(dest).m_size);
-		else if(cls(dest).m_copy_constructors.size() > 0)
-			cls(dest).m_copy_constructors[0].m_call(dest, source);
+			memcpy(dest.m_value, source.m_value, type(dest).m_size);
+		else // if(cls(dest).m_copy_constructors.size() > 0)
+			;//meta(dest).copy_construct(dest, source);
 	}
 
-	void assign(Ref first, Ref second)
+	void assign(Ref dest, Ref source)
 	{
-		if(second.m_type->is(*first.m_type))
-			meta(first).m_copy_assign(first, second);
+		if(!source.m_type->is(*dest.m_type))
+		{
+			printf("[warning] can't assign values of unrelated types\n");
+			return;
+		}
+
+		if(is_basic(*dest.m_type))
+			memcpy(dest.m_value, source.m_value, meta(dest).m_size);
 		else
-			printf("WARNING: can't assign values of unrelated types\n");
+			meta(dest).copy_assign(dest, source);
 	}
 
 	void assign_pointer(Ref first, Ref second)
@@ -339,7 +370,7 @@ namespace mud
 		UNUSED(first); UNUSED(second);
 	}
 
-	string to_name(Type& type, Ref value)
+	string to_name(const Type& type, Ref value)
 	{
 		string name;
 		if(is_basic(type))
@@ -363,49 +394,49 @@ namespace mud
 		this->default_converter<float, ushort>();
 		this->default_converter<float, uint>();
 		this->default_converter<float, ulong>();
-		this->default_converter<float, ulong2>();
+		this->default_converter<float, ullong>();
 		this->default_converter<double, int>();
 		this->default_converter<double, ushort>();
 		this->default_converter<double, uint>();
 		this->default_converter<double, ulong>();
-		this->default_converter<double, ulong2>();
+		this->default_converter<double, ullong>();
 		this->default_converter<int, ushort>();
 		this->default_converter<int, uint>();
 		this->default_converter<int, ulong>();
-		this->default_converter<int, ulong2>();
+		this->default_converter<int, ullong>();
 		this->default_converter<ushort, uint>();
 		this->default_converter<ushort, ulong>();
-		this->default_converter<ushort, ulong2>();
+		this->default_converter<ushort, ullong>();
 		this->default_converter<uint, ulong>();
-		this->default_converter<uint, ulong2>();
-		this->default_converter<ulong, ulong2>();
+		this->default_converter<uint, ullong>();
+		this->default_converter<ulong, ullong>();
 	}
 
-	bool TypeConverter::check(Type& input, Type& output)
+	bool TypeConverter::check(const Type& input, const Type& output)
 	{
 		return DoubleDispatch::check(input, output);
 	}
 
-	bool TypeConverter::check(Ref input, Type& output)
+	bool TypeConverter::check(Ref input, const Type& output)
 	{
 		return DoubleDispatch::check(*input.m_type, output);
 	}
 
-	Var TypeConverter::convert(Ref input, Type& output)
+	Var TypeConverter::convert(Ref input, const Type& output)
 	{
 		Var result = meta(output).m_empty_var;
 		DoubleDispatch::dispatch(input, result);
 		return result;
 	}
 
-	void TypeConverter::convert(Ref input, Type& output, Var& result)
+	void TypeConverter::convert(Ref input, const Type& output, Var& result)
 	{
 		if(result.none() || !type(result).is(output))
 			result = meta(output).m_empty_var;
 		DoubleDispatch::dispatch(input, result);
 	}
 
-	bool is_related(Type& input, Type& output)
+	bool is_related(const Type& input, const Type& output)
 	{
 		UNUSED(input); UNUSED(output);
 		return false;
@@ -419,7 +450,7 @@ namespace mud
 			dest = source.m_ref;
 	}
 
-	bool convert(Var& source, Type& output, Var& dest, bool ref)
+	bool convert(Var& source, const Type& output, Var& dest, bool ref)
 	{
 		Ref value = source;
 		if(output.is(type<Ref>()))
@@ -439,25 +470,25 @@ namespace mud
 		return true;
 	}
 
-	bool convert(Ref input, Type& output, Var& result)
+	bool convert(Ref input, const Type& output, Var& result)
 	{
 		Var inputvar = input;
 		return convert(inputvar, output, result);
 	}
 
-	Var convert(Ref input, Type& output)
+	Var convert(Ref input, const Type& output)
 	{
 		Var result;
 		convert(input, output, result);
 		return result;
 	}
 
-	bool can_convert(Type& input, Type& output)
+	bool can_convert(const Type& input, const Type& output)
 	{
 		return input.is(output) || is_related(input, output) || TypeConverter::me().check(input, output);
 	}
 
-	bool can_convert(Ref input, Type& output)
+	bool can_convert(Ref input, const Type& output)
 	{
 		return type(input).is(output) || is_related(type(input), output) || TypeConverter::me().check(input, output);
 	}

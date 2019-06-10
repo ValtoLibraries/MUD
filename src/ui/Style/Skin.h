@@ -4,7 +4,8 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
+#include <stl/string.h>
 #include <math/Colour.h>
 #include <math/Vec.h>
 #endif
@@ -12,22 +13,15 @@
 #include <ui/Style/9Sprite.h>
 #include <ui/Style/Paint.h>
 
-#ifndef MUD_CPP_20
-#include <functional>
-#include <string>
-#endif
-
-namespace mud
+namespace two
 {
-	using string = std::string;
+	using CustomDraw = void(*)(const Frame&, const vec4&, Vg&);
 
-	using CustomRenderer = std::function<void(const Frame&, const vec4&, Vg&)>;
-
-	export_ struct refl_ MUD_UI_EXPORT InkStyle
+	export_ struct refl_ TWO_UI_EXPORT InkStyle
 	{
 	public:
 		constr_ InkStyle() {}
-		constr_ InkStyle(cstring name) : m_name(name) {}
+		constr_ InkStyle(const string& name) : m_name(name) {}
 
 		template <class T_Initializer>
 		InkStyle(T_Initializer func) { func(*this); }
@@ -45,7 +39,7 @@ namespace mud
 		attr_ Colour m_image_colour = Colour::None;
 		attr_ Colour m_text_colour = Colour::None;
 		attr_ string m_text_font = "dejavu";
-		attr_ float m_text_size = 14.f;
+		attr_ float m_text_size = 13.f;
 		attr_ bool m_text_break = false;
 		attr_ bool m_text_wrap = false;
 		attr_ vec4 m_border_width = vec4(0.f);
@@ -53,10 +47,10 @@ namespace mud
 		attr_ bool m_weak_corners = false;
 		attr_ vec4 m_padding = vec4(0.f);
 		attr_ vec4 m_margin = vec4(0.f);
-		attr_ Dim2<Align> m_align = { Left, Left };
+		attr_ v2<Align> m_align = { Align::Left, Align::Left };
 		attr_ vec2 m_linear_gradient = vec2(0.f);
-		attr_ Dim m_linear_gradient_dim = DIM_Y;
-		attr_ Dim2<bool> m_stretch = { false, false };
+		attr_ Axis m_linear_gradient_dim = Axis::Y;
+		attr_ v2<bool> m_stretch = { false, false };
 		attr_ Image* m_image = nullptr;
 		attr_ Image* m_overlay = nullptr;
 		attr_ Image* m_tile = nullptr;
@@ -64,8 +58,11 @@ namespace mud
 		attr_ Shadow m_shadow;
 		attr_ Colour m_shadow_colour;
 		attr_ Style* m_hover_cursor = nullptr;
-		/*attr_*/ CustomRenderer m_custom_draw;
-
-		WidgetState m_state;
+		/*attr_*/ CustomDraw m_custom_draw = nullptr;
 	};
+
+	inline TextPaint text_paint(InkStyle& inkstyle)
+	{
+		return { inkstyle.m_text_font.c_str(), inkstyle.m_text_colour, inkstyle.m_text_size, inkstyle.m_align, inkstyle.m_text_break, inkstyle.m_text_wrap };
+	}
 }

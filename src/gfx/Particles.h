@@ -4,25 +4,20 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
+#include <stl/vector.h>
 #include <math/Vec.h>
 #include <math/Curve.h>
-#include <math/ImageAtlas.h>
 #include <geom/Shape.h>
+#include <geom/Aabb.h>
 #endif
 #include <gfx/Forward.h>
 #include <gfx/Material.h>
-#include <gfx/Mesh.h>
+#include <gfx/Renderer.h>
 
-#ifndef MUD_GENERATOR_SKIP_INCLUDES
 #include <bgfx/bgfx.h>
-#endif
 
-#ifndef MUD_CPP_20
-#include <vector>
-#endif
-
-namespace mud
+namespace two
 {
 	struct Particle
 	{
@@ -53,10 +48,11 @@ namespace mud
 		Absolute
 	};
 
-	export_ struct refl_ MUD_GFX_EXPORT ParticleGenerator
+	// alternate names: spout, flux, jet
+	export_ struct refl_ TWO_GFX_EXPORT Flow
 	{
-		ParticleGenerator();
-		ParticleGenerator(cstring name);
+		Flow();
+		Flow(const string& name);
 
 		attr_ string m_name;
 
@@ -71,7 +67,7 @@ namespace mud
 		attr_ quat m_rotation = ZeroQuat;
 		attr_ BlendMode m_blend_mode = BlendMode::Normal;
 
-		//attr_ ValueTrack<vec3> m_position = { Zero3 };
+		//attr_ ValueTrack<vec3> m_position = { vec3(0.f) };
 		//attr_ ValueTrack<quat> m_rotation = { ZeroQuat };
 		attr_ ValueTrack<float> m_volume = { 1.f };
 
@@ -83,7 +79,7 @@ namespace mud
 		// particles
 		attr_ ValueTrack<float> m_speed = { 1.f };
 		attr_ ValueTrack<float> m_angle = { 0.f };
-		attr_ ValueTrack<float> m_blend = { std::vector<float>({ 0.8f, 0.0f }) };
+		attr_ ValueTrack<float> m_blend = { { 0.8f, 0.0f } };
 		attr_ ValueTrack<Colour> m_colour = { Colour::White };
 		attr_ ValueTrack<float> m_scale = { 0.1f };
 
@@ -102,16 +98,13 @@ namespace mud
 		float m_blend;
 		float m_radius;
 		//float m_angle;
-
-		static void init();
-
-		static bgfx::VertexDecl ms_decl;
 	};
 
-	export_ struct refl_ MUD_GFX_EXPORT Particles : public ParticleGenerator
+	// alternate names: jet, flow, surge, spray
+	export_ struct refl_ TWO_GFX_EXPORT Flare : public Flow
 	{
 	public:
-		Particles(Node3* node = nullptr, ShapeVar shape = {}, uint32_t max_particles = 1024);
+		Flare(Node3* node = nullptr, ShapeVar shape = {}, uint32_t max_particles = 1024);
 
 		attr_ Node3* m_node = nullptr;
 
@@ -130,22 +123,22 @@ namespace mud
 
 		Aabb m_aabb;
 
-		std::vector<Particle> m_particles;
+		vector<Particle> m_particles;
 		uint32_t m_max;
 	};
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
 	template <class T>
 	class TPool;
 #endif
 
-	export_ class MUD_GFX_EXPORT ParticleSystem
+	export_ class TWO_GFX_EXPORT ParticleSystem
 	{
 	public:
-		ParticleSystem(GfxSystem& gfx_system, TPool<Particles>& emitters);
+		ParticleSystem(GfxSystem& gfx, TPool<Flare>& emitters);
 		~ParticleSystem();
 
-		GfxSystem& m_gfx_system;
+		GfxSystem& m_gfx;
 		BlockParticles& m_block;
 
 		void shutdown();
@@ -153,39 +146,32 @@ namespace mud
 		void update(float timestep);
 		void render(bgfx::Encoder& encoder, uint8_t pass, const mat4& view, const vec3& eye);
 		
-		TPool<Particles>& m_emitters;
+		TPool<Flare>& m_emitters;
 
 		bgfx::ProgramHandle m_program;
 
 		uint32_t m_num = 0;
 	};
 
-	export_ class refl_ MUD_GFX_EXPORT BlockParticles : public GfxBlock
+	export_ class refl_ TWO_GFX_EXPORT BlockParticles : public GfxBlock
 	{
 	public:
-		BlockParticles(GfxSystem& gfx_system);
+		BlockParticles(GfxSystem& gfx);
 		~BlockParticles();
 
 		virtual void init_block() override;
 
 		virtual void begin_render(Render& render) override;
-		virtual void begin_pass(Render& render) override;
 
-		SpriteAtlas m_sprites;
-		bgfx::TextureHandle m_texture;
+		unique<SpriteAtlas> m_sprites;
+		Texture m_texture;
 
 		bgfx::UniformHandle s_color;
 
 		Sprite* create_sprite(cstring name, cstring path, uvec2 frames = uvec2(0U));
-		Sprite* create_sprite(cstring name, uvec2 size, uvec2 frames, const void* data);
+		Sprite* create_sprite(cstring name, const uvec2& size, uvec2 frames, const void* data);
 		void remove_sprite(Sprite& image);
 	};
 
-	export_ class MUD_GFX_EXPORT PassParticles : public RenderPass
-	{
-	public:
-		PassParticles(GfxSystem& gfx_system);
-
-		virtual void submit_render_pass(Render& render) final;
-	};
+	export_ TWO_GFX_EXPORT void pass_particles(GfxSystem& gfx, Render& render);
 }

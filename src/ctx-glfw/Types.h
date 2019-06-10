@@ -1,29 +1,22 @@
 #pragma once
 
+#include <stdint.h>
+#include <stl/string.h>
+#include <stl/vector.h>
 #include <ctx-glfw/Forward.h>
 
-#if !defined MUD_MODULES || defined MUD_TYPE_LIB
+#if !defined TWO_MODULES || defined TWO_TYPE_LIB
 #include <type/Type.h>
-#include <type/Vector.h>
 #endif
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
 #include <math/Types.h>
 #include <ctx/Types.h>
 #endif
 
-#ifndef MUD_CPP_20
-#include <string>
-#include <cstdint>
-#include <vector>
-#endif
-
-
-namespace mud
+namespace two
 {
     // Exported types
     
-    export_ template <> MUD_CTX_GLFW_EXPORT Type& type<mud::GlfwContext>();
-    
-	export_ template struct MUD_CTX_GLFW_EXPORT Typed<std::vector<mud::GlfwContext*>>;
+    export_ template <> TWO_CTX_GLFW_EXPORT Type& type<two::GlfwContext>();
 }

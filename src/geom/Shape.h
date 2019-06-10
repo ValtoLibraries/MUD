@@ -4,18 +4,18 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
 #include <type/Unique.h>
 #include <math/Vec.h>
 #endif
 #include <geom/Forward.h>
 
-namespace mud
+namespace two
 {
-	export_ class refl_ MUD_GEOM_EXPORT Shape
+	export_ class refl_ TWO_GEOM_EXPORT Shape
 	{
 	public:
-		Shape(Type& type) : m_type(type), m_center(Zero3) {}
+		Shape(Type& type) : m_type(type), m_center(vec3(0.f)) {}
 		Shape(Type& type, const vec3& center) : m_type(type), m_center(center) {}
 		virtual ~Shape() {}
 
@@ -26,10 +26,10 @@ namespace mud
 		// @todo add this to reflection need to fix serialization (must either be an argument of child constructors or init members directly)
 		vec3 m_center;
 
-		virtual object_ptr<Shape> clone() const = 0;
+		virtual object<Shape> clone() const = 0;
 	};
 
-	export_ struct refl_ MUD_GEOM_EXPORT ShapeVar
+	export_ class refl_ TWO_GEOM_EXPORT ShapeVar
 	{
 	public:
 		constr_ ShapeVar() : m_shape() {}
@@ -44,6 +44,6 @@ namespace mud
 		operator const Shape&() const { return *m_shape; }
 		Shape& operator*() const { return *m_shape; }
 
-		object_ptr<Shape> m_shape;
+		object<Shape> m_shape;
 	};
 }

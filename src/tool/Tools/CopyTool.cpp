@@ -4,8 +4,8 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.tool;
+#ifdef TWO_MODULES
+module two.tool;
 #else
 #include <refl/Meta.h>
 #include <math/Math.h>
@@ -15,9 +15,9 @@ module mud.tool;
 #include <tool/Tools/CopyTool.h>
 #endif
 
-namespace mud
+namespace two
 {
-	CopyAction::CopyAction(array<Transform*> targets)
+	CopyAction::CopyAction(span<Transform*> targets)
 		: TranslateAction(targets)
 		//, m_injector(type<Transform>())
 	{}
@@ -42,7 +42,7 @@ namespace mud
 	void CopyTool::begin(const vec3& position)
 	{
 		UNUSED(position);
-		//m_action = make_object<CopyAction>(m_targets); // @kludge brute cast
+		//m_action = oconstruct<CopyAction>(m_targets); // @kludge brute cast
 	}
 
 	void CopyTool::update(const vec3& position)
@@ -53,11 +53,11 @@ namespace mud
 
 	void CopyTool::end()
 	{
-		this->commit(std::move(m_action));
+		this->commit(move(m_action));
 	}
 
-	object_ptr<TransformAction> CopyTool::create_action(array<Transform*> targets)
+	object<TransformAction> CopyTool::create_action(span<Transform*> targets)
 	{
-		return make_object<CopyAction>(targets);
+		return oconstruct<CopyAction>(targets);
 	}
 }

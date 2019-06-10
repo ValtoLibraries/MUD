@@ -4,15 +4,16 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.geom;
+#ifdef TWO_MODULES
+module two.geom;
 #else
+#include <math/Vec.hpp>
 #include <geom/Shape/Line.h>
 #include <geom/Shapes.h>
-#include <geom/Primitive.h>
+#include <geom/Primitive.hpp>
 #endif
 
-namespace mud
+namespace two
 {
 	void draw_line(const vec3& start, const vec3& end, const Colour& colour, MeshAdapter& writer)
 	{
@@ -49,13 +50,13 @@ namespace mud
 	{
 		UNUSED(shape);
 		uint16_t lines = uint16_t(grid.m_size.x) + 1 + uint16_t(grid.m_size.y) + 1;
-		return { lines * 2, lines * 2 };
+		return { lines * 2U, lines * 2U };
 	}
 
 	void draw_shape_lines(const ProcShape& shape, const Grid2& grid, MeshAdapter& writer)
 	{
 		vec2 half = grid.m_size * grid.m_space / 2.f;
-		vec3 origin = grid.m_center - vec3{ half.x, 0.f, half.y };
+		vec3 origin = grid.m_center - vec3(half.x, 0.f, half.y);
 
 		for(size_t x = 0; x < size_t(grid.m_size.x) + 1; ++x)
 			draw_line(origin + to_xz(grid.m_space * vec2(float(x), 0.f)), origin + to_xz(grid.m_space * vec2(float(x), grid.m_size.y)), shape.m_symbol.m_outline, writer);

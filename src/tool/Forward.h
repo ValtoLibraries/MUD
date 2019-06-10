@@ -1,5 +1,3 @@
-
-
 #pragma once
 
 #include <infra/Config.h>
@@ -18,48 +16,12 @@
 #include <gfx/Forward.h>
 #include <gfx-pbr/Forward.h>
 
-#ifndef MUD_TOOL_EXPORT
-#define MUD_TOOL_EXPORT MUD_IMPORT
+#ifndef TWO_TOOL_EXPORT
+#define TWO_TOOL_EXPORT TWO_IMPORT
 #endif
 
-
-    
-    
-
-namespace std {
-
-    
-    
-}
-
-namespace mud {
-namespace ui {
-
-    
-    
-}
-}
-
-namespace glm {
-
-    
-    
-}
-
-namespace bx {
-
-    
-    
-}
-
-namespace json11 {
-
-    
-    
-}
-
-namespace mud {
-
+namespace two
+{
     enum class ToolState : unsigned int;
     
     
@@ -69,9 +31,10 @@ namespace mud {
     class Tool;
     class ViewportTool;
     class SpatialTool;
-    struct Gizmo;
+    class Gizmo;
     class TransformAction;
     class TransformTool;
+	class TransformGizmo;
     class ActionStack;
     class UndoTool;
     class RedoTool;
@@ -87,6 +50,7 @@ namespace mud {
     class RotateTool;
     class ScaleAction;
     class ScaleTool;
+	struct Selection;
     class CopyAction;
     class CopyTool;
     class ViewAction;
@@ -97,32 +61,3 @@ namespace mud {
     class WorkPlaneAction;
     class WorkPlaneTool;
 }
-
-namespace mud {
-namespace detail {
-
-    
-    
-}
-}
-
-namespace mud {
-namespace gfx {
-
-    
-    
-}
-}
-
-namespace bimg {
-
-    
-    
-}
-
-namespace bgfx {
-
-    
-    
-}
-

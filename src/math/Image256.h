@@ -4,16 +4,15 @@
 
 #pragma once
 
+#include <stl/vector.h>
+#include <stl/span.h>
 #include <math/Forward.h>
+#include <math/Vec.h>
 #include <math/Colour.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#endif
-
-namespace mud
+namespace two
 {
-	using cstring = const char*;
+	export_ using cstring = const char*;
 
 	export_ enum class refl_ Spectrum : short int
 	{
@@ -21,11 +20,11 @@ namespace mud
 		Hue = 1
 	};
 
-	export_ struct refl_ MUD_MATH_EXPORT Palette
+	export_ struct refl_ TWO_MATH_EXPORT Palette
 	{
 	public:
 		constr_ Palette(Spectrum spectrum, size_t steps);
-		constr_ Palette(std::vector<Colour> colours);
+		constr_ Palette(span<Colour> colours);
 		constr_ Palette();
 
 		void reset();
@@ -37,25 +36,25 @@ namespace mud
 		void value_spectrum(size_t steps, bool toWhite = false);
 		void hue_spectrum(size_t steps);
 
-		std::vector<Colour> m_colours;
+		vector<Colour> m_colours;
 	};
 
-	export_ struct refl_ MUD_MATH_EXPORT Image256
+	export_ struct refl_ TWO_MATH_EXPORT Image256
 	{
 	public:
-		constr_ Image256(uint16_t width = 0, uint16_t height = 0, const Palette& palette = Palette());
+		constr_ Image256(const uvec2& size = uvec2(0U), const Palette& palette = Palette());
 
 		bool operator==(const Image256& other) const;
 
-		void resize(uint16_t width, uint16_t height);
-		uint32_t& at(uint16_t x, uint16_t y) { return m_pixels[x + y * m_width]; }
+		void resize(const uvec2& size);
+		uint32_t& at(const uvec2& p) { return m_pixels[p.x + p.y * m_size.x]; }
 
-		std::vector<uint8_t> read() const;
+		vector<uint8_t> read() const;
+		vector<uint32_t> read32() const;
 		void read(uint8_t* data) const;
 
-		attr_ std::vector<uint32_t> m_pixels;
-		attr_ uint16_t m_width;
-		attr_ uint16_t m_height;
+		attr_ vector<uint32_t> m_pixels;
+		attr_ uvec2 m_size;
 		attr_ Palette m_palette;
 	};
 }

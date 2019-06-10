@@ -4,9 +4,9 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <ui/Structs/Dock.h>
-#include <uio/Edit/Script.h>
+#ifndef TWO_MODULES
+#include <ui/DockStruct.h>
+#include <uio/ScriptEdit.h>
 #endif
 
 #include <tool/Forward.h>
@@ -22,19 +22,25 @@
 
 #include <tool/ActionStack.h>
 
-namespace mud
+namespace two
 {
-	export_ class refl_ MUD_TOOL_EXPORT EditContext : public NonCopy
+	export_ struct refl_ TWO_TOOL_EXPORT Selection
+	{
+		vector<Ref> objects;
+		vector<Entity> entities;
+	};
+
+	export_ class refl_ TWO_TOOL_EXPORT EditContext
     {
     public:
-		EditContext(GfxSystem& gfx_system);
+		EditContext(GfxSystem& gfx);
         ~EditContext();
 
 		void set_tool(ViewportTool& tool, Viewer& viewer);
 
-		GfxSystem& m_gfx_system;
+		GfxSystem& m_gfx;
 
-		std::vector<Ref> m_selection;
+		Selection m_selection;
 
 		ActionStack m_action_stack;
 		ToolContext m_tool_context;
@@ -56,7 +62,7 @@ namespace mud
 		attr_ SpatialTool* m_spatial_tool = nullptr;
 		attr_ Brush* m_brush = nullptr;
 
-		std::vector<unique_ptr<Brush>> m_custom_brushes;
+		vector<unique<Brush>> m_custom_brushes;
 
 		ScriptEditor m_script_editor;
 
@@ -65,15 +71,15 @@ namespace mud
 		Widget* m_screen = nullptr;
     };
 
-	MUD_TOOL_EXPORT void brush_preview(Widget& parent, Brush& brush);
-	MUD_TOOL_EXPORT void brush_options(Widget& parent, Brush& brush);
-	MUD_TOOL_EXPORT void current_brush_edit(Widget& parent, EditContext& context);
+	TWO_TOOL_EXPORT void brush_preview(Widget& parent, Brush& brush);
+	TWO_TOOL_EXPORT void brush_options(Widget& parent, Brush& brush);
+	TWO_TOOL_EXPORT void current_brush_edit(Widget& parent, EditContext& context);
 
-	MUD_TOOL_EXPORT void object_editor(Widget& parent, const std::vector<Ref>& selection);
+	TWO_TOOL_EXPORT void object_editor(Widget& parent, const Selection& selection);
 
-	MUD_TOOL_EXPORT void tools_transform(Widget& toolbar, EditContext& context);
-	MUD_TOOL_EXPORT void edit_transform(Widget& parent, EditContext& context);
-	MUD_TOOL_EXPORT void edit_tools(Widget& screen, Docker& docker, EditContext& context);
-	MUD_TOOL_EXPORT void edit_tools(Widget& screen, EditContext& context);
-	MUD_TOOL_EXPORT void edit_context(Widget& parent, EditContext& context, bool tools = false);
+	TWO_TOOL_EXPORT void tools_transform(Widget& toolbar, EditContext& context);
+	TWO_TOOL_EXPORT void edit_transform(Widget& parent, EditContext& context);
+	TWO_TOOL_EXPORT void edit_tools(Widget& screen, Docker& docker, EditContext& context);
+	TWO_TOOL_EXPORT void edit_tools(Widget& screen, EditContext& context);
+	TWO_TOOL_EXPORT void edit_context(Widget& parent, EditContext& context, bool tools = false);
 }

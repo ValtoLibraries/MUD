@@ -1,4 +1,4 @@
--- mud toolchain
+-- two toolchain
 -- options
 
 newoption {
@@ -7,13 +7,33 @@ newoption {
 }
 
 newoption {
+    trigger = "use-stl",
+    description = "Use STL containers",
+}
+
+newoption {
+    trigger = "compile-only",
+    description = "Compile library code only",
+}
+
+newoption {
     trigger = "as-libs",
-    description = "Generate separate mud libraries",
+    description = "Generate separate two libraries",
+}
+
+newoption {
+    trigger = "unity",
+    description = "Unity build (use amalgamated)",
 }
 
 newoption {
     trigger = "webgl2",
     description = "Use WebGL 2.0",
+}
+
+newoption {
+    trigger = "webgpu",
+    description = "Experimental WebGPU (dawn) renderer",
 }
 
 newoption {
@@ -28,12 +48,22 @@ newoption {
 
 newoption {
     trigger = "sound",
-    description = "Build mud library with Sound.",
+    description = "Build two library with Sound.",
 }
 
 newoption {
     trigger = "profile",
     description = "Integrated profiling.",
+}
+
+newoption {
+    trigger = "jsbind",
+    description = "Use JS bindings",
+}
+
+newoption {
+    trigger = "tools",
+    description = "Build tools",
 }
 
 --newoption {

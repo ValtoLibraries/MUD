@@ -1,23 +1,20 @@
-//  Copyright (c) 2016 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #pragma once
 
-#ifdef MUD_CTX_OGRE
+#ifdef TWO_CTX_OGRE
 
-/* mud */
 #include <ui/Types.h>
 #include <ui/Render/RenderWindow.h>
 #include <ui/Input/InputDispatcher.h>
 
-/* Ogre */
 #include <OgreWindowEventUtilities.h>
 
-/* OIS */
 #include <OIS.h>
 
-namespace mud
+namespace two
 {
 	class OgreRenderWindow : public RenderWindow, Ogre::WindowEventListener
 	{
@@ -74,9 +71,9 @@ namespace mud
 		Mouse* m_uiMouse;
 		Keyboard* m_uiKeyboard;
 
-		std::map<OIS::MouseButtonID, bool> m_pressed;
+		map<OIS::MouseButtonID, bool> m_pressed;
 		bool m_shutdownRequested;
 	};
 }
 
-#endif // MUD_GFXREWINDOW_H
+#endif // TWO_GFXREWINDOW_H

@@ -1,22 +1,22 @@
--- mud library
+-- two library
 -- lua 3rdparty module
 
-lua = mud_dep(nil, "lua")
+lua = dep(nil, "lua")
 	kind "StaticLib"
     
 	includedirs {
-        path.join(MUD_3RDPARTY_DIR, "lua"),
+        path.join(TWO_3RDPARTY_DIR, "lua"),
 	}
 
 	files {
-        path.join(MUD_3RDPARTY_DIR, "lua", "*.h"),
-        path.join(MUD_3RDPARTY_DIR, "lua", "*.c"),
+        path.join(TWO_3RDPARTY_DIR, "lua", "*.h"),
+        path.join(TWO_3RDPARTY_DIR, "lua", "*.c"),
 	}
               
     removefiles {
-        path.join(MUD_3RDPARTY_DIR, "lua", "lua.c"),
-        path.join(MUD_3RDPARTY_DIR, "lua", "luac.c"),
-        path.join(MUD_3RDPARTY_DIR, "lua", "lbitlib.c"),
+        path.join(TWO_3RDPARTY_DIR, "lua", "lua.c"),
+        path.join(TWO_3RDPARTY_DIR, "lua", "luac.c"),
+        path.join(TWO_3RDPARTY_DIR, "lua", "lbitlib.c"),
     }
     
     configuration { "vs*", "not asmjs" }
@@ -33,11 +33,6 @@ lua = mud_dep(nil, "lua")
 	configuration { "osx or *-clang* or asmjs" }
 		buildoptions {
 			"-Wno-expansion-to-defined",
-		}
-
-	configuration { "linux-*" }
-		buildoptions {
-			"-fPIC",
 		}
 
 	configuration {}

@@ -4,17 +4,15 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <type/Ref.h>
+#ifndef TWO_MODULES
 #include <type/Dispatch.h>
 #include <infra/Global.h>
-#include <ui/Ui.h>
 #endif
 #include <uio/Forward.h>
 
-namespace mud
+namespace two
 {
-	export_ class MUD_UIO_EXPORT DispatchItem : public Dispatch<Widget&, Widget&>, public LazyGlobal<DispatchItem>
+	export_ class TWO_UIO_EXPORT DispatchItem : public Dispatch<Widget&, Widget&>, public LazyGlobal<DispatchItem>
 	{
 	public:
 		DispatchItem();

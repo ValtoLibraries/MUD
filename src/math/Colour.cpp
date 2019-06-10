@@ -3,20 +3,15 @@
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #include <infra/Cpp20.h>
-#ifndef MUD_CPP_20
-#include <functional>
-#include <algorithm>
-#endif
 
-#ifdef MUD_MODULES
-module mud.math;
+#ifdef TWO_MODULES
+module two.math;
 #else
 #include <math/Colour.h>
 #include <math/Math.h>
-#include <math/Clamp.h>
 #endif
 
-namespace mud
+namespace two
 {
 	Colour Colour::Black(0.f, 0.f, 0.f);
 	Colour Colour::AlphaBlack(0.f, 0.f, 0.f, 0.5f);
@@ -38,99 +33,105 @@ namespace mud
 	Colour Colour::None(0.f, 0.f, 0.f, 0.f);
 
 	Colour::Colour()
-		: m_r(1.f), m_g(1.f), m_b(1.f), m_a(1.f)
+		: r(1.f), g(1.f), b(1.f), a(1.f)
 	{}
 
 	Colour::Colour(float v, float a)
-		: m_r(v), m_g(v), m_b(v), m_a(a)
+		: r(v), g(v), b(v), a(a)
 	{}
 
 	Colour::Colour(float r, float g, float b, float a)
-		: m_r(r), m_g(g), m_b(b), m_a(a)
+		: r(r), g(g), b(b), a(a)
 	{}
 
 	Colour Colour::hsl(float h, float s, float l)
 	{
-		return hsl_to_rgb(h, s, l);
-	}
-
-	Colour clamp_colour(const Colour& colour)
-	{
-#ifdef MUD_PLATFORM_EMSCRIPTEN
-		Colour clamped = colour;
-		for(size_t i = 0; i < 4; ++i)
-			clamped[i] = clamp(colour[i], 0.f, 1.f);
-		return clamped;
-#else
-		return colour;
-#endif
+		return two::hsl(h, s, l);
 	}
 
 	uint32_t to_rgba(const Colour& colour)
 	{
-		Colour col = clamp_colour(colour);
 		uint32_t rgba = 0;
-		rgba |= uint8_t(col.m_r * 255.f) << 24;
-		rgba |= uint8_t(col.m_g * 255.f) << 16;
-		rgba |= uint8_t(col.m_b * 255.f) << 8;
-		rgba |= uint8_t(col.m_a * 255.f);
+		rgba |= uint8_t(clamp(colour.r, 0.f, 1.f) * 255.f) << 24;
+		rgba |= uint8_t(clamp(colour.g, 0.f, 1.f) * 255.f) << 16;
+		rgba |= uint8_t(clamp(colour.b, 0.f, 1.f) * 255.f) << 8;
+		rgba |= uint8_t(clamp(colour.a, 0.f, 1.f) * 255.f);
+		return rgba;
+	}
+
+	uint32_t to_abgr(float r, float g, float b, float a)
+	{
+		//Colour col = clamp_colour(colour);
+		uint32_t rgba = 0;
+		rgba |= uint8_t(clamp(r, 0.f, 1.f) * 255.f);
+		rgba |= uint8_t(clamp(g, 0.f, 1.f) * 255.f) << 8;
+		rgba |= uint8_t(clamp(b, 0.f, 1.f) * 255.f) << 16;
+		rgba |= uint8_t(clamp(a, 0.f, 1.f) * 255.f) << 24;
 		return rgba;
 	}
 
 	uint32_t to_abgr(const Colour& colour)
 	{
-		Colour col = clamp_colour(colour);
 		uint32_t rgba = 0;
-		rgba |= uint8_t(col.m_r * 255.f);
-		rgba |= uint8_t(col.m_g * 255.f) << 8;
-		rgba |= uint8_t(col.m_b * 255.f) << 16;
-		rgba |= uint8_t(col.m_a * 255.f) << 24;
+		rgba |= uint8_t(clamp(colour.r, 0.f, 1.f) * 255.f);
+		rgba |= uint8_t(clamp(colour.g, 0.f, 1.f) * 255.f) << 8;
+		rgba |= uint8_t(clamp(colour.b, 0.f, 1.f) * 255.f) << 16;
+		rgba |= uint8_t(clamp(colour.a, 0.f, 1.f) * 255.f) << 24;
 		return rgba;
 	}
-
-	Colour from_rgba(uint32_t rgba)
+	
+	Colour rgb(uint32_t rgba)
 	{
 		Colour colour;
-		colour.m_r =  (rgba >> 24) / 255.f;
-		colour.m_g = ((rgba >> 16) & 0xFF) / 255.f;
-		colour.m_b = ((rgba >> 8) & 0xFF) / 255.f;
-		colour.m_a = ((rgba >> 0) & 0xFF) / 255.f;
+		colour.r = ((rgba >> 16) & 0xFF) / 255.f;
+		colour.g = ((rgba >> 8)  & 0xFF) / 255.f;
+		colour.b = ((rgba >> 0)  & 0xFF) / 255.f;
 		return colour;
 	}
 
-	Colour from_abgr(uint32_t abgr)
+	Colour rgba(uint32_t rgba)
 	{
 		Colour colour;
-		colour.m_r = ((abgr >> 0)  & 0xFF) / 255.f;
-		colour.m_g = ((abgr >> 8)  & 0xFF) / 255.f;
-		colour.m_b = ((abgr >> 16) & 0xFF) / 255.f;
-		colour.m_a =  (abgr >> 24) / 255.f;
+		colour.r =  (rgba >> 24) / 255.f;
+		colour.g = ((rgba >> 16) & 0xFF) / 255.f;
+		colour.b = ((rgba >> 8)  & 0xFF) / 255.f;
+		colour.a = ((rgba >> 0)  & 0xFF) / 255.f;
+		return colour;
+	}
+
+	Colour abgr(uint32_t abgr)
+	{
+		Colour colour;
+		colour.r = ((abgr >> 0)  & 0xFF) / 255.f;
+		colour.g = ((abgr >> 8)  & 0xFF) / 255.f;
+		colour.b = ((abgr >> 16) & 0xFF) / 255.f;
+		colour.a =  (abgr >> 24) / 255.f;
 		return colour;
 	}
 
 	inline float to_linear(float value)
 	{
-		return value < 0.04045 ? float(value * (1.0 / 12.92)) : float(std::pow((value + 0.055) * (1.0 / (1 + 0.055)), 2.4));
+		return value < 0.04045 ? float(value * (1.0 / 12.92)) : float(pow((value + 0.055) * (1.0 / (1 + 0.055)), 2.4));
 	}
 
 	inline float to_gamma(float value)
 	{
-		return value > 0.0031308 ? float(value * 12.92) : float(std::pow(abs(value), 1.0 / 2.4) * 1.055 - 0.055);
+		return value > 0.0031308 ? float(value * 12.92) : float(pow(abs(value), 1.0 / 2.4) * 1.055 - 0.055);
 	}
 
 	Colour to_linear(const Colour& colour)
 	{
-		return Colour(to_linear(colour.m_r), to_linear(colour.m_g), to_linear(colour.m_b), colour.m_a);
+		return Colour(to_linear(colour.r), to_linear(colour.g), to_linear(colour.b), colour.a);
 	}
 
 	Colour to_gamma(const Colour& colour)
 	{
-		return Colour(to_gamma(colour.m_r), to_gamma(colour.m_g), to_gamma(colour.m_b), colour.m_a);
+		return Colour(to_gamma(colour.r), to_gamma(colour.g), to_gamma(colour.b), colour.a);
 	}
 
 	Colour to_srgb(const Colour& colour)
 	{
-		return Colour(to_gamma(colour.m_r), to_gamma(colour.m_g), to_gamma(colour.m_b), colour.m_a);
+		return Colour(to_gamma(colour.r), to_gamma(colour.g), to_gamma(colour.b), colour.a);
 	}
 
 	float hue_to_rgb(float p, float q, float t)
@@ -143,7 +144,13 @@ namespace mud
 		return p;
 	}
 
-	Colour hsl_to_rgb(float h, float s, float l)
+	Colour hsv(float h, float s, float v)
+	{
+		// @todo
+		return hsl(h, s, v);
+	}
+
+	Colour hsl(float h, float s, float l)
 	{
 		float r, g, b;
 
@@ -162,12 +169,12 @@ namespace mud
 		return { r, g, b };
 	}
 
-	Colour hsla_to_rgba(const Colour& colour)
+	Colour to_rgba(const ColourHSL& colour)
 	{
-		return hsl_to_rgb(colour.m_h, colour.m_s, colour.m_l);
+		return hsl(colour.h, colour.s, colour.l);
 	}
 
-	Colour rgb_to_hsl(float r, float g, float b)
+	ColourHSL to_hsl(float r, float g, float b)
 	{
 		float lmax = max(r, max(g, b));
 		float lmin = min(r, min(g, b));
@@ -188,11 +195,16 @@ namespace mud
 			h /= 6.f;
 		}
 
-		return { h, s, l };
+		return { h, s, l, 1.f };
 	}
 
-	Colour rgba_to_hsla(const Colour& colour)
+	ColourHSL to_hsl(const Colour& colour)
 	{
-		return rgb_to_hsl(colour.m_r, colour.m_g, colour.m_b);
+		return to_hsl(colour.r, colour.g, colour.b);
+	}
+
+	ColourHSL to_hsla(const Colour& colour)
+	{
+		return to_hsl(colour.r, colour.g, colour.b);
 	}
 }

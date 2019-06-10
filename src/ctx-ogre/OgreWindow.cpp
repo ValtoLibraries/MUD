@@ -1,4 +1,4 @@
-//  Copyright (c) 2016 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -16,7 +16,7 @@
 #include <Compositor/OgreCompositorNodeDef.h>
 #include <Compositor/OgreCompositorWorkspaceDef.h>
 
-namespace mud
+namespace two
 {
 	OgreRenderWindow::OgreRenderWindow(OgreRenderSystem& renderSystem, const string& name, int width, int height, bool fullScreen)
 		: RenderWindow(name, width, height, fullScreen)

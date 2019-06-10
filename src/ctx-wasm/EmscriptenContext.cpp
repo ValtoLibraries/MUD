@@ -1,9 +1,10 @@
-//  Copyright (c) 2016 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #include <ctx-wasm/EmscriptenContext.h>
 
+#include <math/Vec.hpp>
 #include <type/Type.h>
 //#include <ui/UiWindow.h>
 #include <ctx/InputDevice.h>
@@ -12,11 +13,36 @@
 #include <emscripten/html5.h>
 
 #include <cassert>
-#include <string>
+#include <cstdio>
 
-namespace mud
+#include <stl/string.h>
+
+namespace two
 {
-	using string = std::string;
+	using string = string;
+
+	static void log_error(EMSCRIPTEN_RESULT result)
+	{
+		string message;
+		if(result == EMSCRIPTEN_RESULT_DEFERRED)
+			message = "The requested operation cannot be completed now for web security reasons, and has been deferred for completion in the next event handler.";
+		else if(result == EMSCRIPTEN_RESULT_NOT_SUPPORTED)
+			message = "The given operation is not supported by this browser or the target element.This value will be returned at the time the callback is registered if the operation is not supported.";
+		else if(result == EMSCRIPTEN_RESULT_FAILED_NOT_DEFERRED)
+			message = "The requested operation could not be completed now for web security reasons.It failed because the user requested the operation not be deferred.";
+		else if(result == EMSCRIPTEN_RESULT_INVALID_TARGET)
+			message = "The operation failed because the specified target element is invalid.";
+		else if(result == EMSCRIPTEN_RESULT_UNKNOWN_TARGET)
+			message = "The operation failed because the specified target element was not found.";
+		else if(result == EMSCRIPTEN_RESULT_INVALID_PARAM)
+			message = "The operation failed because an invalid parameter was passed to the function.";
+		else if(result == EMSCRIPTEN_RESULT_FAILED)
+			message = "Generic failure result message, returned if no specific result is available.";
+		else if(result == EMSCRIPTEN_RESULT_NO_DATA)
+			message = "The operation failed because no data is currently available.";
+
+		printf("[ERROR] html5 - %s\n", message.c_str());
+	}
 
 	MouseButtonCode convert_html5_mouse_button(unsigned short button)
 	{
@@ -147,20 +173,29 @@ namespace mud
 		else return translate(convert_html5_key(string));
 	}
 
-	EmContext::EmContext(RenderSystem& render_system, cstring name, int width, int height, bool full_screen)
-		: Context(render_system, name, width, height, full_screen)
+	EmContext::EmContext(RenderSystem& render_system, const string& name, uvec2 size, bool fullscreen, bool main)
+		: Context(render_system, name, size, fullscreen)
 	{
-#ifdef MUD_RENDERER_BGFX
-		// bgfx creates the context itself
-		double canvas_width, canvas_height;
-		emscripten_get_element_css_size("#canvas", &canvas_width, &canvas_height);
-		emscripten_set_canvas_element_size("#canvas", int(canvas_width), int(canvas_height));
-
-		m_width = int(canvas_width);
-		m_height = int(canvas_height);
+#ifdef TWO_RENDERER_BGFX
+		const bool create = !main;
 #else
-		this->init_context();
+		const bool create = false;
 #endif
+		if(!create)
+		{
+			// bgfx creates the context itself
+			double canvas_width, canvas_height;
+			emscripten_get_element_css_size("#canvas", &canvas_width, &canvas_height);
+			emscripten_set_canvas_element_size("#canvas", int(canvas_width), int(canvas_height));
+
+			m_size = { uint(canvas_width), uint(canvas_height) };
+			m_fb_size = m_size;
+		}
+		else
+		{
+			m_native_handle = (void*)m_title.c_str();
+			//this->create_context(name);
+		}
 
 		emscripten_set_resize_callback(0, this, true, [](int, const EmscriptenUiEvent* event, void* w) { UNUSED(event); static_cast<EmContext*>(w)->resize(); return EM_BOOL(true); });
 
@@ -182,14 +217,14 @@ namespace mud
 
 	}
 
-	void EmContext::init_context()
+	void EmContext::create_context(const string& name)
 	{
 		EmscriptenWebGLContextAttributes attrs;
 		emscripten_webgl_init_context_attributes(&attrs);
 		attrs.depth = 1;
 		attrs.stencil = 1;
 		attrs.antialias = 1;
-#ifdef MUD_WEBGL2
+#ifdef TWO_WEBGL2
 		attrs.majorVersion = 2;
 #else
 		attrs.majorVersion = 1;
@@ -197,9 +232,19 @@ namespace mud
 		attrs.minorVersion = 0;
 		attrs.enableExtensionsByDefault = 1;
 
-		m_window = emscripten_webgl_create_context("#canvas", &attrs);
+		const string id = name;//"#" + name;
+		
+		printf("[debug] create webgl context on canvas %s\n", id.c_str());
+		auto context = emscripten_webgl_create_context(id.c_str(), &attrs);
+		if(context == 0 || context < 0)
+		{
+			log_error((EMSCRIPTEN_RESULT)context);
+			return;
+		}
 
-		emscripten_set_canvas_element_size("#canvas", m_width, m_height);
+		m_window = context;
+
+		emscripten_set_canvas_element_size(id.c_str(), m_size.x, m_size.y);
 		emscripten_webgl_make_context_current(m_window);
 	}
 
@@ -209,16 +254,14 @@ namespace mud
 		m_keyboard = &keyboard;
 	}
 
-	void EmContext::reset(uint16_t width, uint16_t height)
-	{
-		UNUSED(width); UNUSED(height);
-	}
-
-	bool EmContext::next_frame()
+	bool EmContext::begin_frame()
 	{
 		// polling is actually done when yielding control to Emscripten in the main loop (which I find a bit lousy design since it's implicit)
 		return true;
 	}
+
+	void EmContext::end_frame()
+	{}
 
 	void EmContext::lock_mouse(bool locked)
 	{
@@ -233,14 +276,13 @@ namespace mud
 		emscripten_get_element_css_size("#canvas", &width, &height);
 		emscripten_set_canvas_element_size("#canvas", int(width), int(height));
 
-		m_width = width;
-		m_height = height;
+		m_size = { uint(width), uint(height) };
+		m_fb_size = m_size;
 	}
 
 	bool EmContext::inject_mouse_move(const EmscriptenMouseEvent& mouseEvent)
 	{
-		vec2 size = { float(m_width), float(m_height) };
-		m_cursor = max(vec2(0.f), min(size, vec2(float(mouseEvent.canvasX), float(mouseEvent.canvasY))));
+		m_cursor = max(vec2(0.f), min(vec2(m_size), vec2(float(mouseEvent.canvasX), float(mouseEvent.canvasY))));
 		vec2 movement = { float(mouseEvent.movementX), float(mouseEvent.movementY) };
 		m_mouse->moved(m_cursor, m_mouse_lock ? &movement : nullptr);
 		return true;

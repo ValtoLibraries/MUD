@@ -1,57 +1,47 @@
-#include <math/Api.h>
-#include <gfx/Api.h>
-#include <gfx-ui/Api.h>
-#include <mud/Shell.h>
-
+//#include <two/frame.h>
+#include <frame/Api.h>
 #include <01_shapes/01_shapes.h>
 
-using namespace mud;
+#include <stl/vector.hpp>
 
-std::vector<ShapeInstance> create_shape_grid(size_t size_x, size_t size_y, const std::vector<ShapeVar> shapes)
+using namespace two;
+
+vector<ShapeInstance> create_shape_grid(size_t size_x, size_t size_y, span<ShapeVar> shapes, bool plain)
 {
-	std::vector<ShapeInstance> shape_items = {};
+	vector<ShapeInstance> shape_items = {};
 	shape_items.resize(size_x * size_y);
 
 	for(size_t x = 0; x < size_x; ++x)
 		for(size_t y = 0; y < size_y; ++y)
 		{
-			shape_items[x + y * size_x].index = random_integer(size_t(0), shapes.size() - 1);
+			ShapeInstance& shape = shape_items[x + y * size_x];
+			size_t index = randi(size_t(0), shapes.size() - 1);
+			shape.shape = shapes[index];
+			shape.colour = hsl(randf(0.f, 1.f), 1.f, 0.5f);
+			shape.symbol = plain ? Symbol::plain(shape.colour) : Symbol::wire(shape.colour);
 		}
 
 	return shape_items;
 }
 
-void shape_grid(Gnode& parent, array_2d<ShapeInstance> shape_grid, const Symbol& symbol, const std::vector<ShapeVar> shapes, bool rotate, Material* material)
+void shape_grid(Gnode& parent, span2d<ShapeInstance> shape_grid, const Symbol* symbol, bool rotate, Material* material)
 {
 	static float time = 0.f;
 	time += 0.01f;
 
-	static Clock clock;
-	bool swap = false;
-	if(clock.read() > 1.f)
-	{
-		//swap = true;
-		clock.step();
-	}
-
 	float spacing = 4.f;
-	vec3 center = { (shape_grid.m_size_x-1) * spacing * -0.5f, 0.f, (shape_grid.m_size_y-1) * spacing * -0.5f };
+	vec3 center = { (shape_grid.m_x-1) * spacing * -0.5f, 0.f, (shape_grid.m_y-1) * spacing * -0.5f };
 
-	//size_t x = shape_grid.m_size_x - 1;
-	//size_t y = shape_grid.m_size_y - 1;
-	for(size_t x = 0; x < shape_grid.m_size_x; ++x)
-		for(size_t y = 0; y < shape_grid.m_size_y; ++y)
+	for(size_t x = 0; x < shape_grid.m_x; ++x)
+		for(size_t y = 0; y < shape_grid.m_y; ++y)
 		{
-			ShapeInstance& shape_item = shape_grid[x + y * shape_grid.m_size_x];
+			const ShapeInstance& shape = shape_grid[x + y * shape_grid.m_x];
 
-			if(swap)
-				shape_item.index = (shape_item.index + 1) % shapes.size();
+			vec3 angles = rotate ? vec3(time + float(x) * 0.21f, 0.f, time + float(y) * 0.37f)
+								 : vec3(0.f);
 
-			vec3 angles = rotate ? vec3{ time + float(x) * 0.21f, 0.f, time + float(y) * 0.37f }
-								 : Zero3;
-
-			Gnode& node = gfx::node(parent, {}, center + vec3{ x * spacing, 0.f, y * spacing }, quat(angles));
-			gfx::shape(node, shapes[shape_item.index], symbol, ItemFlag::Default | ItemFlag::Selectable, material);
+			Gnode& node = gfx::node(parent, center + vec3(x * spacing, 0.f, y * spacing), quat(angles));
+			gfx::shape(node, shape.shape, symbol ? *symbol : shape.symbol, ItemFlag::Default | ItemFlag::Selectable, material);
 		}
 }
 
@@ -61,27 +51,28 @@ void ex_01_shapes(Shell& app, Widget& parent, Dockbar& dockbar)
 	SceneViewer& viewer = ui::scene_viewer(parent);
 	ui::orbit_controller(viewer);
 
-	Gnode& scene = viewer.m_scene->begin();
+	Gnode& scene = viewer.m_scene.begin();
 
-	Gnode& node = gfx::node(scene, {}, vec3(-5.f, 0.f, -5.f));
+	Gnode& node = gfx::node(scene, vec3(-5.f, 0.f, -5.f));
 	gfx::shape(node, Grid2({ 10.f, 10.f }), Symbol(Colour::AlphaGrey));
 
-	static std::vector<ShapeVar> shapes = { Cube(), Sphere(), Spheroid(), Cylinder(), Rect(), Circle() };
-	static std::vector<ShapeInstance > shape_items = create_shape_grid(10U, 10U, shapes);
+	static vector<ShapeVar> shapes = { Cube(), Sphere(), Spheroid(), Cylinder(), Rect(), Circle() };
+	static vector<ShapeInstance > shape_items = create_shape_grid(10U, 10U, shapes, false);
 
-	shape_grid(scene, { shape_items.data(), 10U, 10U }, Symbol::wire(Colour::Red), shapes);
+	shape_grid(scene, { shape_items.data(), 10U, 10U });
 }
 
 #ifdef _01_SHAPES_EXE
-void pump(Shell& app)
+void pump(Shell& app, ShellWindow& window)
 {
-	edit_context(app.m_ui->begin(), app.m_editor, true);
+	shell_context(window.m_ui->begin(), app.m_editor);
 	ex_01_shapes(app, *app.m_editor.m_screen, *app.m_editor.m_dockbar);
 }
 
 int main(int argc, char *argv[])
 {
-	Shell app(cstrarray(MUD_RESOURCE_PATH), argc, argv);
+	Shell app(TWO_RESOURCE_PATH, exec_path(argc, argv));
+	app.m_gfx.init_pipeline(pipeline_minimal);
 	app.run(pump);
 }
 #endif

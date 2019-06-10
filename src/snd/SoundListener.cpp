@@ -3,15 +3,32 @@
 //  This notice and the license may not be removed or altered from any source distribution.
 
 
+#include <math/Vec.hpp>
 #include <snd/SoundListener.h>
 
 #include <AL/al.h>
 #include <AL/alc.h>
 
-namespace mud
+namespace two
 {
 	SoundListener::SoundListener()
 	{}
+
+	void SoundListener::set_transform(const vec3& position, const quat& rotation)
+	{
+		m_position = position;
+		m_front = rotate(rotation, -z3);
+		m_up = rotate(rotation, y3);
+		m_transformUpdated = true;
+	}
+
+	void SoundListener::set_transform(const vec3& position, const vec3& front, const vec3& up)
+	{
+		m_position = position;
+		m_front = front;
+		m_up = up;
+		m_transformUpdated = true;
+	}
 
 	void SoundListener::update()
 	{

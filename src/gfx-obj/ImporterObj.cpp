@@ -3,32 +3,21 @@
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #include <infra/Cpp20.h>
-#ifndef MUD_CPP_20
-#include <array>
-#include <fstream>
-#include <sstream>
-#include <string>
-#endif
 
-#include <bgfx/bgfx.h>
-
-#ifdef MUD_MODULES
-module mud.gfx.obj;
+#ifdef TWO_MODULES
+module two.gfx.obj;
 #else
-#include <infra/Vector.h>
+#include <stl/algorithm.h>
 #include <infra/File.h>
-#include <infra/StringConvert.h>
-#include <pool/Pool.h>
+#include <infra/ToString.h>
 #include <math/Timer.h>
-#include <math/Stream.h>
-#include <math/VecOps.h>
-#include <geom/Mesh.h>
+#include <math/Vec.hpp>
+#include <geom/Geometry.h>
 #include <srlz/Serial.h>
 #include <gfx/Material.h>
 #include <gfx/Mesh.h>
 #include <gfx/Model.h>
 #include <gfx/Prefab.h>
-#include <gfx/Draw.h>
 #include <gfx/Node3.h>
 #include <gfx/Texture.h>
 #include <gfx/Asset.h>
@@ -37,14 +26,18 @@ module mud.gfx.obj;
 #include <gfx-obj/ImporterObj.h>
 #endif
 
-namespace mud
+#include <cstdio>
+
+#define DEBUG_MESHES 0
+
+namespace two
 {
-	static ImportConfig load_model_config(cstring path, cstring model_name)
+	static ImportConfig load_model_config(const string& path, const string& model_name, const ImportConfig& input)
 	{
-		ImportConfig config = {};
+		ImportConfig config = input;
 
 		string config_path = file_directory(path) + "/" + model_name + ".cfg";
-		if(file_exists(config_path.c_str()))
+		if(file_exists(config_path))
 			unpack_json_file(Ref(&config), config_path);
 
 		config.m_transform = bxSRT(config.m_scale, config.m_rotation, config.m_position);
@@ -52,49 +45,51 @@ namespace mud
 		return config;
 	}
 
-	ImporterOBJ::ImporterOBJ(GfxSystem& gfx_system)
-		: m_gfx_system(gfx_system)
+	ImporterOBJ::ImporterOBJ(GfxSystem& gfx)
+		: m_gfx(gfx)
 	{
-		static auto load_obj_model = [&](GfxSystem& gfx_system, Model& model, cstring path)
+		static auto load_obj_model = [&](Model& model, const string& path, const ImportConfig& inconfig)
 		{
-			UNUSED(gfx_system);
-			ImportConfig config = load_model_config(path, model.m_name.c_str());
+			ImportConfig config = load_model_config(path, model.m_name, inconfig);
 			this->import_model(model, path, config);
 		};
 
-		static auto load_obj_prefab = [&](GfxSystem& gfx_system, Prefab& prefab, cstring path)
+		static auto load_obj_prefab = [&](Prefab& prefab, const string& path, const ImportConfig& inconfig)
 		{
-			UNUSED(gfx_system);
-			ImportConfig config = load_model_config(path, prefab.m_name.c_str());
+			ImportConfig config = load_model_config(path, prefab.m_name, inconfig);
 			this->import_prefab(prefab, path, config);
 		};
 
-		gfx_system.add_importer(ModelFormat::obj, *this);
-		gfx_system.models().add_format(".obj", load_obj_model);
-		gfx_system.prefabs().add_format(".obj", load_obj_prefab);
+		gfx.add_importer(ModelFormat::obj, *this);
+		gfx.models().add_format(".obj", load_obj_model);
+		gfx.prefabs().add_format(".obj", load_obj_prefab);
 	}
 
-	void import_material_library(GfxSystem& gfx_system, const string& path, MaterialMap& material_map)
+	using MaterialMap = map<string, Material*>;
+
+	void import_material_library(GfxSystem& gfx, const string& path, MaterialMap& material_map)
 	{
-		string models_path = "models/" + path;
-		string materials_path = "materials/" + path;
-		LocatedFile location = gfx_system.locate_file(models_path.c_str());
-		if(location.m_location == nullptr)
-			location = gfx_system.locate_file(materials_path.c_str());
+		auto tof = [](const string& s) { return float(atof(s.c_str())); };
+		auto tocol = [&](const string tokens[]) { return Colour{ tof(tokens[1]), tof(tokens[2]), tof(tokens[3]), tof(tokens[4]) }; };
 
-		std::ifstream file = std::ifstream(string(location.m_location) + location.m_name);
+		LocatedFile location = gfx.locate_file("models/" + path);
+		if(!location)
+			location = gfx.locate_file("materials/" + path);
 
-		if(!file.good())
+		string filename = location.path(false);
+
+		if(!file_exists(filename))
 			return;
 
 		Material* current = nullptr;
 
-		string line;
-		while(std::getline(file, line))
+		read_text_file(filename, [&](string line)
 		{
-			std::istringstream stream(line);
+			string tokens[5];
+			line = replace(line, "\t", "");
+			split(line, " ", tokens);
 
-			string command = read<string>(stream);
+			const string& command = tokens[0];
 
 			// "Ka" ambient rgb
 			// "Kd" diffuse rgb
@@ -117,17 +112,16 @@ namespace mud
 			auto fetch_texture = [&](const string& path) -> Texture*
 			{
 				// @todo replace backslashes with slashes ?
-				if(gfx_system.locate_file(("textures/" + path).c_str()).m_location)
-					return gfx_system.textures().file(path.c_str());
+				if(gfx.locate_file("textures/" + path))
+					return gfx.textures().file(path);
 				else
 					return nullptr;
 			};
 
 			if(command == "newmtl")
 			{
-				string name = read<string>(stream);
-				current = &gfx_system.fetch_material(name.c_str(), "pbr/pbr");
-				current->m_pbr_block.m_enabled = true;
+				string name = tokens[1];
+				current = &gfx.fetch_material(name, "pbr/pbr");
 				material_map[name] = current;
 			}
 			else if(command == "Ka")
@@ -136,86 +130,83 @@ namespace mud
 			}
 			else if(command == "Kd")
 			{
-				Colour albedo = read<Colour>(stream);
-				current->m_pbr_block.m_albedo.m_value = albedo;
+				Colour albedo = tocol(tokens);
+				current->m_pbr.m_albedo.m_value = albedo;
 			}
 			else if(command == "Ks")
 			{
-				Colour specular = read<Colour>(stream);
-				current->m_pbr_block.m_metallic.m_value = max(specular.m_r, max(specular.m_g, specular.m_b));
+				Colour specular = tocol(tokens);
+				current->m_pbr.m_metallic.m_value = max(specular.r, max(specular.g, specular.b));
 			}
 			else if(command == "Ke")
 			{
-				Colour emissive = read<Colour>(stream);
-				current->m_pbr_block.m_emissive.m_value = emissive;
-				current->m_pbr_block.m_emissive.m_value.m_a = length(to_vec3(emissive));
+				Colour emissive = tocol(tokens);
+				current->m_lit.m_emissive.m_value = emissive;
+				current->m_lit.m_emissive.m_value.a = length(to_vec3(emissive));
 			}
 			else if(command == "Ns")
 			{
-				float specular = read<float>(stream);
-				current->m_pbr_block.m_metallic.m_value = (1000.f - specular) / 1000.f;
+				float specular = tof(tokens[1]);
+				current->m_pbr.m_metallic.m_value = (1000.f - specular) / 1000.f;
 			}
 			else if(command == "d")
 			{
-				float d = read<float>(stream);
-				current->m_pbr_block.m_albedo.m_value.m_a = d;
+				float d = tof(tokens[1]);
+				current->m_pbr.m_albedo.m_value.a = d;
 			}
 			else if(command == "Tr")
 			{
-				float tr = read<float>(stream);
-				current->m_pbr_block.m_albedo.m_value.m_a = 1.f - tr;
+				float tr = tof(tokens[1]);
+				current->m_pbr.m_albedo.m_value.a = 1.f - tr;
 			}
 			else if(command == "Pr")
 			{
-				float roughness = read<float>(stream);
-				current->m_pbr_block.m_roughness.m_value = roughness;
+				float roughness = tof(tokens[1]);
+				current->m_pbr.m_roughness.m_value = roughness;
 			}
 			else if(command == "Pm")
 			{
-				float metallic = read<float>(stream);
-				current->m_pbr_block.m_metallic.m_value = metallic;
+				float metallic = tof(tokens[1]);
+				current->m_pbr.m_metallic.m_value = metallic;
 			}
-			else if(command == "map_Ka ") // ambient texture
+			else if(command.substr(0, 3) == "map")
 			{
-				// nothing
-			}
-			else if(command == "map_Kd") // diffuse texture
-			{
-				string map = read<string>(stream);
-				current->m_pbr_block.m_albedo.m_texture = fetch_texture(map);
-			}
-			else if(command == "map_Ks") // specular texture
-			{
-				string map = read<string>(stream);
-				//current->m_pbr_block.m_metallic.m_value = 1.f;
-				current->m_pbr_block.m_metallic.m_texture = fetch_texture(map);
-			}
-			else if(command == "map_Ke") // emissive texture
-			{
-				string map = read<string>(stream);
-				current->m_pbr_block.m_emissive.m_texture = fetch_texture(map);
-				current->m_pbr_block.m_emissive.m_value.m_a = 2.f;
-			}
-			else if(command == "map_Ns") // specular highlight texture
-			{
-				string map = read<string>(stream);
-				current->m_pbr_block.m_roughness.m_texture = fetch_texture(map);
-			}
-			else if(command == "map_bump" || command == "bump") // bump texture
-			{
-				string map = read<string>(stream);
-				current->m_pbr_block.m_normal.m_texture = fetch_texture(map);
-			}
-			else if(command == "map_Pr") // PBR: roughness texture
-			{
-				string map = read<string>(stream);
-				current->m_pbr_block.m_roughness.m_texture = fetch_texture(map);
-			}
-			else if(command == "map_Pm") // PBR: metallic texture
-			{
-				string map = read<string>(stream);
-				//current->m_pbr_block.m_metallic.m_value = 1.f;
-				current->m_pbr_block.m_metallic.m_texture = fetch_texture(map);
+				string map = tokens[1];
+				if(command == "map_Ka ") // ambient texture
+				{
+					// nothing
+				}
+				else if(command == "map_Kd") // diffuse texture
+				{
+					current->m_pbr.m_albedo = fetch_texture(map);
+				}
+				else if(command == "map_Ks") // specular texture
+				{
+					//current->m_pbr.m_metallic.m_value = 1.f;
+					current->m_pbr.m_metallic = fetch_texture(map);
+				}
+				else if(command == "map_Ke") // emissive texture
+				{
+					current->m_lit.m_emissive = fetch_texture(map);
+					current->m_lit.m_emissive.m_value.a = 2.f;
+				}
+				else if(command == "map_Ns") // specular highlight texture
+				{
+					current->m_pbr.m_roughness = fetch_texture(map);
+				}
+				else if(command == "map_bump" || command == "bump") // bump texture
+				{
+					current->m_lit.m_normal = fetch_texture(map);
+				}
+				else if(command == "map_Pr") // PBR: roughness texture
+				{
+					current->m_pbr.m_roughness = fetch_texture(map);
+				}
+				else if(command == "map_Pm") // PBR: metallic texture
+				{
+					//current->m_pbr.m_metallic.m_value = 1.f;
+					current->m_pbr.m_metallic = fetch_texture(map);
+				}
 			}
 
 			// "map_d"  alpha texture
@@ -225,23 +216,32 @@ namespace mud
 			// "map_Pm" PBR: metallic texture
 			// "map_Ps" PBR: sheen texture
 			// "norm"   PBR: normal map texture
-		}
+
+			return true;
+		});
 	}
 
 	void ImporterOBJ::import(Import& scene, const string& path, const ImportConfig& config)
 	{
-		printf("INFO: gltf - loading scene %s\n", scene.m_file.c_str());
+		auto tof = [](const string& s) { return float(atof(s.c_str())); };
+		auto toi = [](const string& s) { return atoi(s.c_str()); };
+
+		printf("[info] obj - loading scene %s\n", scene.m_file.c_str());
 
 		Clock clock;
 		clock.step();
 
 		bool generate_tangents = true;
+		bool as_model = scene.m_models.size() > 0;
 
-		std::vector<vec3> vertices;
-		std::vector<vec3> normals;
-		std::vector<vec2> uvs;
-		std::map<string, Material*> materials;
-		
+		struct Geometry
+		{
+			vector<vec3> vertices;
+			vector<vec3> normals;
+			vector<vec2> uvs;
+			map<string, Material*> materials;
+		} g;
+
 		enum VertAttrib
 		{
 			POSITION,
@@ -251,33 +251,40 @@ namespace mud
 
 		struct MeshWriter
 		{
-			MeshWriter(const ImportConfig& config, Import& import, bool generate_tangents)
+			MeshWriter(const ImportConfig& config, Import& import, bool as_model, bool generate_tangents)
 				: m_config(config)
 				, m_import(import)
 				, m_name(import.m_name)
+				, m_as_model(as_model)
 				, m_generate_tangents(generate_tangents)
 			{}
 
-			~MeshWriter()
+			void next()
 			{
 				if(m_shape.vertex_count() == 0 || m_skip)
 					return;
 
-				Mesh& mesh = m_import.m_gfx_system.meshes().construct(m_name.c_str(), true);
+				Model& model = m_as_model ? *m_import.m_models[0] : m_import.m_gfx.models().create(m_name);
+				Mesh& mesh = model.add_mesh(m_name, true);
+
 				m_shape.bake(!m_normals, m_generate_tangents && m_uvs);
-				mesh.write(PLAIN, m_shape, m_config.m_optimize_geometry);
+				mesh.write(m_shape, m_config.m_optimize_geometry);
 				mesh.m_material = m_material;
 				m_import.m_meshes.push_back(&mesh);
 
-				Model& model = m_import.m_gfx_system.models().create(m_name.c_str());
 				model.add_item(mesh, bxidentity());
 				model.prepare();
 				m_import.m_models.push_back(&model);
 
-				m_import.m_items.push_back({ bxidentity(), &model, -1 });
+				m_import.m_nodes.push_back(bxidentity());
+				m_import.m_items.push_back({ 0, &model, -1 });
 
-				//printf("INFO: ImporterOBJ imported mesh %s material %s with %u vertices and %u faces\n", 
-				//	   m_mesh.m_name.c_str(), m_mesh.m_material->m_name.c_str(), m_shape.m_positions.size(), m_shape.m_indices.size() / 3);
+#if DEBUG_MESHES
+				printf("[info] obj - imported mesh %s with %u vertices and %u faces\n", 
+					   mesh.m_name.c_str(), m_shape.m_positions.size(), m_shape.m_indices.size() / 3);
+#endif
+
+				m_shape = {};
 			}
 
 			inline void face(ShapeVertex* face, size_t a, size_t b, size_t c)
@@ -300,6 +307,7 @@ namespace mud
 			string m_name;
 			Material* m_material = nullptr;
 			MeshPacker m_shape;
+			bool m_as_model;
 			bool m_generate_tangents;
 			bool m_normals = true;
 			bool m_uvs = true;
@@ -308,138 +316,130 @@ namespace mud
 		};
 
 		string filename = path + ".obj";
-		std::ifstream filestream(filename);
 
-		if(!filestream.good())
+		if(!file_exists(filename))
 		{
-			printf("ERROR: could not locate model %s\n", filename.c_str());
+			printf("[ERROR] could not locate model %s\n", filename.c_str());
 			return;
 		}
 
-		unique_ptr<MeshWriter> mesh_writer = make_unique<MeshWriter>(config, scene, generate_tangents);
+		MeshWriter mesh_writer = { config, scene, as_model, generate_tangents };
 
-		string line;
+		static string tokens[5];
+		static string faceids[3];
 
-		while(std::getline(filestream, line))
+		read_text_file(filename, [&](const string& line)
 		{
-			if(line.back() == '\r')
-				line.pop_back();
+			for(size_t i = 0; i < 5; ++i)
+				tokens[i].clear();
 
-			string tokens[5];
-			split_string(line, " ", { tokens, 5 });
+			split(line, " ", tokens);
 
 			const string& command = tokens[0];
 
 			if(command == "o" || command == "g")
 			{
-				mesh_writer = nullptr;
-				mesh_writer = make_unique<MeshWriter>(config, scene, generate_tangents);
+				mesh_writer.next();
 			}
 			if(command == "o")
 			{
 				const string& name = tokens[1];
-				scene.m_name = name.c_str();
+				scene.m_name = name;
 			}
 			else if(command == "g")
 			{
 				const string& name = tokens[1];
-				mesh_writer->m_name = name.c_str();
+				mesh_writer.m_name = name;
 				if(config.filter_element(name))
-					mesh_writer->m_skip = true;
+					mesh_writer.m_skip = true;
 			}
 			else if(command == "usemtl")
 			{
 				const string& material = tokens[1];
-				mesh_writer->m_material = materials[material];
+				mesh_writer.m_material = g.materials[material];
 				if(config.filter_material(material))
-					mesh_writer->m_skip = true;
+					mesh_writer.m_skip = true;
 			}
 			else if(command == "s") //smoothing
 			{
 				const string& value = tokens[1];
-				mesh_writer->m_smoothing_group = value == "off" ? 0
-																: std::stoi(value);
+				mesh_writer.m_smoothing_group = value == "off" ? 0
+																: toi(value);
 			}
 			else if(command == "v")
 			{
-				vec3 vert = { std::stof(tokens[1]), std::stof(tokens[2]), std::stof(tokens[3]) };
-				vert = config.m_transform * vec4(vert, 1.f);
-				vertices.emplace_back(vert);
+				vec3 vert = { tof(tokens[1]), tof(tokens[2]), tof(tokens[3]) };
+				vert = mulp(config.m_transform, vert);
+				g.vertices.push_back(vert);
 			}
 			else if(command == "vt")
 			{
-				vec2 uv = { std::stof(tokens[1]), std::stof(tokens[2]) };
-				uvs.push_back({ uv.x, 1.f - uv.y });
+				vec2 uv = { tof(tokens[1]), tof(tokens[2]) };
+				g.uvs.push_back({ uv.x, 1.f - uv.y });
 			}
 			else if(command == "vn")
 			{
-				vec3 norm = { std::stof(tokens[1]), std::stof(tokens[2]), std::stof(tokens[3]) };
-				norm = config.m_transform * vec4(norm, 0.f);
-				normals.emplace_back(norm);
+				vec3 norm = { tof(tokens[1]), tof(tokens[2]), tof(tokens[3]) };
+				norm = muln(config.m_transform, norm);
+				g.normals.push_back(norm);
 			}
 			else if(command == "f")
 			{
-				std::array<ShapeVertex, 4> verts;
+				ShapeVertex verts[4];
 
 				size_t num_vertices = tokens[4] == "" ? 3 : 4;
 				for(size_t i = 0; i < num_vertices; ++i)
 				{
-					string ids[3];
-					split_string(tokens[i + 1], "/", { ids, 3 });
+					split(tokens[i + 1], "/", faceids);
 
-					int face[3] = { std::stoi(ids[0]), std::stoi(ids[1]), std::stoi(ids[2]) };
+					int face[3] = { toi(faceids[0]), toi(faceids[1]), toi(faceids[2]) };
 
-					verts[i].m_position = face[POSITION] >= 0 ? vertices[face[POSITION] - 1] : vertices[face[POSITION] + vertices.size()];
+					verts[i].m_position = g.vertices[face[POSITION] >= 0 ? face[POSITION] - 1 : face[POSITION] + g.vertices.size()];
 					if(face[TEXCOORD] != 0)
-						verts[i].m_uv0 = face[TEXCOORD] >= 0 ? uvs[face[TEXCOORD] - 1] : uvs[face[TEXCOORD] + uvs.size()];
+						verts[i].m_uv0 = g.uvs[face[TEXCOORD] >= 0 ? face[TEXCOORD] - 1 : face[TEXCOORD] + g.uvs.size()];
 					if(face[NORMAL] != 0)
-						verts[i].m_normal = face[NORMAL] >= 0 ? normals[face[NORMAL] - 1] : normals[face[NORMAL] + normals.size()];
+						verts[i].m_normal = g.normals[face[NORMAL] >= 0 ? face[NORMAL] - 1 : face[NORMAL] + g.normals.size()];
 				}
 
-				mesh_writer->face(verts.data(), 0, 1, 2);
+				mesh_writer.face(verts, 0, 1, 2);
 
 				if(!tokens[4].empty())
-					mesh_writer->face(verts.data(), 0, 2, 3);
+					mesh_writer.face(verts, 0, 2, 3);
 			}
 			else if(command == "mtllib")
 			{
 				const string& lib_path = tokens[1];
-				import_material_library(m_gfx_system, lib_path, materials);
+				import_material_library(m_gfx, lib_path, g.materials);
 			}
-		}
 
-		printf("INFO: obj - imported %i vertices in %.2f seconds\n", int(vertices.size()), clock.step());
-		
-		mesh_writer = nullptr;
+			return true;
+		});
+
+		mesh_writer.next();
+
+		printf("[info] obj - imported %i vertices in %.2f seconds\n", int(g.vertices.size()), clock.step());
 	}
 
 	void ImporterOBJ::import_model(Model& model, const string& filepath, const ImportConfig& config)
 	{
-		Import state = { m_gfx_system, filepath, config };
+		Import state = { m_gfx, filepath, config };
+		state.m_models.push_back(&model);
 
 		this->import(state, filepath, config);
-
-		for(const Import::Item& item : state.m_items)
-		{
-			for(const ModelItem& model_item : item.model->m_items)
-				model.add_item(*model_item.m_mesh, item.transform, item.skin);
-		}
-
-		model.prepare();
 	}
 
 	void ImporterOBJ::import_prefab(Prefab& prefab, const string& filepath, const ImportConfig& config)
 	{
-		Import state = { m_gfx_system, filepath, config };
+		Import state = { m_gfx, filepath, config };
 
 		this->import(state, filepath, config);
 
-		import_to_prefab(m_gfx_system, prefab, state, config.m_flags);
+		import_to_prefab(m_gfx, prefab, state, config.m_flags);
 	}
 
 	void ImporterOBJ::repack(const string& filepath, const ImportConfig& config)
 	{
 		UNUSED(filepath); UNUSED(config);
-		printf("WARNING: obj - repack for this format not supported\n");
+		printf("[warning] obj - repack for this format not supported\n");
 	}
 }

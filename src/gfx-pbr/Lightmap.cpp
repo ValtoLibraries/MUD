@@ -8,28 +8,34 @@
 #include <bgfx/bgfx.h>
 #include <xatlas.h>
 
-#ifdef MUD_MODULES
-module mud.gfx.pbr;
+#ifdef TWO_MODULES
+module two.gfx.pbr;
 #else
-#include <infra/StringConvert.h>
+#include <infra/ToString.h>
+#include <infra/File.h>
 #include <math/Random.h>
 #include <geom/Intersect.h>
-#include <geom/Mesh.h>
-#include <pool/ObjectPool.h>
+#include <geom/Geometry.h>
+#include <pool/ObjectPool.hpp>
 #include <gfx/Item.h>
-#include <gfx/ManualRender.h>
 #include <gfx/Shot.h>
 #include <gfx/Graph.h>
 #include <gfx/Scene.h>
+#include <gfx/Camera.h>
 #include <gfx/Assets.h>
+#include <gfx/Mesh.h>
 #include <gfx/GfxSystem.h>
 #include <gfx/Pipeline.h>
+#include <gfx/Gpu/Material.hpp>
 #include <gfx-pbr/Lightmap.h>
 #include <gfx-pbr/VoxelGI.h>
-#include <gfx-pbr/Light.h>
+#include <gfx-pbr/Lighting.h>
 #include <gfx-pbr/Shadow.h>
 #include <gfx-pbr/Lightmap.h>
+#include <gfx-pbr/PipelinePbr.h>
 #endif
+
+#include <cstdio>
 
 //#define LIGHTMAP_HDR
 #define LIGHTMAP_COMPRESS
@@ -37,22 +43,22 @@ module mud.gfx.pbr;
 //#define LIGHTMAP_PIXELS
 //#define LIGHTMAP_SORT
 
-namespace glm
+namespace two
 {
 	inline bool operator>(const uvec2& lhs, const uvec2& rhs) { return lhs.x > rhs.x || (lhs.x == rhs.x && lhs.y > rhs.y); }
 }
 
-namespace mud
+namespace two
 {
 #ifdef LIGHTMAP_HDR
-	static const bgfx::TextureFormat::Enum c_lightmap_format = bgfx::TextureFormat::RGBA16F;
+	static const TextureFormat c_lightmap_format = TextureFormat::RGBA16F;
 #ifdef LIGHTMAP_COMPRESS
 	static const bgfx::TextureFormat::Enum c_lightmap_file_format = bgfx::TextureFormat::BC6H;
 #else
 	static const bgfx::TextureFormat::Enum c_lightmap_file_format = bgfx::TextureFormat::RGBA16F;
 #endif
 #else
-	static const bgfx::TextureFormat::Enum c_lightmap_format = bgfx::TextureFormat::RGBA8;
+	static const TextureFormat c_lightmap_format = TextureFormat::RGBA8;
 #ifdef LIGHTMAP_COMPRESS
 	static const bgfx::TextureFormat::Enum c_lightmap_file_format = bgfx::TextureFormat::BC3;
 #else
@@ -64,35 +70,37 @@ namespace mud
 		: m_size(size)
 		, m_atlas(uvec2(size))
 	{
-		printf("INFO: create lightmap\n");
+		printf("[info] create lightmap\n");
 
 		//m_items.reserve(1024);
 		m_items.reserve(4096);
 	}
 
-	void save_lightmap(GfxSystem& gfx_system, Lightmap& lightmap, bgfx::TextureHandle texture, bgfx::TextureFormat::Enum source_format, bgfx::TextureFormat::Enum target_format, const string& path)
+	void save_lightmap(GfxSystem& gfx, Lightmap& lightmap, bgfx::TextureHandle texture, bgfx::TextureFormat::Enum source_format, bgfx::TextureFormat::Enum target_format, const string& path)
 	{
 		uint16_t size = uint16_t(lightmap.m_size);
-		bgfx::TextureHandle blit_texture = bgfx::createTexture2D(size, size, false, 1, source_format, BGFX_TEXTURE_BLIT_DST | BGFX_TEXTURE_READ_BACK);
+		Texture blit_texture = { uvec2(size, size), false, TextureFormat(source_format), BGFX_TEXTURE_BLIT_DST | BGFX_TEXTURE_READ_BACK };
 		bgfx::blit(0, blit_texture, 0, 0, 0, 0, texture, 0, 0, 0, 0, size, size, 1);
 		bgfx::frame();
 		bgfx::frame();
 
-		save_bgfx_texture(gfx_system.m_allocator, gfx_system.file_writer(), path.c_str(), target_format, blit_texture, source_format, uint16_t(lightmap.m_size), uint16_t(lightmap.m_size));
+		save_bgfx_texture(gfx, path, target_format, blit_texture, source_format, uint16_t(lightmap.m_size), uint16_t(lightmap.m_size));
 	}
 
-	void load_lightmap(GfxSystem& gfx_system, Lightmap& lightmap, const string& path)
+	void load_lightmap(GfxSystem& gfx, Lightmap& lightmap, const string& path)
 	{
-		lightmap.m_texture = load_bgfx_texture(gfx_system.m_allocator, gfx_system.file_reader(), path.c_str());
+		lightmap.m_texture = { "lightmap" };
+		load_texture(gfx, lightmap.m_texture, path);
 
 		for(LightmapItem& item : lightmap.m_items)
-			item.m_lightmap = lightmap.m_texture;
+			item.m_lightmap = &lightmap.m_texture;
 	}
 
 	void Lightmap::add_item(size_t index, Item& item, bool valid, const vec4& uv_scale_offset)
 	{
-		bgfx::TextureHandle texture = valid ? m_texture : bgfx::TextureHandle(BGFX_INVALID_HANDLE);
-		m_items.push_back({ index, texture, uv_scale_offset });
+		//Texture* texture = valid ? &m_texture : nullptr;
+		if(valid)
+			m_items.push_back({ index, m_texture, uv_scale_offset });
 		item.m_lightmaps.push_back(&m_items.back());
 	}
 
@@ -104,35 +112,36 @@ namespace mud
 	LightmapAtlas::~LightmapAtlas()
 	{}
 
-	PassLightmap::PassLightmap(GfxSystem& gfx_system, BlockLightmap& block_lightmap)
-		: DrawPass(gfx_system, "lightmap", PassType::Lightmap)
-		, m_block_lightmap(block_lightmap)
-	{}
-
-	void PassLightmap::next_draw_pass(Render& render, Pass& render_pass)
+	void pass_lightmap(GfxSystem& gfx, Render& render)
 	{
+		static BlockLight& block_light = *gfx.m_renderer.block<BlockLight>();
+		static BlockShadow& block_shadow = *gfx.m_renderer.block<BlockShadow>();
+		static BlockGITrace& block_gi_trace = *gfx.m_renderer.block<BlockGITrace>();
+		static BlockLightmap& block_lightmap = *gfx.m_renderer.block<BlockLightmap>();
+
+		Pass pass = render.next_pass("lightmap", PassType::Lightmap);
+
 		bool conservative = (bgfx::getCaps()->supported & BGFX_CAPS_CONSERVATIVE_RASTER) != 0;
 		if(!conservative)
-			printf("WARNING: rendering lightmap without conservative raster support will produce visible seams\n");
+			printf("[warning] rendering lightmap without conservative raster support will produce visible seams\n");
 
-		UNUSED(render); UNUSED(render_pass);
-		render_pass.m_bgfx_state = 0 | BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_CONSERVATIVE_RASTER | BGFX_STATE_MSAA;
-	}
+		pass.m_bgfx_state = 0 | BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_CONSERVATIVE_RASTER | BGFX_STATE_MSAA;
 
-	void PassLightmap::queue_draw_element(Render& render, DrawElement& element)
-	{
-		UNUSED(render);
-		if(element.m_material->m_pbr_block.m_enabled)
+		auto queue_draw_element = [](GfxSystem& gfx, Render& render, Pass& pass, DrawElement& element)
 		{
-			element.m_program = m_block_lightmap.m_lightmap;
-			element.m_shader_version = element.m_material->shader_version(*element.m_program);
+			const Program& program = *element.m_program.m_program;
+			if(!program.m_blocks[MaterialBlock::Lit])
+				return false;
 
-			this->add_element(render, element);
-		}
+			element.set_program(*block_lightmap.m_lightmap);
+			return true;
+		};
+
+		gfx.m_renderer.pass(render, pass, queue_draw_element);
 	}
 
-	BlockLightmap::BlockLightmap(GfxSystem& gfx_system, BlockLight& block_light, BlockGIBake& block_gi_bake)
-		: DrawBlock(gfx_system, type<BlockLightmap>())
+	BlockLightmap::BlockLightmap(GfxSystem& gfx, BlockLight& block_light, BlockGIBake& block_gi_bake)
+		: DrawBlock(gfx, type<BlockLightmap>())
 		, m_block_light(block_light)
 		, m_block_gi_bake(block_gi_bake)
 	{}
@@ -141,7 +150,7 @@ namespace mud
 	{
 		u_lightmap.createUniforms();
 
-		m_lightmap = &m_gfx_system.programs().fetch("pbr/lightmap");
+		m_lightmap = &m_gfx.programs().fetch("pbr/lightmap");
 	}
 
 	struct XAtlas
@@ -196,7 +205,7 @@ namespace mud
 				MeshPacker& geometry = *(MeshPacker*)userData;
 				vec3 pos0 = geometry.m_positions[index0];
 				vec3 pos1 = geometry.m_positions[index1];
-				printf("DEBUG: already added edge %i to %i from face %i from %f, %f, %f to %f, %f, %f\n", index0, index1, face, pos0.x, pos0.y, pos0.z, pos1.x, pos1.y, pos1.z);
+				printf("[debug] already added edge %i to %i from face %i from %f, %f, %f to %f, %f, %f\n", index0, index1, face, pos0.x, pos0.y, pos0.z, pos1.x, pos1.y, pos1.z);
 			}
 		};
 
@@ -204,7 +213,7 @@ namespace mud
 
 		if(error != xatlas::AddMeshError::Success)
 		{
-			printf("ERROR: xatlas - adding mesh '%s': %s\n", mesh.m_name.c_str(), xatlas::StringForEnum(error));
+			printf("[ERROR] xatlas - adding mesh '%s': %s\n", mesh.m_name.c_str(), xatlas::StringForEnum(error));
 		}
 
 		return error == xatlas::AddMeshError::Success;
@@ -255,19 +264,13 @@ namespace mud
 			result.m_indices.push_back(xmesh->indexArray[i]);
 		}
 
-		mesh.write(PLAIN, result, false);
+		mesh.write(result, false);
 	}
-
-	struct ModelUnwrap
-	{
-		std::vector<bool> success;
-		uvec2 size;
-	};
 
 	void unwrap_model(Model& model, ModelUnwrap& unwrap, uint32_t rect_size, float density)
 	{
-		unwrap.success = std::vector<bool>(model.m_items.size(), false);
-		unwrap.size = uvec2(0);
+		unwrap.success = vector<bool>(model.m_items.size(), false);
+		unwrap.size = uvec2(0U);
 
 		bool is_unwrapped = false;
 		for(size_t i = 0; i < model.m_items.size(); ++i)
@@ -286,18 +289,18 @@ namespace mud
 		if(is_unwrapped)
 			return;
 
-		printf("INFO: unwrapping model %s for lightmap\n", model.m_name.c_str());
+		printf("[info] unwrapping model %s for lightmap\n", model.m_name.c_str());
 
 		XAtlas atlas;
 
-		std::vector<MeshPacker> geometry(model.m_items.size());
+		vector<MeshPacker> geometry(model.m_items.size());
 		for(size_t i = 0; i < model.m_items.size(); ++i)
 		{
 			Mesh& mesh = *model.m_items[i].m_mesh;
-			mesh.read(geometry[i], model.m_items[i].m_transform);
+			geometry[i].unpack(mesh.m_cache, model.m_items[i].m_transform);
 
 			bool skip = false;
-			skip |= mesh.m_draw_mode != PLAIN;
+			skip |= mesh.m_primitive != PrimitiveType::Triangles;
 			skip |= !mesh.m_cache.m_vertex_format;
 
 			bool success = skip ? false : atlas.add_mesh(mesh, geometry[i]);
@@ -308,7 +311,7 @@ namespace mud
 
 		if(unwrap.size.x == 0 || unwrap.size.y == 0)
 		{
-			printf("WARNING: model %s unwrapped to zero size rect\n", model.m_name.c_str());
+			printf("[warning] model %s unwrapped to zero size rect\n", model.m_name.c_str());
 			return;
 		}
 
@@ -342,10 +345,10 @@ namespace mud
 		string m_cached_path;
 		uint32_t m_rect_size;
 		float m_density;
-		std::map<Model*, ModelUnwrap> unwraps;
+		map<Model*, ModelUnwrap> unwraps;
 	};
 
-	void BlockLightmap::bake_geometry(array<Item*> items, LightmapAtlas& lightmaps)
+	void BlockLightmap::bake_geometry(span<Item*> items, LightmapAtlas& lightmaps)
 	{
 		struct PackResult { Image* image; Lightmap* lightmap; };
 
@@ -362,7 +365,7 @@ namespace mud
 
 		LightmapUnwrap atlas = { lightmaps.m_save_path, lightmaps.m_size, lightmaps.m_density };
 		
-		std::vector<size_t> sorted;
+		vector<size_t> sorted;
 		for(size_t i = 0; i < items.size(); ++i)
 			sorted.push_back(i);
 
@@ -376,7 +379,7 @@ namespace mud
 			Model& model = *items[i]->m_model;
 			ModelUnwrap& unwrap = atlas.unwrap(model);
 
-			if(unwrap.size == uvec2(0))
+			if(unwrap.size == uvec2(0U))
 				continue;
 
 			auto pack = pack_texture(model.m_name.c_str(), unwrap.size);
@@ -391,16 +394,16 @@ namespace mud
 			uvec4 rect = { pack.image->d_coord, unwrap.size };
 
 			Lightmap& lightmap = *pack.lightmap;
-			for(ModelItem& model_item : model.m_items)
+			for(ModelElem& elem : model.m_items)
 			{
-				if(!unwrap.success[model_item.m_index])
+				if(!unwrap.success[elem.m_index])
 				{
 					lightmap.add_item(i, *items[i], false, vec4(0.f));
 					continue;
 				}
 
 				vec2 scale = vec2(1.f / float(lightmaps.m_size));
-				vec2 offset = vec2(rect_offset(rect)) / float(lightmaps.m_size);
+				vec2 offset = vec2(rect.pos) / float(lightmaps.m_size);
 				lightmap.add_item(i, *items[i], true, vec4(scale, offset));
 			}
 		}
@@ -408,9 +411,9 @@ namespace mud
 
 	void BlockLightmap::bake_lightmaps(Scene& scene, LightmapAtlas& atlas, const mat4& transform, const vec3& extents)
 	{
-		printf("INFO: bake lightmaps\n");
+		printf("[info] bake lightmaps\n");
 
-		std::vector<Item*> items;
+		vector<Item*> items;
 		//Plane6 planes = frustum_planes(transform, vec2(extents.x, extents.y), -extents.z / 2.f, -extents.z / 2.f);
 		//scene.cull_items(planes, items);
 		scene.m_pool->pool<Item>().iterate([&](Item& item)
@@ -422,10 +425,10 @@ namespace mud
 
 		this->bake_geometry(items, atlas);
 
-		std::vector<GIProbe*> gi_probes;
-		scene.gather_gi_probes(gi_probes);
+		vector<GIProbe*> gi_probes;
+		gather_gi_probes(scene, gi_probes);
 
-		Renderer& renderer = m_gfx_system.renderer(Shading::Lightmap);
+		RenderFunc renderer = m_gfx.renderer(Shading::Lightmap);
 
 		size_t i = 0;
 		for(auto& lightmap : atlas.m_layers)
@@ -443,36 +446,35 @@ namespace mud
 #ifndef LIGHTMAP_FORCE_RENDER
 			if(file_exists(cached_path.c_str()))
 			{
-				load_lightmap(m_gfx_system, *lightmap, cached_path);
+				load_lightmap(m_gfx, *lightmap, cached_path);
 				continue;
 			}
 #endif
 
-			uint16_t resolution = uint16_t(atlas.m_size);
-			bgfx::FrameBufferHandle fbo = bgfx::createFrameBuffer(resolution, resolution, c_lightmap_format, BGFX_TEXTURE_RT);
+			uint32_t resolution = uint16_t(atlas.m_size);
+			FrameBuffer fbo = { uvec2(resolution), c_lightmap_format, BGFX_TEXTURE_RT };
 
-			RenderFrame frame = m_gfx_system.render_frame();
+			RenderFrame frame = m_gfx.render_frame();
+			RenderTarget& target = m_gfx.main_target();
 
 			Camera camera = { transform, vec2(extents.x * 2.f, extents.y * 2.f), -extents.z, extents.z };
-			Viewport viewport = { camera, scene, { uvec2(0), uvec2(lightmap->m_size) } };
-			Render lightmap_render = { Shading::Lightmap, viewport, fbo, frame };
+			Viewport viewport = { camera, scene, Rect4 };
+			Render lightmap_render = { Shading::Lightmap, viewport, target, fbo, frame };
 			viewport.m_clear_colour = Colour::None;
 
 			for(LightmapItem& item : lightmap->m_items)
-				lightmap_render.m_shot->m_items.push_back(items[item.m_item]);
+				lightmap_render.m_shot.m_items.push_back(items[item.m_item]);
 
-			lightmap_render.m_shot->m_gi_probes = gi_probes;
-			renderer.render(lightmap_render);
+			lightmap_render.m_shot.m_gi_probes = gi_probes;
+			m_gfx.m_renderer.render(lightmap_render, renderer);
 
 			bgfx::frame();
 
-			save_lightmap(m_gfx_system, *lightmap, bgfx::getTexture(fbo), c_lightmap_format, c_lightmap_file_format, cached_path);
-			load_lightmap(m_gfx_system, *lightmap, cached_path);
-
-			bgfx::destroy(fbo);
+			save_lightmap(m_gfx, *lightmap, bgfx::getTexture(fbo), bgfx::TextureFormat::Enum(c_lightmap_format), c_lightmap_file_format, cached_path);
+			load_lightmap(m_gfx, *lightmap, cached_path);
 		}
 
-		printf("INFO: bake lightmaps done\n");
+		printf("[info] bake lightmaps done\n");
 	}
 
 	void BlockLightmap::begin_frame(const RenderFrame& frame)
@@ -493,56 +495,59 @@ namespace mud
 			return;
 
 		UNUSED(render);
-		for(LightmapAtlas* atlas : render.m_shot->m_lightmaps)
+		for(LightmapAtlas* atlas : render.m_shot.m_lightmaps)
 			if(atlas->m_dirty)
 			{
-				m_bake_queue.push_back({ &render.m_scene, atlas });
+				m_bake_queue.push_back({ render.m_scene, atlas });
 			}
 	}
 
-	void BlockLightmap::begin_pass(Render& render)
+	void BlockLightmap::options(Render& render, const DrawElement& element, ProgramVersion& program) const
+	{
+		UNUSED(render); UNUSED(program);
+
+		const Item& item = *element.m_item;
+		const ModelElem& elem = *element.m_elem;
+		if(item.m_lightmaps.size() > 0)
+		{
+			LightmapItem& binding = *item.m_lightmaps[elem.m_index];
+			if(binding.m_lightmap->valid())
+			{
+				program.set_option(MaterialLit::s_block.m_index, LIGHTMAP);
+			}
+		}
+	}
+
+	void BlockLightmap::submit(Render& render, const Pass& pass) const
+	{
+		UNUSED(render); UNUSED(pass);
+		const uint32_t lightmap = uint32_t(TextureSampler::Lightmap);
+		bgfx::setViewUniform(pass.m_index, u_lightmap.s_lightmap, &lightmap);
+	}
+
+	void BlockLightmap::submit(Render& render, const DrawElement& element, const Pass& pass) const
 	{
 		UNUSED(render);
-	}
 
-	void BlockLightmap::begin_draw_pass(Render& render)
-	{
-		UNUSED(render);
-	}
-
-	void BlockLightmap::options(Render& render, ShaderVersion& shader_version) const
-	{
-		UNUSED(render); UNUSED(shader_version);
-	}
-
-	void BlockLightmap::submit(Render& render, const Pass& render_pass) const
-	{
-		UNUSED(render); UNUSED(render_pass);
-	}
-
-	void BlockLightmap::submit(Render& render, const DrawElement& element, const Pass& render_pass) const
-	{
-		UNUSED(render);
-
-		bgfx::Encoder& encoder = *render_pass.m_encoder;
+		bgfx::Encoder& encoder = *pass.m_encoder;
 
 		if(element.m_item->m_lightmaps.size() > 0)
 		{
-			LightmapItem& binding = *element.m_item->m_lightmaps[element.m_model->m_index];
+			LightmapItem& binding = *element.m_item->m_lightmaps[element.m_elem->m_index];
 
-			encoder.setUniform(Material::s_base_uniform.u_uv1_scale_offset, &binding.m_uv_scale_offset);
+			encoder.setUniform(GpuState<MaterialBase>::me.u_uv1_scale_offset, &binding.m_uv_scale_offset);
 
-			if(bgfx::isValid(binding.m_lightmap))
+			if(binding.m_lightmap && binding.m_lightmap->valid())
 #ifdef LIGHTMAP_PIXELS
-				encoder.setTexture(uint8_t(TextureSampler::Lightmap), u_lightmap.s_lightmap, binding.m_lightmap, GFX_TEXTURE_POINT);
+				encoder.setTexture(uint8_t(TextureSampler::Lightmap), *binding.m_lightmap, TEXTURE_POINT);
 #else
-				encoder.setTexture(uint8_t(TextureSampler::Lightmap), u_lightmap.s_lightmap, binding.m_lightmap);
+				encoder.setTexture(uint8_t(TextureSampler::Lightmap), *binding.m_lightmap);
 #endif
 		}
 		else
 		{
 			vec4 uv_scale_offset = vec4(0.f);
-			encoder.setUniform(Material::s_base_uniform.u_uv1_scale_offset, &uv_scale_offset);
+			encoder.setUniform(GpuState<MaterialBase>::me.u_uv1_scale_offset, &uv_scale_offset);
 		}
 	}
 }

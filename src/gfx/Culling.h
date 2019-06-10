@@ -4,17 +4,17 @@
 
 #pragma once
 
+#include <stl/vector.h>
 #include <gfx/Forward.h>
+#include <gfx/Texture.h>
 
 #include <bgfx/bgfx.h>
 
-#include <vector>
-
 class MaskedOcclusionCulling;
 
-namespace mud
+namespace two
 {
-	export_ class refl_ MUD_GFX_EXPORT Culler
+	export_ class refl_ TWO_GFX_EXPORT Culler
 	{
 	public:
 		Culler(Viewport& viewport);
@@ -26,12 +26,12 @@ namespace mud
 
 		void render(Render& render);
 
-		void begin(Viewport& viewport);
+		void begin(Render& render);
 		void rasterize(Render& render);
 		void cull(Render& render);
 		void debug(Render& render);
 
-		std::vector<float> m_depth_data;
-		bgfx::TextureHandle m_depth_texture = BGFX_INVALID_HANDLE;
+		vector<float> m_depth_data;
+		Texture m_depth_texture;
 	};
 }

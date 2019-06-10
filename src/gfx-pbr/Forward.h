@@ -1,5 +1,3 @@
-
-
 #pragma once
 
 #include <infra/Config.h>
@@ -10,55 +8,17 @@
 #include <geom/Forward.h>
 #include <gfx/Forward.h>
 
-#ifndef MUD_GFX_PBR_EXPORT
-#define MUD_GFX_PBR_EXPORT MUD_IMPORT
+#ifndef TWO_GFX_PBR_EXPORT
+#define TWO_GFX_PBR_EXPORT TWO_IMPORT
 #endif
 
-
-    
-    
-
-namespace std {
-
-    
-    
-}
-
-namespace mud {
-namespace ui {
-
-    
-    
-}
-}
-
-namespace glm {
-
-    
-    
-}
-
-namespace mud {
-namespace gfx {
-
-    
-    
-}
-}
-
-namespace json11 {
-
-    
-    
-}
-
-namespace mud {
-
+namespace two
+{
     enum ShaderOptionLight : unsigned int;
     enum ShaderOptionRadiance : unsigned int;
     enum ShaderOptionShadow : unsigned int;
     enum ShaderModeShadow : unsigned int;
-    enum CSMFilterMode : unsigned int;
+    enum ShadowFilterMode : unsigned int;
     enum ShaderOptionBlur : unsigned int;
     enum ShaderOptionDofBlur : unsigned int;
     enum ShaderOptionGlow : unsigned int;
@@ -73,7 +33,8 @@ namespace mud {
     struct ForwardRenderer;
 	struct DeferredRenderer;
     class BlockRadiance;
-    struct ReflectionCubemap;
+    class CubeTarget;
+	class CubeCamera;
     class ReflectionAtlas;
     class ReflectionProbe;
 	class PassGeometry;
@@ -82,9 +43,10 @@ namespace mud {
 	class PassAlpha;
     class PassProbes;
     class BlockReflection;
-    struct ShadowCubemap;
+    struct ShadowmapCube;
     class ShadowAtlas;
     struct CSMShadow;
+	struct CSMSlice;
     class PassShadow;
     class PassShadowmap;
     struct ShadowRenderer;
@@ -94,6 +56,7 @@ namespace mud {
     struct EffectBlurUniform;
     struct BlurKernel;
     class BlockBlur;
+	struct DofParams;
     struct DofBlur;
     struct DofBlurUniform;
     class BlockDofBlur;
@@ -106,34 +69,6 @@ namespace mud {
     class BlockGlow;
     struct BCS;
     struct Tonemap;
-    struct RenderFilters;
     struct TonemapUniform;
     class BlockTonemap;
 }
-
-namespace mud {
-namespace detail {
-
-    
-    
-}
-}
-
-namespace bgfx {
-
-    
-    
-}
-
-namespace bimg {
-
-    
-    
-}
-
-namespace bx {
-
-    
-    
-}
-

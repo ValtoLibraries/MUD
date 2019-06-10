@@ -3,21 +3,22 @@
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #include <infra/Cpp20.h>
-#ifndef MUD_CPP_20
-#include <algorithm>
+#ifndef TWO_CPP_20
 #include <cstdio>
 #endif
 
-#ifdef MUD_MODULES
-module mud.ctx;
+#ifdef TWO_MODULES
+module two.ctx;
 #else
+#include <math/Vec.hpp>
+#include <ctx/Context.h>
 #include <ctx/InputDevice.h>
 #include <ctx/InputEvent.h>
 #include <ctx/ControlNode.h>
 #endif
 
 
-namespace mud
+namespace two
 {
 	InputDevice::InputDevice(EventDispatcher& dispatcher)
 		: m_dispatcher(dispatcher) // ui.m_controller
@@ -99,9 +100,9 @@ namespace mud
 		: InputDevice(dispatcher)
 		, m_keyboard(keyboard)
 		, m_last_pos(0.f, 0.f)
-		, m_buttons{ { MouseButton{ *this, DeviceType::MouseLeft },
-					   MouseButton{ *this, DeviceType::MouseRight },
-					   MouseButton{ *this, DeviceType::MouseMiddle } } }
+		, m_buttons{ { *this, DeviceType::MouseLeft },
+					 { *this, DeviceType::MouseRight },
+					 { *this, DeviceType::MouseMiddle } }
 	{
 		m_events.reserve(100);
 	}
@@ -125,36 +126,36 @@ namespace mud
 
 	MouseEvent& Mouse::heartbeat()
 	{
-		MouseEvent& mouse_event = dispatch_event(MouseEvent(DeviceType::Mouse, EventType::Heartbeat, m_pos));
+		MouseEvent& event = dispatch_event(MouseEvent(DeviceType::Mouse, EventType::Heartbeat, m_pos));
 		m_last_pos = m_pos;
-		m_pos = mouse_event.m_pos;
+		m_pos = event.m_pos;
 		for(MouseButton& button : m_buttons)
 			if(button.m_dragging)
-				button.drag(mouse_event);
-		return mouse_event;
+				button.drag(event);
+		return event;
 	}
 
 	void Mouse::moved(vec2 pos, vec2* offset)
 	{
 		m_pos = offset ? m_pos + *offset : pos;
 
-		MouseEvent& mouse_event = dispatch_event(MouseEvent(DeviceType::Mouse, EventType::Moved, pos));
+		MouseEvent& event = dispatch_event(MouseEvent(DeviceType::Mouse, EventType::Moved, pos));
 		
 		const float drag_threshold = 3.f;
 
 		for(MouseButton& button : m_buttons)
 			if(button.m_pressed && !button.m_dragging)
 			{
-				vec2 delta = mouse_event.m_pos - button.m_pressed_event.m_pos;
-				if (std::abs(delta.x) > drag_threshold || std::abs(delta.y) > drag_threshold)
-					button.drag_start(mouse_event);
+				vec2 delta = event.m_pos - button.m_pressed_event.m_pos;
+				if(abs(delta.x) > drag_threshold || abs(delta.y) > drag_threshold)
+					button.drag_start(event);
 			}
 	}
 
 	void Mouse::wheeled(vec2 pos, float amount)
 	{
-		MouseEvent& mouse_event = dispatch_event(MouseEvent(DeviceType::MouseMiddle, EventType::Moved, pos, m_keyboard.modifiers()));
-		mouse_event.m_deltaZ = amount;
+		MouseEvent& event = dispatch_event(MouseEvent(DeviceType::MouseMiddle, EventType::Moved, pos, m_keyboard.modifiers()));
+		event.m_deltaZ = amount;
 	}
 
 	void Mouse::fix_press(ControlNode& node)
@@ -171,10 +172,10 @@ namespace mud
 
 	void MouseButton::pressed(vec2 pos, InputMod modifiers)
 	{
-		MouseEvent& mouse_event = m_mouse.dispatch_event(MouseEvent(m_deviceType, EventType::Pressed, pos, modifiers));
+		MouseEvent& event = m_mouse.dispatch_event(MouseEvent(m_deviceType, EventType::Pressed, pos, modifiers));
 
-		m_pressed = m_dispatcher.dispatch_event(mouse_event);
-		m_pressed_event = mouse_event;
+		m_pressed = m_dispatcher.dispatch_event(event);
+		m_pressed_event = event;
 	}
 
 	void MouseButton::pressed(vec2 pos)
@@ -184,12 +185,12 @@ namespace mud
 
 	void MouseButton::released(vec2 pos)
 	{
-		MouseEvent& mouse_event = m_mouse.dispatch_event(MouseEvent(m_deviceType, EventType::Released, pos, m_pressed_event.m_modifiers));
+		MouseEvent& event = m_mouse.dispatch_event(MouseEvent(m_deviceType, EventType::Released, pos, m_pressed_event.m_modifiers));
 
 		if(m_dragging)
-			this->drag_end(mouse_event);
+			this->drag_end(event);
 		else
-			this->click(mouse_event);
+			this->click(event);
 
 		m_pressed = nullptr;
 	}
@@ -199,14 +200,14 @@ namespace mud
 		m_mouse.dispatch_secondary(MouseEvent(m_deviceType, EventType::DragStarted, mouse_event), m_pressed, m_pressed_event.m_pos);
 
 		this->drag(mouse_event);
-		//m_root_sheet.m_cursor.lock();
+		//m_ui.m_cursor.lock();
 		m_dragging = true;
 	}
 
 	void MouseButton::drag_end(MouseEvent& mouse_event)
 	{
 		m_dragging = false;
-		//m_root_sheet.m_cursor.unlock();
+		//m_ui.m_cursor.unlock();
 		this->drag(mouse_event);
 
 		MouseEvent& drop = m_mouse.dispatch_event(MouseEvent(m_deviceType, EventType::Dropped, mouse_event.m_pos, m_pressed_event.m_modifiers));
@@ -222,5 +223,57 @@ namespace mud
 	void MouseButton::click(MouseEvent& mouse_event)
 	{
 		m_mouse.dispatch_secondary(MouseEvent(m_deviceType, EventType::Stroked, mouse_event), m_pressed, m_pressed_event.m_pos);
+	}
+
+	InputContext::InputContext()
+		: EventDispatcher(this)
+		, m_keyboard(*this)
+		, m_mouse(*this, m_keyboard)
+	{}
+
+	void InputContext::init(Context& context)
+	{
+		context.init_input(m_mouse, m_keyboard);
+	}
+
+	void InputContext::begin_frame()
+	{}
+
+	void InputContext::end_frame()
+	{
+		m_mouse.m_events.clear();
+		m_keyboard.m_events.clear();
+
+		EventDispatcher::update();
+	}
+
+	ControlNode* InputContext::control_event(InputEvent& event)
+	{
+		return this;
+	}
+
+	void InputContext::receive_event(InputEvent& inputEvent)
+	{
+	}
+
+	KeyEvent ControlNode::key_event(Key code, EventType event_type, InputMod modifier)
+	{
+		if(!m_events) return KeyEvent();
+		KeyEvent* event = static_cast<KeyEvent*>(m_events->m_keyed_events[DeviceType::Keyboard][event_type][int(code)]);
+		return event && fits_modifier(event->m_modifiers, modifier) ? *event : KeyEvent();
+	}
+
+	MouseEvent ControlNode::mouse_event(DeviceType device, EventType event_type, InputMod modifier, bool consume)
+	{
+		if(!m_events) return MouseEvent();
+		MouseEvent* event = static_cast<MouseEvent*>(m_events->m_events[device][event_type]);
+		if(event && fits_modifier(event->m_modifiers, modifier))
+		{
+			MouseEvent result = *event;;
+			if(consume)
+				event->consume(*this);
+			return result;
+		}
+		return MouseEvent();
 	}
 }

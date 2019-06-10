@@ -4,48 +4,50 @@
 
 #pragma once
 
+#include <stl/vector.h>
 #include <ctx/Forward.h>
-#include <bgfx/Config.h>
+#include <bgfx/Forward.h>
 
-#ifndef MUD_MODULES
-	#if defined MUD_CONTEXT_GLFW
+#ifndef TWO_MODULES
+	#if defined TWO_CONTEXT_GLFW
 		#include <ctx-glfw/GlfwContext.h>
-	#elif defined MUD_CONTEXT_WASM
+	#elif defined TWO_CONTEXT_WASM
 		#include <ctx-wasm/EmscriptenContext.h>
-	#elif defined MUD_CONTEXT_WINDOWS
+	#elif defined TWO_CONTEXT_WINDOWS
 		#include <ctx-win/WindowsContext.h>
 	#else
 		#include <ctx/Context.h>
 	#endif
 #endif
 
-#include <bx/allocator.h>
+namespace bx
+{
+	struct AllocatorI;
+}
 
-#ifndef MUD_CPP_20
-#include <vector>
-#endif
-
-namespace mud
+namespace two
 {
 	class BgfxSystem;
 
-#if defined MUD_CONTEXT_GLFW
-	export_ class MUD_BGFX_EXPORT BgfxContext : public GlfwContext
-#elif defined MUD_CONTEXT_WASM
-	export_ class MUD_BGFX_EXPORT BgfxContext : public EmContext
-#elif defined MUD_CONTEXT_WINDOWS
-	export_ class MUD_BGFX_EXPORT BgfxContext : public WinContext
+#if defined TWO_CONTEXT_GLFW
+	export_ class TWO_BGFX_EXPORT BgfxContext : public GlfwContext
+#elif defined TWO_CONTEXT_WASM
+	export_ class TWO_BGFX_EXPORT BgfxContext : public EmContext
+#elif defined TWO_CONTEXT_WINDOWS
+	export_ class TWO_BGFX_EXPORT BgfxContext : public WinContext
 #else
-	export_ class MUD_BGFX_EXPORT BgfxContext : public Context
+	export_ class TWO_BGFX_EXPORT BgfxContext : public Context
 #endif
 	{
 	public:
-		BgfxContext(BgfxSystem& gfx_system, cstring name, int width, int height, bool fullScreen, bool init);
+		BgfxContext(BgfxSystem& gfx, const string& name, const uvec2& size, bool fullscreen, bool main, bool init = true);
 
-		virtual void reset(uint16_t width, uint16_t height) override;
+		virtual void render_frame() override;
+
+		virtual void reset_fb(const uvec2& size) override;
 	};
 
-	export_ struct MUD_BGFX_EXPORT TimerBx
+	export_ struct TWO_BGFX_EXPORT TimerBx
 	{
 		int64_t m_start = 0;
 
@@ -53,30 +55,29 @@ namespace mud
 		float end();
 	};
 
-	export_ class MUD_BGFX_EXPORT BgfxSystem : public NonCopy, public RenderSystem
+	export_ class refl_ TWO_BGFX_EXPORT BgfxSystem : public RenderSystem
 	{
 	public:
-		BgfxSystem(cstring resource_path);
+		BgfxSystem(const string& resource_path);
 		~BgfxSystem();
 
-		virtual void begin_frame() override;
-		virtual bool next_frame() override;
+		virtual bool begin_frame() override;
+		virtual void end_frame() override;
 
-		virtual object_ptr<Context> create_context(cstring name, int width, int height, bool fullScreen) override;
-		
 		void init(BgfxContext& context);
 		void advance();
 
+		bx::AllocatorI& allocator();
+
 	public:
-		bx::DefaultAllocator m_allocator;
 		bool m_initialized = false;
 
-		uint32_t m_frame = 1;
+		attr_ uint32_t m_frame = 1;
 		double m_start_counter = 0.0;
 
-		float m_time = 0.f;
-		float m_frame_time = 0.f;
-		float m_delta_time = 0.f;
+		attr_ float m_time = 0.f;
+		attr_ float m_frame_time = 0.f;
+		attr_ float m_delta_time = 0.f;
 
 		bool m_capture = false;
 		size_t m_capture_every = 0;

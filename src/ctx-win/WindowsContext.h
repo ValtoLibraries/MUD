@@ -1,105 +1,74 @@
-//  Copyright (c) 2016 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #pragma once
 
-#ifdef MUD_CTX_NATIVE
+//#ifdef TWO_CTX_NATIVE
 
-/* mud */
-#include <ui/Generated/Types.h>
-#include <ui/Render/Context.h>
+#ifndef TWO_MODULES
+#include <ctx/Forward.h>
+#include <ctx/Context.h>
+
+struct GLFWwindow;
+#endif
+
+#ifndef TWO_CTX_WIN_EXPORT
+#define TWO_CTX_WIN_EXPORT TWO_IMPORT
+#endif
 
 #include <windows.h>
 
-namespace mud
+#undef near
+#undef far
+#undef min
+#undef max
+
+#undef OPAQUE
+
+namespace two
 {
-	class MUD_CTX_WIN_EXPORT WinRenderWindow : public RenderWindow
+	class TWO_CTX_WIN_EXPORT WinContext : public Context
 	{
 	public:
-		WinRenderWindow(const string& name, int width, int height);
-		~WinRenderWindow();
+		WinContext(RenderSystem& gfx, const string& name, const uvec2& size, bool fullscreen, bool main = true);
+		~WinContext();
 
-		bool nextFrame();
+		virtual void init_input(Mouse& mouse, Keyboard& keyboard) override;
 
-		//WindowHandle createWindow(int32_t _x, int32_t _y, uint32_t _width, uint32_t _height, uint32_t _flags, const char* _title)
-		void destroy();
-		void setPosition(int32_t x, int32_t y);
-		void setSize(uint32_t width, uint32_t height);
-		void setTitle(const char* title);
-		void toggleWindowFrame();
-		void toggleFullscreen();
+		virtual bool begin_frame() override;
+		virtual void end_frame() override;
+
+		virtual void lock_mouse(bool locked) override;
+
+		void move(const ivec2& pos);
+		void resize(const uvec2& size);
+		void set_title(const char* title);
+		void toggle_frame();
+		void toggle_fullscreen();
 		void clear();
 
-		void adjust(uint32_t width, uint32_t height, bool windowFrame);
+		void adjust(uint32_t width, uint32_t height, bool frame);
+
+		void set_cursor(const ivec2& pos);
+		void capture_mouse(bool capture);
 
 	public:
-		HWND m_hwnd;
+		HWND m_hwnd = nullptr;
 
 		RECT m_rect;
 		DWORD m_style;
-		uint32_t m_oldWidth;
-		uint32_t m_oldHeight;
-		uint32_t m_frameWidth;
-		uint32_t m_frameHeight;
-		float m_aspectRatio;
+		uvec2 m_old_size;
+		uvec2 m_frame;
+		float m_aspect;
 
-		bool m_frame;
+		bool m_has_frame;
 
-		uint32_t m_minWidth;
-		uint32_t m_minHeight;
+		uvec2 m_min_size;
+
+		Mouse* m_mouse = nullptr;
+		Keyboard* m_keyboard = nullptr;
 	};
-
-	class MUD_CTX_WIN_EXPORT WinInputWindow : public InputWindow
-	{
-	public:
-		WinInputWindow();
-
-		void initInput(RenderWindow& renderWindow, Mouse& mouse, Keyboard& keyboard);
-
-		bool nextFrame();
-
-		void resize(size_t width, size_t height);
-
-		void setMousePos(int32_t mx, int32_t my);
-		void setMouseLock(bool lock);
-		void mouseCapture(bool capture);
-
-	public:
-		WinRenderWindow* m_renderWindow;
-		HWND m_hwnd;
-
-		Mouse* m_mouse;
-		Keyboard* m_keyboard;
-
-		int32_t m_mouse_x;
-		int32_t m_mouse_y;
-		int32_t m_mouse_z;
-
-		bool m_mouseLock;
-	};
-
-	class MUD_CTX_WIN_EXPORT WinContext : public Context
-	{
-	public:
-		WinContext(RenderSystem& renderSystem, const string& name, int width, int height, bool fullScreen);
-		~WinContext();
-
-		object_ptr<WinRenderWindow> initialize(const string& name, int width, int height, bool fullScreen);
-
-		WinRenderWindow& m_render;
-		WinInputWindow& m_input;
-	};
-
-	class WinRenderSystem : public RenderSystem
-	{
-	public:
-		WinRenderSystem(const string& resourcePath);
-
-		virtual object_ptr<Context> createContext(const string& name, int width, int height, bool fullScreen);
-		virtual object_ptr<Renderer> createRenderer(Context& context) = 0;
-	};
-
 }
 
-#endif
+//#endif

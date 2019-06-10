@@ -6,23 +6,13 @@
 
 #include <infra/Config.h>
 
-namespace mud
+namespace two
 {
-	export_ class MUD_INFRA_EXPORT NonCopy
+	export_ class TWO_INFRA_EXPORT NonCopy
 	{
 	public:
 		NonCopy() {}
 		NonCopy(const NonCopy&) = delete;
 		NonCopy& operator=(const NonCopy&) = delete;
-	};
-
-	export_ class MUD_INFRA_EXPORT Movabl
-	{
-	public:
-		Movabl() {}
-		Movabl(const Movabl&) = delete;
-		Movabl& operator=(const NonCopy&) = delete;
-		Movabl(Movabl&& other) = default;
-		Movabl& operator=(Movabl&& other) = default;
 	};
 }

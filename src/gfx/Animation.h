@@ -4,26 +4,23 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
+#include <stl/string.h>
+#include <stl/vector.h>
 #include <type/Var.h>
-#include <infra/Strung.h>
 #include <math/Vec.h>
 #endif
 #include <gfx/Forward.h>
 
-#include <bgfx/bgfx.h>
-
-#ifndef MUD_CPP_20
-#include <vector>
-#endif
-
-namespace mud
+namespace two
 {
-	export_ enum class refl_ AnimationTarget : unsigned int
+	export_ enum class refl_ AnimTarget : unsigned int
 	{
 		Position,
 		Rotation,
-		Scale
+		Scale,
+		Weights,
+		Count
 	};
 
 	export_ enum class refl_ Interpolation : unsigned int
@@ -33,9 +30,9 @@ namespace mud
 		Cubic
 	};
 
-	export_ struct MUD_GFX_EXPORT AnimationCursor
+	export_ struct TWO_GFX_EXPORT AnimCursor
 	{
-		AnimationCursor() {}
+		AnimCursor() {}
 		float m_time = 0.f;
 		size_t m_prev = 0;
 		size_t m_next = 1;
@@ -43,47 +40,56 @@ namespace mud
 
 	struct Value
 	{
-		char m_value[16];
+		//char mem[16];
+		char mem[32]; // need to be able to store vector<float>
 	};
 
-	export_ class refl_ MUD_GFX_EXPORT AnimationTrack
+	export_ class refl_ TWO_GFX_EXPORT AnimTrack
 	{
 	public:
 		struct Key
 		{
-			template <class T>
-			Key(float time, const T& value, float transition = 1.f) : m_time(time), m_value(), m_transition(transition) {  *(T*)m_value.m_value = value; }
+			Key() {}
 			float m_time;
 			Value m_value;
 			float m_transition = 1.f;
+
+			template <class T>
+			Key(float time, const T& value, float transition = 1.f)
+				: m_time(time), m_value(), m_transition(transition)
+			{
+				static_assert(sizeof(T) <= sizeof(Value));
+				new (stl::placeholder(), m_value.mem) T(value);
+			}
 		};
 
-		AnimationTrack(Animation& animation, size_t node, cstring node_name, AnimationTarget target);
+		AnimTrack();
+		AnimTrack(Animation& animation, size_t node, cstring node_name, AnimTarget target);
 
 		attr_ Animation* m_animation;
 		attr_ size_t m_node;
 		attr_ string m_node_name;
-		attr_ AnimationTarget m_target;
+		attr_ AnimTarget m_target;
 		attr_ Type* m_value_type = nullptr;
 
 		attr_ float m_length = 0.f;
 		attr_ Interpolation m_interpolation = Interpolation::Linear;
 
-		std::vector<Key> m_keys;
+		vector<Key> m_keys;
 
 		void insert_key(float time, const Value& value, float transition = 1.f);
 		size_t key_after(float time) const;
 		size_t key_before(float time) const;
-		Value sample(AnimationCursor& cursor) const;
-		Value value(AnimationCursor& cursor, bool forward) const;
+		Value sample(AnimCursor& cursor) const;
+		Value value(AnimCursor& cursor, bool forward) const;
 	};
 
-	export_ class refl_ MUD_GFX_EXPORT Animation
+	export_ class refl_ TWO_GFX_EXPORT Animation
 	{
 	public:
-		Animation(cstring name);
+		explicit Animation(cstring name);
 
-		std::vector<AnimationTrack> tracks;
+		vector<AnimTrack> tracks;
 
 		attr_ string m_name;
 		attr_ float m_length = 1.f;

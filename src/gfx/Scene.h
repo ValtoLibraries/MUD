@@ -4,22 +4,18 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <infra/NonCopy.h>
+#ifndef TWO_MODULES
 #include <type/Unique.h>
 #include <math/Vec.h>
 #endif
 #include <gfx/Forward.h>
 #include <gfx/Node3.h>
 #include <gfx/Graph.h>
+#include <gfx/Texture.h>
 
 #include <bgfx/bgfx.h>
 
-#ifndef MUD_CPP_20
-#include <functional>
-#endif
-
-namespace mud
+namespace two
 {
 	export_ struct refl_ Sun
 	{
@@ -31,11 +27,12 @@ namespace mud
 
 	export_ struct refl_ Radiance
 	{
-		attr_ float m_energy = 1.0f;
-		attr_ float m_ambient = 1.0f;
-		attr_ Colour m_colour = Colour::Black;
+		attr_ gpu_ Colour m_colour = Colour::White;
+		attr_ gpu_ float m_energy = 1.0f;
+		attr_ gpu_ Colour m_ambient = Colour::Black;
 		attr_ Texture* m_texture = nullptr;
-		bgfx::TextureHandle m_roughness_array = BGFX_INVALID_HANDLE;
+		attr_ Texture* m_filtered = nullptr;
+		attr_ bool m_filter = true;
 		bool m_preprocessed = false;
 	};
 
@@ -52,71 +49,84 @@ namespace mud
 		attr_ BackgroundMode m_mode = BackgroundMode::None;
 		attr_ Colour m_colour = Colour::Black;
 		attr_ Program* m_custom_program = nullptr;
-		std::function<void(Render&)> m_custom_function;
+		attr_ Texture* m_texture = nullptr;
+		using CustomRender = void(*)(GfxSystem&, Render&); CustomRender m_custom_function;
+	};
+
+	export_ struct refl_ Skylight
+	{
+		attr_ bool m_enabled = false;
+		attr_ float m_intensity = 1.f;
+		attr_ vec3 m_position = vec3(0.f, 1.f, 0.f);
+		attr_ gpu_ vec3 m_direction;
+		attr_ gpu_ Colour m_color;
+		attr_ gpu_ Colour m_ground;
 	};
 
 	export_ struct refl_ Fog
 	{
 		attr_ bool m_enabled = false;
-		attr_ float m_density = 0.01f;
-		attr_ Colour m_colour = Colour::White;
+		attr_ gpu_ float m_density = 0.01f;
+		attr_ gpu_ Colour m_colour = Colour::White;
 
-		attr_ bool m_depth = false;
-		attr_ float m_depth_begin = 0.f;
-		attr_ float m_depth_curve = 1.f;
+		attr_ gpu_ bool m_depth = false;
+		attr_ gpu_ float m_depth_begin = 0.f;
+		attr_ gpu_ float m_depth_end = 0.f;
+		attr_ gpu_ float m_depth_curve = 1.f;
 
-		attr_ bool m_height = false;
-		attr_ float m_height_min = 0.f;
-		attr_ float m_height_max = 1.f;
-		attr_ float m_height_curve = 0.1f;
+		attr_ gpu_ bool m_height = false;
+		attr_ gpu_ float m_height_min = 0.f;
+		attr_ gpu_ float m_height_max = 1.f;
+		attr_ gpu_ float m_height_curve = 0.1f;
 
-		attr_ bool m_transmit = false;
-		attr_ float m_transmit_curve = 1.f;
+		attr_ gpu_ bool m_transmit = false;
+		attr_ gpu_ float m_transmit_curve = 1.f;
 	};
 
-	export_ struct refl_ Environment
+	export_ struct refl_ Zone
 	{
 		attr_ Background m_background;
 		attr_ Radiance m_radiance;
 		attr_ Sun m_sun;
+		attr_ Skylight m_skylight;
 		attr_ Fog m_fog;
 	};
 
 	class Shot;
 
-	export_ class refl_ MUD_GFX_EXPORT Scene : public NonCopy
+	export_ class refl_ TWO_GFX_EXPORT Scene
 	{
 	public:
-		Scene(GfxSystem& gfx_system);
+		constr_ Scene(GfxSystem& gfx);
 		~Scene();
 
-		GfxSystem& m_gfx_system;
+		GfxSystem& m_gfx;
 
-		object_ptr<ImmediateDraw> m_immediate;
-		object_ptr<ParticleSystem> m_particle_system;
-		object_ptr<PassJobs> m_pass_jobs;
+		object<ImmediateDraw> m_immediate;
+		object<ParticleSystem> m_particle_system;
+		object<PassJobs> m_pass_jobs;
 
-		unique_ptr<ObjectPool> m_pool;
+		unique<ObjectPool> m_pool;
 
+		attr_ uint32_t m_index;
 		attr_ Gnode m_graph;
 		attr_ Node3 m_root_node;
-		attr_ Environment m_environment;
+		attr_ Zone m_env;
 		attr_ Ref m_user;
 
 		meth_ Gnode& begin();
-		void update();
+		meth_ void update();
 
-		void cull_items(const Plane6& planes, std::vector<Item*>& items);
+		void debug_items(Render& render);
 
-		void gather_items(const Camera& camera, std::vector<Item*>& items);
-		void gather_occluders(const Camera& camera, std::vector<Item*>& occluders);
-		void gather_lights(std::vector<Light*>& lights);
-		void gather_gi_probes(std::vector<GIProbe*>& gi_probes);
-		void gather_lightmaps(std::vector<LightmapAtlas*>& atlases);
-		//void gather_reflection_probes(std::vector<ReflectionProbe*>& reflection_probes);
-
-		void gather_render(Render& render);
-
-		std::vector<Sound*> m_orphan_sounds;
+		vector<Sound*> m_orphan_sounds;
 	};
+
+	export_ TWO_GFX_EXPORT void cull_items(Scene& scene, const Plane6& planes, vector<Item*>& items);
+
+	export_ TWO_GFX_EXPORT void gather_items(Scene& scene, const Camera& camera, vector<Item*>& items);
+	export_ TWO_GFX_EXPORT void gather_occluders(Scene& scene, const Camera& camera, vector<Item*>& occluders);
+	export_ TWO_GFX_EXPORT void gather_lights(Scene& scene, vector<Light*>& lights);
+
+	export_ TWO_GFX_EXPORT void gather_render(Scene& scene, Render& render);
 }

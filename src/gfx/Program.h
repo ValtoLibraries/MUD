@@ -4,15 +4,18 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <infra/Array.h>
+#ifndef TWO_MODULES
+#include <stl/string.h>
+#include <stl/span.h>
+#include <stl/table.h>
+#include <stl/vector.h>
 #include <type/Unique.h>
 #endif
 #include <gfx/Forward.h>
 
 #include <bgfx/bgfx.h>
 
-namespace mud
+namespace two
 {
 	using cstring = const char*;
 	
@@ -25,34 +28,83 @@ namespace mud
 		Count
 	};
 
-	export_ struct MUD_GFX_EXPORT ShaderDefine
+	export_ enum class refl_ PassType : unsigned int
 	{
-		cstring m_name;
-		cstring m_value;
+		VoxelGI,
+		Lightmap,
+		Shadowmap,
+		Probes,
+		Clear,
+		Depth,
+		Normals,
+		Shadow,
+		Geometry,
+		Lights,
+		Opaque,
+		Background,
+		Particles,
+		Alpha,
+		Solid,
+		Effects,
+		PostProcess,
+		Flip,
+
+		Count
 	};
 
-	export_ struct MUD_GFX_EXPORT ShaderBlock
+	export_ struct refl_ TWO_GFX_EXPORT ShaderDefine
 	{
-		array<cstring> m_options;
-		array<cstring> m_modes;
-		array<ShaderDefine> m_defines;
+		attr_ string m_name;
+		attr_ string m_value;
 	};
 
-	export_ struct MUD_GFX_EXPORT ProgramBlock
+	export_ struct refl_ TWO_GFX_EXPORT ShaderBlock
+	{
+		constr_ ShaderBlock();
+		ShaderBlock(span<cstring> options, span<cstring> modes);
+
+		attr_ uint8_t m_index;
+		attr_ vector<string> m_options;
+		attr_ vector<string> m_modes;
+		vector<ShaderDefine> m_defines;
+
+		meth_ void add_option(const string& name) { m_options.push_back(name); }
+		meth_ void add_mode(const string& name) { m_modes.push_back(name); }
+		meth_ void add_define(const string& name, const string& value) { m_defines.push_back({ name, value }); }
+	};
+
+	export_ struct refl_ TWO_GFX_EXPORT ProgramMode
+	{
+		attr_ string name;
+		attr_ uint32_t size;
+		attr_ uint32_t shift;
+		attr_ uint32_t mask;
+	};
+
+	export_ struct refl_ TWO_GFX_EXPORT ProgramBlock
 	{
 		// maps a block shader option to the program option shift
-		uint8_t m_option_shift;
-		uint8_t m_mode_shift;
+		attr_ bool m_enabled = false;
+		attr_ uint8_t m_option_shift = 0;
+		attr_ uint8_t m_mode_shift = 0;
 	};
 
-	export_ struct MUD_GFX_EXPORT ProgramBlockArray
+	export_ enum class refl_ MaterialBlock : unsigned int
 	{
-		// maps a block index to its shader options array
-		ProgramBlock m_shader_blocks[32];
-		uint8_t m_next_option = 0;
+		Base,
+		Alpha,
+		Solid,
+		Point,
+		Line,
+		Lit,
+		Pbr,
+		Phong,
+		Fresnel,
+		User,
+		Count
 	};
 
-	export_ class refl_ MUD_GFX_EXPORT Program
+	export_ class refl_ TWO_GFX_EXPORT Program
 	{
 	public:
 		struct Version
@@ -64,48 +116,60 @@ namespace mud
 		};
 
 	public:
-		Program(cstring name, bool compute = false);
-		Program(cstring name, array<GfxBlock*> blocks, array<cstring> sources);
+		Program(const string& name, bool compute = false);
 		~Program();
 
-		attr_ cstring name();
+		attr_ string m_name;
 
-		uint8_t block_option_shift(uint8_t block) const
-		{
-			return m_blocks.m_shader_blocks[block].m_option_shift;
-		}
+		meth_ void set_block(MaterialBlock block, bool enabled = true);
+		meth_ void set_pass(PassType type, bool enabled = true);
+		meth_ void set_source(ShaderType type, const string& source);
 
-		uint8_t block_mode_shift(uint8_t block) const
-		{
-			return m_blocks.m_shader_blocks[block].m_mode_shift;
-		}
+		string defines(const ProgramVersion& version) const;
 
 		void reload() { m_update++; }
 
-		void compile(GfxSystem& gfx_system, Version& version, bool compute = false);
+		void compile(GfxSystem& gfx, Version& version, bool compute = false);
 
-		void update(GfxSystem& gfx_system);
+		void update(GfxSystem& gfx);
 
 		bgfx::ProgramHandle default_version();
-		bgfx::ProgramHandle version(const ShaderVersion& config);
+		bgfx::ProgramHandle version(const ProgramVersion& config);
 
-		ShaderVersion shader_version(Version& version);
+		ProgramVersion program(Version& version);
 
-		void register_blocks(array<GfxBlock*> blocks);
-		void register_block(const GfxBlock& block);
-		void register_options(uint8_t block, array<cstring> options);
-		void register_modes(uint8_t block, array<cstring> modes);
+		meth_ void register_blocks(const Program& program);
 
-		ProgramBlockArray m_blocks;
+		meth_ void register_block(const ShaderBlock& block);
 
-		cstring m_sources[size_t(ShaderType::Count)] = { nullptr, nullptr };
+		void set_blocks(span<MaterialBlock> blocks);
+		void register_blocks(span<ShaderBlock*> blocks);
+		void register_options(uint8_t block, span<string> options);
+		void register_modes(uint8_t block, span<string> modes);
+
+		// maps a block index to its shader options span
+		ProgramBlock m_shader_blocks[32] = {};
+		uint8_t m_next_option = 0;
+		vector<ShaderBlock*> m_registered_blocks;
+
+		table<MaterialBlock, bool> m_blocks = {};
+		table<ShaderType, string> m_sources = {};
+		table<PassType, bool> m_passes = {};
+
+		vector<string> m_options;
+		vector<string> m_modes;
+
+		vector<ShaderDefine> m_defines;
 
 		bool m_compute = false;
 		uint32_t m_update = 1;
 
-		struct Impl;
-		unique_ptr<Impl> m_impl;
+		uint32_t m_primitives = 0;
 
-		static GfxSystem* ms_gfx_system;
+		static GfxSystem* ms_gfx;
+
+	private:
+		struct Impl;
+		unique<Impl> m_impl;
 	};
 }

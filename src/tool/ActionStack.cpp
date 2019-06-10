@@ -4,26 +4,29 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.tool;
+#ifdef TWO_MODULES
+module two.tool;
 #else
-#include <infra/Vector.h>
+#include <stl/algorithm.h>
 #include <tool/Types.h>
 #include <tool/ActionStack.h>
 #endif
 
-namespace mud
+namespace two
 {
 	ActionStack::ActionStack()
 		: m_done()
 		, m_undone()
 	{}
 
-	void ActionStack::push(object_ptr<EditorAction> action)
+	ActionStack::~ActionStack()
+	{}
+
+	void ActionStack::push(object<EditorAction> action)
 	{
 		m_undone.clear();
 		//action->apply();
-		m_done.push_back(std::move(action));
+		m_done.push_back(move(action));
 	}
 
 	void ActionStack::redo()
@@ -32,7 +35,7 @@ namespace mud
 			return;
 
 		m_undone.back()->apply();
-		m_done.emplace_back(vector_pop(m_undone));
+		m_done.push_back(pop(m_undone));
 	}
 
 	void ActionStack::undo()
@@ -41,7 +44,7 @@ namespace mud
 			return;
 
 		m_done.back()->undo();
-		m_undone.emplace_back(vector_pop(m_done));
+		m_undone.push_back(pop(m_done));
 	}
 
 	UndoTool::UndoTool(ToolContext& context)

@@ -4,32 +4,28 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
 #include <math/Vec.h>
 #endif
 #include <gfx/Forward.h>
 #include <gfx/Animation.h>
 #include <gfx/Skeleton.h>
 
-#include <bgfx/bgfx.h>
-
-namespace mud
+namespace two
 {
-
-	export_ struct refl_ MUD_GFX_EXPORT AnimatedTrack
+	export_ struct refl_ TWO_GFX_EXPORT AnimNode
 	{
-		const AnimationTrack* m_track;
-		// this used to be generic Ref, but until we actually need a generic animation system, switched to explicit type
-		Bone* m_target; // node or bone
-		AnimationCursor m_cursor;
-		Value m_value;
+		attr_ vec3 m_position = vec3(0.f);
+		attr_ quat m_rotation = ZeroQuat;
+		attr_ vec3 m_scale = vec3(1.f);
+		attr_ mat4 m_transform;
 	};
 
-	export_ struct refl_ MUD_GFX_EXPORT AnimationPlay
+	export_ struct refl_ TWO_GFX_EXPORT AnimPlay
 	{
-		AnimationPlay() {}
-		AnimationPlay(const Animation& animation, bool loop, float speed, bool transient, Skeleton* skeleton = nullptr);
-		
+		AnimPlay() {}
+		AnimPlay(const Animation& animation, bool loop, float speed, bool transient, span<AnimNode> nodes, Rig* rig = nullptr);
+
 		void step(float delta, float speed);
 		void update(float time, float delta, float interp);
 
@@ -43,35 +39,54 @@ namespace mud
 		attr_ float m_cursor = 0.f;
 		attr_ bool m_ended = false;
 
-		std::vector<AnimatedTrack> m_tracks;
+		Rig* m_rig = nullptr;
+
+		span<AnimNode> m_nodes;
+		
+		//span<float> m_weights;
+
+		struct Track
+		{
+			const AnimTrack* m_track;
+			AnimNode* m_node;
+			AnimCursor m_cursor;
+			Value m_value;
+		};
+
+		vector<Track> m_tracks;
 	};
 
-	export_ class refl_ MUD_GFX_EXPORT Animated
+	export_ class refl_ TWO_GFX_EXPORT Mime
 	{
 	public:
-		Animated(Node3& node);
-		~Animated();
+		constr_ Mime();
+		~Mime();
 
-		Node3& m_node;
 		Rig m_rig;
 
-		attr_ std::vector<AnimationPlay> m_playing;
-		attr_ std::vector<Animation*> m_queue;
+		vector<AnimNode> m_nodes;
+		span<Node3> m_targets;
+
+		span<Animation*> m_anims;
+
+		attr_ vector<AnimPlay> m_playing;
+		attr_ vector<Animation*> m_queue;
 
 		attr_ bool m_active = true;
 
 		attr_ float m_speed_scale = 1.f;
 		attr_ float m_default_blend_time = 1.f;
 
+		meth_ void start(const string& animation, bool loop, float blend = 0.f, float speed = 1.f, bool transient = false);
 		meth_ void play(const Animation& animation, bool loop, float blend = 0.f, float speed = 1.f, bool transient = false);
-		meth_ void play(cstring animation, bool loop, float blend = 0.f, float speed = 1.f, bool transient = false);
 		meth_ void seek(float time);
 		meth_ void pause();
 		meth_ void stop();
 		meth_ void advance(float time);
 		meth_ void next_animation();
 		
-		void add_item(Item& item);
+		meth_ void add_item(Item& item);
+		meth_ void add_nodes(span<Node3> nodes);
 
 		meth_ string playing() { return m_playing.empty() ? "" : m_playing.back().m_animation->m_name; }
 	};

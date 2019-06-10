@@ -4,8 +4,8 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.ui;
+#ifdef TWO_MODULES
+module two.ui;
 #else
 #include <infra/Reverse.h>
 #include <ui/Style/Style.h>
@@ -16,14 +16,14 @@ module mud.ui;
 #include <ui/Input.h>
 #endif
 
-namespace mud
+namespace two
 {
 	struct StyleSelector
 	{
 		StyleSelector& declare(std::function<void(Layout&, InkStyle&)> decl);
-		StyleSelector& decline(const std::vector<uint32_t>& states, std::function<void(InkStyle&)> decl);
+		StyleSelector& decline(const vector<uint32_t>& states, std::function<void(InkStyle&)> decl);
 
-		std::vector<Style*> styles;
+		vector<Style*> styles;
 	};
 
 	StyleSelector& StyleSelector::declare(std::function<void(Layout&, InkStyle&)> decl)
@@ -33,7 +33,7 @@ namespace mud
 		return *this;
 	}
 
-	StyleSelector& StyleSelector::decline(const std::vector<uint32_t>& states, std::function<void(InkStyle&)> decl)
+	StyleSelector& StyleSelector::decline(const vector<uint32_t>& states, std::function<void(InkStyle&)> decl)
 	{
 		for(Style* style : styles)
 			for(uint32_t state : states)
@@ -43,7 +43,7 @@ namespace mud
 		return *this;
 	}
 
-	StyleSelector select(const std::vector<string> styles)
+	StyleSelector select(const vector<string> styles)
 	{
 		StyleSelector selector;
 		for(const string& name : styles)

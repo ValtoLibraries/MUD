@@ -8,7 +8,7 @@
 
 #define CONETRACE_MAT3
 
-SAMPLER3D(s_gi_probe, 10);
+SAMPLER3D(s_gi_probe, 14);
 
 CONST(float) sqrt2 = 1.41421356237;
 
@@ -60,6 +60,21 @@ vec3 cone_trace(sampler3D probe, vec3 inv_extents, vec3 pos, vec3 direction, flo
     
 	return color * alpha;
 }
+
+#if 0
+mat3 cone_normal_mat(vec3 n, vec3 t, vec3 b, mat4 probe)
+{
+    vec3 nloc = mul(probe, vec4(n, 0.0)).xyz;
+    vec3 bloc = mul(probe, vec4(b, 0.0)).xyz;
+    vec3 tloc = mul(probe, vec4(t, 0.0)).xyz;
+    mat3 normal_mat = mat3(tloc, bloc, nloc);
+#if BGFX_SHADER_LANGUAGE_HLSL
+    return normal_mat;
+#else
+    return transpose(normal_mat);
+#endif
+}
+#endif
 
 mat3 cone_normal_mat(vec3 normal)
 {
@@ -148,7 +163,7 @@ vec3 trace_diffuse(sampler3D probe, vec3 pos, vec3 normal, float bias)
 vec3 trace_specular(sampler3D probe, vec3 pos, vec3 refl_vec, float roughness, float bias)
 {
 	float max_distance = length(u_gi_probe_bounds) * cone_distance_factor;
-    float tan_half_angle = max(min_ref_tan, tan(roughness * 0.5 * M_PI));
+    float tan_half_angle = max(min_ref_tan, tan(roughness * 0.5 * PI));
     
     return vec3_splat(0.0);
 	return cone_trace(probe, u_gi_probe_inv_extents, pos, refl_vec, tan_half_angle, max_distance, bias);
@@ -190,9 +205,6 @@ ConeStart cone_start(vec3 pos, vec3 normal)
 	cone.refl = mul(u_gi_probe_transform, vec4(refl, 0.0)).xyz;
     
 #ifdef CONETRACE_MAT3
-    //vec3 bitangent_local = mul(u_gi_probe_transform, vec4(bitangent, 0.0)).xyz;
-    //vec3 tangent_local = mul(u_gi_probe_transform, vec4(tangent, 0.0)).xyz;
-    //mat3 normal_mat = mat3(tangent_local, bitangent_local, cone.normal);
     cone.normal_mat = cone_normal_mat(cone.normal);
 #endif
 

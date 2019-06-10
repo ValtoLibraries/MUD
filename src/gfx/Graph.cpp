@@ -4,14 +4,21 @@
 
 #include <gfx/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.gfx;
+#ifdef TWO_MODULES
+module two.gfx;
 #else
-#include <infra/Vector.h>
-#include <pool/ObjectPool.h>
+#include <stl/algorithm.h>
+#include <infra/Copy.h>
+#include <pool/Pool.hpp>
+#include <tree/Graph.hpp>
+#include <pool/ObjectPool.hpp>
 #include <math/Math.h>
+#include <math/ImageAtlas.h>
+#include <math/Vec.hpp>
+#include <geom/Geom.h>
 #include <geom/Intersect.h>
 #include <geom/Symbol.h>
+#include <geom/Shapes.h>
 #include <gfx/Types.h>
 #include <gfx/Graph.h>
 #include <gfx/Gfx.h>
@@ -29,8 +36,20 @@ module mud.gfx;
 #include <gfx/Pipeline.h>
 #endif
 
-namespace mud
+#include <cstdio>
+
+namespace two
 {
+	template class Graph<Gnode>;
+
+	template class TPool<Node3>;
+	template class TPool<Item>;
+	template class TPool<Batch>;
+	template class TPool<Direct>;
+	template class TPool<Mime>;
+	template class TPool<Light>;
+	template class TPool<Flare>;
+
 	Gnode::Gnode() : Graph() {}
 	Gnode::Gnode(Scene& scene, SoundManager* sound_manager) : Graph(), m_scene(&scene), m_attach(&scene.m_root_node), m_sound_manager(sound_manager) {}
 	Gnode::Gnode(Gnode* parent, void* identity) : Graph(parent, identity), m_scene(parent->m_scene), m_attach(parent->m_attach), m_sound_manager(parent->m_sound_manager) {}
@@ -53,14 +72,24 @@ namespace mud
 			m_scene->m_pool->pool<Item>().tdestroy(*m_item);
 			m_item = nullptr;
 		}
+		if(m_batch)
+		{
+			m_scene->m_pool->pool<Batch>().tdestroy(*m_batch);
+			m_batch = nullptr;
+		}
+		if(m_direct)
+		{
+			m_scene->m_pool->pool<Direct>().tdestroy(*m_direct);
+			m_direct = nullptr;
+		}
 		if(m_animated)
 		{
-			m_scene->m_pool->pool<Animated>().tdestroy(*m_animated);
+			m_scene->m_pool->pool<Mime>().tdestroy(*m_animated);
 			m_animated = nullptr;
 		}
 		if(m_particles)
 		{
-			m_scene->m_pool->pool<Particles>().tdestroy(*m_particles);
+			m_scene->m_pool->pool<Flare>().tdestroy(*m_particles);
 			m_particles = nullptr;
 		}
 		if(m_light)
@@ -73,7 +102,7 @@ namespace mud
 		{
 			m_scene->m_orphan_sounds.push_back(m_sound);
 			m_sound = nullptr;
-			printf("ERROR: sound goes out of graph but wasn't destroyed\n");
+			printf("[ERROR] sound goes out of graph but wasn't destroyed\n");
 		}
 	}
 
@@ -91,110 +120,113 @@ namespace mud
 			debug_tree(*node.m_nodes[i], i, depth + 1);
 	}
 
-	template <class T_Element, class... T_Args>
-	inline T_Element& create(Scene& scene, T_Args&&... args)
+	template <class T, class... Args>
+	inline T& create(Scene& scene, Args&&... args)
 	{
-		return scene.m_pool->pool<T_Element>().construct(std::forward<T_Args>(args)...);
+		return scene.m_pool->pool<T>().construct(static_cast<Args&&>(args)...);
 	}
 
 namespace gfx
 {
-	Gnode& node(Gnode& parent, Ref object, const mat4& transform)
+	void setup_pipeline_minimal(GfxSystem& gfx)
 	{
-		Gnode& self = parent.subi(object.m_value);
+		gfx.init_pipeline(pipeline_minimal);
+	}
+
+	TPool<Node3>&  nodes(Scene& scene)   { return scene.m_pool->pool<Node3>(); }
+	TPool<Item>&   items(Scene& scene)   { return scene.m_pool->pool<Item>(); }
+	TPool<Batch>&  batches(Scene& scene) { return scene.m_pool->pool<Batch>(); }
+	TPool<Direct>& directs(Scene& scene) { return scene.m_pool->pool<Direct>(); }
+	TPool<Mime>&   mimes(Scene& scene)   { return scene.m_pool->pool<Mime>(); }
+	TPool<Light>&  lights(Scene& scene)  { return scene.m_pool->pool<Light>(); }
+	TPool<Flare>&  flares(Scene& scene)  { return scene.m_pool->pool<Flare>(); }
+
+	Gnode& node(Gnode& parent, const mat4& transform)
+	{
+		Gnode& self = parent.suba();
+		//Gnode& self = parent.subi((void*)object.as_uint());
 		if(!self.m_node)
 		{
-			self.m_node = &create<Node3>(*parent.m_scene, parent.m_scene, object);
+			self.m_node = &create<Node3>(*parent.m_scene);
 			self.m_attach = self.m_node;
 		}
 		self.m_node->m_transform = transform;
 		return self;
 	}
 
-	Gnode& node(Gnode& parent, Ref object, const vec3& position, const quat& rotation, const vec3& scale)
+	Gnode& node(Gnode& parent, const vec3& position, const quat& rotation, const vec3& scale)
 	{
-		return node(parent, object, bxTRS(scale, rotation, position));
+		return node(parent, bxTRS(scale, rotation, position));
 	}
 
-	Gnode& node(Gnode& parent, Ref object, const Transform& transform)
+	Gnode& node(Gnode& parent, const Transform& transform)
 	{
-		return node(parent, object, transform.m_position, transform.m_rotation, transform.m_scale);
+		return node(parent, transform.m_position, transform.m_rotation, transform.m_scale);
 	}
 
-	Gnode& transform(Gnode& parent, Ref object, const vec3& position, const quat& rotation, const vec3& scale)
+	Gnode& transform(Gnode& parent, const vec3& position, const quat& rotation, const vec3& scale)
 	{
-		return node(parent, object, parent.m_attach->m_transform * bxTRS(scale, rotation, position));
+		return node(parent, parent.m_attach->m_transform * bxTRS(scale, rotation, position));
 	}
 
-	Gnode& transform(Gnode& parent, Ref object, const vec3& position, const quat& rotation)
+	Gnode& transform(Gnode& parent, const vec3& position, const quat& rotation)
 	{
-		return node(parent, object, parent.m_attach->m_transform * bxTRS(Unit3, rotation, position));
+		return node(parent, parent.m_attach->m_transform * bxTRS(vec3(1.f), rotation, position));
 	}
 
-	void update_item_aabb(Item& item)
-	{
-		if(item.m_instances.size() == 0)
-		{
-			item.m_aabb = transform_aabb(item.m_model->m_aabb, item.m_node->m_transform);
-		}
-		else
-		{
-			item.m_aabb = {};
-			for(const mat4& transform : item.m_instances)
-				item.m_aabb.mergeSafe(transform_aabb(item.m_model->m_aabb, transform));
-		}
-	}
-
-	void update_item_lights(Item& item)
-	{
-		item.m_lights.clear();
-
-		item.m_node->m_scene->m_pool->pool<Light>().iterate([&](Light& light)
-		{
-			if(light.m_type == LightType::Direct || sphere_aabb_intersection(light.m_node.position(), light.m_range, item.m_aabb))
-				item.m_lights.push_back(&light);
-		});
-	}
-
-	Item& item(Gnode& parent, const Model& model, uint32_t flags, Material* material, size_t instances, array<mat4> transforms)
+	Item& item(Gnode& parent, const Model& model, uint32_t flags, Material* material)
 	{
 		Gnode& self = parent.suba<Gnode>();
 		bool update = (flags & ItemFlag::NoUpdate) == 0;
 		if(!self.m_item)
 		{
-			self.m_item = &create<Item>(*self.m_scene, *self.m_attach, model, flags, material, instances);
+			self.m_item = &create<Item>(*self.m_scene, *self.m_attach, model, flags, material);
 			update = true;
 		}
 		self.m_item->m_model = const_cast<Model*>(&model);
 		self.m_item->m_material = material;
-		if(transforms.size() > 0)
-		{
-			self.m_item->m_instances.resize(instances);
-			transforms.copy(self.m_item->m_instances);
-		}
-		if(instances > 0)
-		{
-			self.m_item->m_instances.resize(instances);
-			self.m_item->update_instances();
-		}
 		if(update)
 		{
-			update_item_aabb(*self.m_item);
-			update_item_lights(*self.m_item);
+			self.m_item->update_aabb();
 		}
 		return *self.m_item;
 	}
 
-	void prefab(Gnode& parent, const Prefab& prefab, bool transform, uint32_t flags, Material* material, size_t instances, array<mat4> transforms)
+	Batch& batch(Gnode& parent, Item& item, uint16_t stride)
+	{
+		Gnode& self = parent.suba<Gnode>();
+		if(!self.m_batch)
+		{
+			self.m_batch = &create<Batch>(*self.m_scene, item, stride);
+			item.m_batch = self.m_batch;
+		}
+		return *self.m_batch;
+	}
+
+	Batch& instances(Gnode& parent, Item& item, span<mat4> transforms)
+	{
+		Gnode& self = parent.suba<Gnode>();
+		if(!self.m_batch)
+		{
+			self.m_batch = &create<Batch>(*self.m_scene, item, uint16_t(sizeof(mat4)));
+			item.m_batch = self.m_batch;
+		}
+		self.m_batch->transforms(transforms);
+		self.m_batch->update_aabb(transforms);
+		return *self.m_batch;
+	}
+
+	void prefab(Gnode& parent, const Prefab& prefab, bool transform, uint32_t flags, Material* material)
 	{
 		Gnode& self = parent.suba<Gnode>();
 		
-		for(size_t i = 0; i < prefab.m_items.size(); ++i)
+		for(const Prefab::Elem& elem : prefab.m_items)
 		{
-			mat4 tr = transform ? parent.m_attach->m_transform * prefab.m_nodes[i].m_transform
-								: prefab.m_nodes[i].m_transform;
-			Gnode& no = node(self, {}, tr);
-			Item& it = item(no, *prefab.m_items[i].m_model, prefab.m_items[i].m_flags | flags, material, instances, transforms);
+			const Node3& n = prefab.m_nodes[elem.node];
+			mat4 tr = transform ? parent.m_attach->m_transform * n.m_transform
+								: n.m_transform;
+			Gnode& no = node(self, tr);
+			Item& it = item(no, *elem.item.m_model, elem.item.m_flags | flags, material);
 			//it = prefab.m_items[i];
 			//shape(self, Cube(i.m_aabb.m_center, vec3(0.1f)), Symbol::wire(Colour::Red, true));
 			//shape(self, submodel->m_aabb, Symbol::wire(Colour::White));
@@ -202,21 +234,21 @@ namespace gfx
 		}
 	}
 
-	Item& shape_item(Gnode& parent, Model& model, const Symbol& symbol, uint32_t flags, Material* material, size_t instances, DrawMode draw_mode)
+	Item& shape_item(Gnode& parent, Model& model, const Symbol& symbol, uint32_t flags, Material* material, DrawMode draw_mode)
 	{
-		Item& self = item(parent, model, flags, material, instances);
-		self.m_material = material ? material : &parent.m_scene->m_gfx_system.fetch_symbol_material(symbol, draw_mode);
+		Item& self = item(parent, model, flags, material);
+		self.m_material = material ? material : &parent.m_scene->m_gfx.symbol_material(symbol, draw_mode);
 		return self;
 	}
 
-	Item& shape(Gnode& parent, const Shape& shape, const Symbol& symbol, uint32_t flags, Material* material, size_t instances)
+	Item& shape(Gnode& parent, const Shape& shape, const Symbol& symbol, uint32_t flags, Material* material)
 	{
 		Item* item = nullptr;
-		Symbol white = { Colour::White, Colour::White };
+		static Symbol white = { Colour::White, Colour::White };
 		if(symbol.fill())
-			item = &shape_item(parent, parent.m_scene->m_gfx_system.fetch_symbol(white, shape, PLAIN), symbol, flags, material, instances, PLAIN);
+			item = &shape_item(parent, parent.m_scene->m_gfx.shape(shape, white, PLAIN), symbol, flags, material, PLAIN);
 		if(symbol.outline())
-			item = &shape_item(parent, parent.m_scene->m_gfx_system.fetch_symbol(white, shape, OUTLINE), symbol, flags, material, instances, OUTLINE);
+			item = &shape_item(parent, parent.m_scene->m_gfx.shape(shape, white, OUTLINE), symbol, flags, material, OUTLINE);
 		return *item;
 	}
 
@@ -224,9 +256,9 @@ namespace gfx
 	{
 		UNUSED(flags);
 		if(symbol.fill())
-			scene.m_immediate->draw(transform, { symbol, &shape, PLAIN });
+			scene.m_immediate->shape(transform, { symbol, &shape, PLAIN });
 		if(symbol.outline())
-			scene.m_immediate->draw(transform, { symbol, &shape, OUTLINE });
+			scene.m_immediate->shape(transform, { symbol, &shape, OUTLINE });
 	}
 
 	void draw(Gnode& parent, const Shape& shape, const Symbol& symbol, uint32_t flags)
@@ -234,39 +266,39 @@ namespace gfx
 		draw(*parent.m_scene, parent.m_attach->m_transform, shape, symbol, flags);
 	}
 
-	Item& sprite(Gnode& parent, const Image256& image, const vec2& size, uint32_t flags, Material* material, size_t instances)
+	Item& sprite(Gnode& parent, const Image256& image, const vec2& size, uint32_t flags, Material* material)
 	{
-		return shape(parent, Quad(size), { image }, flags, material, instances);
+		return shape(parent, Quad(size), { image }, flags, material);
 	}
 
-	Item* model(Gnode& parent, const string& name, uint32_t flags, Material* material, size_t instances)
+	Item* model(Gnode& parent, const string& name, uint32_t flags, Material* material)
 	{
-		Model* model = parent.m_scene->m_gfx_system.models().file(name.c_str());
+		Model* model = parent.m_scene->m_gfx.models().file(name.c_str());
 		if(model)
-			return &item(parent, *model, flags, material, instances);
+			return &item(parent, *model, flags, material);
 		return nullptr;
 	}
 
-	Animated& animated(Gnode& parent, Item& item)
+	Mime& animated(Gnode& parent, Item& item)
 	{
 		Gnode& self = parent.suba();
 		if(!self.m_animated)
 		{
-			self.m_animated = &create<Animated>(*self.m_scene, *self.m_attach);
+			self.m_animated = &create<Mime>(*self.m_scene);
 			self.m_animated->add_item(item);
 		}
 		return *self.m_animated;
 	}
 
-	Particles& particles(Gnode& parent, const ParticleGenerator& emitter, uint32_t flags, size_t instances)
+	Flare& flows(Gnode& parent, const Flow& emitter, uint32_t flags)
 	{
-		UNUSED(flags); UNUSED(instances);
+		UNUSED(flags);
 		Gnode& self = parent.suba();
 		if(!self.m_particles)
-			self.m_particles = &create<Particles>(*self.m_scene, self.m_attach, Sphere(1.f), 1024);
-		as<ParticleGenerator>(*self.m_particles) = emitter;
+			self.m_particles = &create<Flare>(*self.m_scene, self.m_attach, Sphere(1.f), 1024);
+		as<Flow>(*self.m_particles) = emitter;
 		self.m_particles->m_node = self.m_attach;
-		self.m_particles->m_sprite = &parent.m_scene->m_particle_system->m_block.m_sprites.find_sprite(emitter.m_sprite_name.c_str());
+		self.m_particles->m_sprite = &parent.m_scene->m_particle_system->m_block.m_sprites->find_sprite(emitter.m_sprite_name.c_str());
 		return *self.m_particles;
 	}
 
@@ -286,27 +318,15 @@ namespace gfx
 
 	Light& direct_light_node(Gnode& parent, const quat& rotation)
 	{
-		Gnode& self = node(parent, {}, Zero3, rotation);
-		Light& l = light(self, LightType::Direct, true, Colour{ 0.8f, 0.8f, 0.7f }, 1.f);
+		Gnode& self = node(parent, vec3(0.f), rotation);
+		Light& l = light(self, LightType::Direct, true, Colour(0.8f, 0.8f, 0.7f), 1.f);
 		l.m_energy = 0.6f;
-		l.m_shadow_flags = CSM_Stabilize;
-#ifdef MUD_PLATFORM_EMSCRIPTEN
-		l.m_shadow_num_splits = 2;
-#else
-		l.m_shadow_num_splits = 4;
-#endif
 		return l;
 	}
 
 	Light& sun_light(Gnode& parent, float azimuth, float elevation)
 	{
 		return direct_light_node(parent, sun_rotation(azimuth, elevation));
-	}
-
-	quat facing(const vec3& direction)
-	{
-		float angle = atan2(direction.x, direction.z);
-		return { cosf(angle / 2.f), 0.f, 1.f * sinf(angle / 2.f), 0.f };
 	}
 
 	Light& direct_light_node(Gnode& parent, const vec3& direction)
@@ -316,38 +336,58 @@ namespace gfx
 
 	Light& direct_light_node(Gnode& parent)
 	{
-		return direct_light_node(parent, quat{ vec3{ -c_pi / 4.f, -c_pi / 4.f, 0.f } });
+		return direct_light_node(parent, quat(vec3(-c_pi4, -c_pi4, 0.f)));
 	}
 
-	void radiance(Gnode& parent, const string& texture, BackgroundMode background)
+	void radiance(Scene& scene, const string& file, BackgroundMode background)
 	{
-		parent.m_scene->m_environment.m_radiance.m_texture = parent.m_scene->m_gfx_system.textures().file(texture.c_str());
-		parent.m_scene->m_environment.m_background.m_mode = background;
+		scene.m_env.m_radiance.m_texture = scene.m_gfx.textures().file(file.c_str());
+		scene.m_env.m_background.m_mode = background;
 	}
 
-	void custom_sky(Gnode& parent, std::function<void(Render&)> renderer)
+	void radiance(Gnode& parent, const string& file, BackgroundMode background)
 	{
-		parent.m_scene->m_environment.m_background.m_custom_function = renderer;
-		parent.m_scene->m_environment.m_background.m_mode = BackgroundMode::Custom;
+		Texture& texture = *parent.m_scene->m_gfx.textures().file(file.c_str());
+		Zone& env = parent.m_scene->m_env;
+		env.m_radiance.m_texture = &texture;
+		env.m_radiance.m_energy = 0.3f;
+		if(background == BackgroundMode::Panorama)
+			env.m_background.m_texture = &texture;
+		env.m_background.m_mode = background;
 	}
 
-	void manual_job(Gnode& parent, PassType pass, std::function<void(const Pass&)> job)
+	void custom_sky(Gnode& parent, CustomSky renderer)
 	{
-		parent.m_scene->m_pass_jobs->m_jobs[size_t(pass)].push_back(job);
+		parent.m_scene->m_env.m_background.m_custom_function = renderer;
+		parent.m_scene->m_env.m_background.m_mode = BackgroundMode::Custom;
 	}
 
-	Material& pbr_material(GfxSystem& gfx_system, cstring name, const PbrMaterialBlock& pbr_block)
+	void manual_job(Gnode& parent, PassType pass, ManualJob job)
 	{
-		Program& program = *gfx_system.programs().file("pbr/pbr");
-		Material& material = gfx_system.materials().fetch(name);
+		parent.m_scene->m_pass_jobs->m_jobs[pass].push_back(job);
+	}
+
+	Material& solid_material(GfxSystem& gfx, const string& name, const Colour& colour)
+	{
+		Program& program = *gfx.programs().file("solid");
+		Material& material = gfx.materials().fetch(name);
 		material.m_program = &program;
-		material.m_pbr_block = pbr_block;
+		material.m_solid.m_colour = colour;
 		return material;
 	}
 
-	Material& pbr_material(GfxSystem& gfx_system, cstring name, const Colour& albedo, float metallic, float roughness)
+	Material& pbr_material(GfxSystem& gfx, const string& name, const MaterialPbr& pbr_block)
 	{
-		return pbr_material(gfx_system, name, { albedo, metallic, roughness });
+		Program& program = *gfx.programs().file("pbr/pbr");
+		Material& material = gfx.materials().fetch(name);
+		material.m_program = &program;
+		material.m_pbr = pbr_block;
+		return material;
+	}
+
+	Material& pbr_material(GfxSystem& gfx, const string& name, const Colour& albedo, float metallic, float roughness)
+	{
+		return pbr_material(gfx, name, { albedo, metallic, roughness });
 	}
 }
 }

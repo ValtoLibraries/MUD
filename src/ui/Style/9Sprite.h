@@ -4,16 +4,16 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <infra/Array.h>
+#ifndef TWO_MODULES
+#include <stl/span.h>
 #endif
 #include <ui/Forward.h>
 #include <ui/Frame/Dim.h>
 #include <math/Image.h>
 
-namespace mud
+namespace two
 {
-	export_ struct refl_ MUD_UI_EXPORT ImageSkin
+	export_ struct refl_ TWO_UI_EXPORT ImageSkin
 	{
 	public:
 		enum Section
@@ -31,13 +31,13 @@ namespace mud
 		};
 
 	public:
-		constr_ ImageSkin(Image& image, int left, int top, int right, int bottom, int margin = 0, Dim stretch = DIM_NONE);
+		constr_ ImageSkin(Image& image, int left, int top, int right, int bottom, int margin = 0, Axis stretch = Axis::None);
 		ImageSkin(Image& image, const ImageSkin& ref);
 		ImageSkin();
 
 		bool null() const { return d_image == nullptr; }
 
-		void stretch_coords(vec2 offset, vec2 size, array<vec4> coords) const;
+		void stretch_coords(vec2 offset, vec2 size, span<vec4> coords) const;
 
 		attr_ Image* d_image = nullptr;
 
@@ -46,7 +46,7 @@ namespace mud
 		attr_ int d_right = 0;
 		attr_ int d_bottom = 0;
 		attr_ int m_margin = 0;
-		attr_ Dim d_stretch = DIM_NONE;
+		attr_ Axis d_stretch = Axis::None;
 
 		vec2 d_size;
 		vec2 d_solid_size;

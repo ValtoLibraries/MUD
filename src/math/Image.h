@@ -4,23 +4,23 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <infra/Strung.h>
-#endif
+#include <stl/string.h>
 #include <math/Vec.h>
 #include <math/Forward.h>
 
-namespace mud
+namespace two
 {
-	export_ struct refl_ MUD_MATH_EXPORT Image
+	export_ using cstring = const char*;
+
+	export_ struct refl_ TWO_MATH_EXPORT Image
 	{
 	public:
-		Image(cstring name = "", cstring path = "", const uvec2& size = {})
+		Image(const string& name = "", const string& path = "", const uvec2& size = {})
 			: d_name(name), d_path(path), d_size(size)
 		{}
 
-		/*attr_*/ string d_name;
-		/*attr_*/ string d_path;
+		attr_ string d_name;
+		attr_ string d_path;
 		uvec2 d_size;
 		uvec2 d_coord = uvec2(0U);
 

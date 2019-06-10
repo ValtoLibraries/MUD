@@ -6,10 +6,11 @@
 
 #include <bgfx/bgfx.h>
 
-#ifdef MUD_MODULES
-module mud.gfx-edit;
+#ifdef TWO_MODULES
+module two.gfx-edit;
 #else
-#include <infra/Vector.h>
+#include <infra/ToString.h>
+#include <stl/algorithm.h>
 #include <type/Vector.h>
 #include <type/DispatchDecl.h>
 #include <pool/ObjectPool.h>
@@ -19,14 +20,15 @@ module mud.gfx-edit;
 #include <geom/Shapes.h>
 #include <geom/ShapesComplex.h>
 #include <geom/Aabb.h>
-#include <ui/Structs/Container.h>
-#include <ui/Structs/RootSheet.h>
+#include <ui/ContainerStruct.h>
+#include <ui/UiRoot.h>
+#include <ui/Section.h>
 #include <ui/Input.h>
 #include <ui/Sequence.h>
+#include <ui/Ui.h>
+#include <uio/Inspector.h>
+#include <uio/ValueEdit.h>
 #include <uio/Unode.h>
-#include <uio/Edit/Inspector.h>
-#include <uio/Edit/Section.h>
-#include <uio/Edit/Value.h>
 #include <gfx/Gfx.h>
 #include <gfx/Animated.h>
 #include <gfx/Mesh.h>
@@ -34,41 +36,48 @@ module mud.gfx-edit;
 #include <gfx/Asset.h>
 #include <gfx/Pipeline.h>
 #include <gfx/Froxel.h>
+#include <gfx/Material.h>
+#include <gfx/Particles.h>
 #include <gfx/Frustum.h>
 #include <gfx/GfxSystem.h>
+#include <gfx-pbr/Types.h>
+#include <gfx-pbr/Handles.h>
 #include <gfx-pbr/Shadow.h>
+#include <gfx-pbr/Filters/DofBlur.h>
+#include <gfx-pbr/Filters/Glow.h>
+#include <gfx-pbr/Filters/Tonemap.h>
 #include <gfx-ui/Types.h>
 #include <gfx-ui/Viewer.h>
 #include <gfx-edit/ParticleEdit.h>
 #include <gfx-edit/GfxEdit.h>
 #endif
 
-namespace mud
+namespace two
 {
-	void animation_edit(Widget& parent, Animated& animated)
+	void animation_edit(Widget& parent, Mime& animated)
 	{
 		Widget& self = ui::sheet(parent);
 
-		Table& table = ui::table(self, carray<cstring, 2>{ "Field", "Value" }, carray<float, 2>{ 0.3f, 0.7f });
+		Table& table = ui::table(self, { "Field", "Value" }, { 0.3f, 0.7f });
 
-		static std::vector<cstring> animations;
+		static vector<cstring> animations;
 		animations.clear();
-		for(Animation* animation : animated.m_rig.m_skeleton.m_animations)
+		for(Animation* animation : animated.m_anims)
 			animations.push_back(animation->m_name.c_str());
 
 		static uint32_t animation = 0;
-		if(ui::radio_field(table, "animation", animations, animation))
-			animated.play(animations[animation], true, 0.f, 1.f);
+		if(ui::radio_field(table, "animation", animations, animation, Axis::Y))
+			animated.start(animations[animation], true, 0.f, 1.f);
 
 		if(!animated.m_playing.empty())
 		{
-			AnimationPlay& play = animated.m_playing.back();
-			ui::slider_field<float>(table, "speed", { play.m_speed, { -5.f, 5.f, 0.01f } });
-			ui::slider_field<float>(table, "timeline", { play.m_cursor, { 0.f, play.m_animation->m_length, 0.01f } });
+			AnimPlay& play = animated.m_playing.back();
+			ui::slider_field(table, "speed", play.m_speed, { -5.f, 5.f, 0.01f });
+			ui::slider_field(table, "timeline", play.m_cursor, { 0.f, play.m_animation->m_length, 0.01f });
 		}
 
-		Table& playing = ui::table(self, carray<cstring, 2>{ "Animation", "Time" }, carray<float, 2>{ 0.6f, 0.4f });
-		for(AnimationPlay& play : animated.m_playing)
+		Table& playing = ui::table(self, { "Animation", "Time" }, { 0.6f, 0.4f });
+		for(AnimPlay& play : animated.m_playing)
 		{
 			Widget& row = ui::table_row(playing);
 			ui::label(row, play.m_animation->m_name.c_str());
@@ -79,114 +88,15 @@ namespace mud
 
 	void space_axes(Gnode& parent)
 	{
-		static Colour colours[3] = { Colour::Red, Colour::Green, Colour::Blue };
+		static table<Axis, Colour> colours = { Colour::Red, Colour::Green, Colour::Blue };
 		for(Axis axis : { Axis::X, Axis::Y, Axis::Z })
 		{
-			Gnode& node = gfx::node(parent, {}, to_vec3(axis) * 1.f);
-			gfx::shape(node, Cylinder(0.1f, 1.f, axis), Symbol(colours[size_t(axis)]));
+			Gnode& node = gfx::node(parent, to_vec3(axis) * 1.f);
+			gfx::shape(node, Cylinder(0.1f, 1.f, axis), Symbol(colours[axis]));
 		}
 	}
 
-	mat4 fix_bone_pose(Bone& bone)
-	{
-		return bxrotation(angle_axis(-c_pi * 0.5f, X3)) * bxscale(vec3(0.009999999776482582f)) * bone.m_pose;
-	}
-
-	void debug_draw_skeleton(Gnode& parent, const vec3& position, const quat& rotation, Rig& rig)
-	{
-		for(Bone& bone : rig.m_skeleton.m_bones)
-		{
-			mat4 pose = bxrotation(rotation) * fix_bone_pose(bone);
-			Gnode& node = gfx::node(parent, {}, position + vec3(pose * vec4(Zero3, 1.f)));
-			gfx::shape(node, Sphere(0.02f), Symbol());
-		}
-	}
-
-	void debug_draw_light_clusters(Gnode& parent, Camera& camera)
-	{
-		if(!camera.m_clustered) return;
-		Froxelizer& clusters = *camera.m_clusters;
-
-		if(clusters.m_debug_clusters.empty())
-			clusters.compute_froxels();
-
-		enum Mode { ClusterIndex, RecordIndex, LightIndex, LightCount };
-		Mode mode = ClusterIndex;
-
-		mat4 transform = inverse(bxlookat(camera.m_eye, camera.m_target));
-		size_t i = 0;
-		for(Frustum& frustum : clusters.m_debug_clusters)
-		{
-			if(!clusters.m_froxels.m_data[i].count[0] && !clusters.m_froxels.m_data[i].count[1])
-			{
-				//gfx::draw(*parent.m_scene, transform, Box({ &frustum.m_corners[0], 8 }), Symbol::wire(Colour(1.f, 0.02f)));
-				i++;
-				continue;
-			}
-
-			Colour colour = Colour(1.f, 0.02f);
-			size_t record = clusters.m_froxels.m_data[i].offset;
-			size_t light = clusters.m_records.m_data[record];
-
-			if(mode == ClusterIndex)
-				colour = hsl_to_rgb(float(i) / (29.f * 16.f * 16.f), 1.f, 0.5f);
-			else if(mode == RecordIndex)
-				colour = hsl_to_rgb(float(record) / float(255.f), 1.f, 0.5f);
-			else if(mode == LightIndex)
-				colour = hsl_to_rgb(float(light) / 255.f, 1.f, 0.5f);
-			else if(mode == LightCount)
-				colour = hsl_to_rgb(float(clusters.m_froxels.m_data[i].count[0]) / 32.f, 1.f, 0.5f);
-			
-			gfx::draw(*parent.m_scene, transform, Box({ &frustum.m_corners[0], 8 }), Symbol::wire(colour));
-			i++;
-		}
-	}
-
-	void debug_draw_light_slices(Gnode& parent, Light& light, bool frustums, bool bounds)
-	{
-		uint32_t index = 0; UNUSED(light);// light.m_index];
-
-		GfxSystem& gfx_system = parent.m_scene->m_gfx_system;
-		BlockShadow& block_shadow = *gfx_system.m_pipeline->block<BlockShadow>();
-		
-		if(index >= block_shadow.m_shadows.size())
-			return;
-
-		LightShadow& shadow = block_shadow.m_shadows[index];
-
-		auto draw = [](Gnode& parent, const Shape& shape, const Symbol& symbol)
-		{
-			Gnode& self = gfx::node(parent, {});
-			gfx::draw(self, shape, symbol);
-		};
-
-		for(size_t i = 0; i < shadow.m_slices.size(); ++i)
-		{
-			mat4 inverse_light = inverse(shadow.m_slices[i].m_transform);
-			draw(parent, Sphere(vec3(inverse_light[3]), 1.f), Symbol::wire(Colour::White));
-
-			if(frustums)
-			{
-				Frustum& frustum = shadow.m_frustum_slices[i].m_frustum;
-				draw(parent, Box({ &frustum.m_corners[0], 8 }), Symbol::wire(Colour::White));
-				if(false)
-					draw(parent, Sphere(frustum.m_center, frustum.m_radius), Symbol::wire(Colour::DarkGrey));
-
-			}
-
-			if(bounds)
-			{
-				Box light_bounds = Box(aabb(shadow.m_slices[i].m_light_bounds.min, shadow.m_slices[i].m_light_bounds.max));
-
-				for(vec3& vertex : light_bounds.m_vertices)
-					vertex = vec3(inverse_light * vec4(vertex, 1.f));
-
-				draw(parent, light_bounds, Symbol::wire(Colour::Pink));
-			}
-		}
-	}
-
-	void double_label(Widget& parent, cstring label, cstring value)
+	void double_label(Widget& parent, const string& label, const string& value)
 	{
 		Widget& row = ui::row(parent);
 		ui::label(row, label);
@@ -200,16 +110,16 @@ namespace mud
 		const bgfx::Stats* stats = bgfx::getStats();
 
 		{
-			Table& columns = ui::columns(self, carray<float, 2>{ 0.4f, 0.6f });
+			Table& columns = ui::columns(self, { 0.4f, 0.6f });
 
 			double cpu_time = 1000.0f * stats->cpuTimeFrame / (double)stats->cpuTimerFreq;
 
-			double_label(columns, "cpu frame", to_string(cpu_time).c_str());
-			double_label(columns, "gpu latency", to_string(stats->maxGpuLatency).c_str());
-			double_label(columns, "draw calls", to_string(stats->numDraw).c_str());
+			double_label(columns, "cpu frame", to_string(cpu_time));
+			double_label(columns, "gpu latency", to_string(stats->maxGpuLatency));
+			double_label(columns, "draw calls", to_string(stats->numDraw));
 
-			double_label(columns, "backbuffer width", to_string(stats->width).c_str());
-			double_label(columns, "backbuffer height", to_string(stats->height).c_str());
+			double_label(columns, "backbuffer width", to_string(stats->width));
+			double_label(columns, "backbuffer height", to_string(stats->height));
 		}
 
 		static cstring columns[3] = { "view", "gpu time", "cpu time" };
@@ -234,34 +144,34 @@ namespace mud
 		time += 0.01f;
 
 		SceneViewer& viewer = ui::scene_viewer(parent, vec2(200.f));
-		viewer.m_camera.m_eye = radius * 2.5f * Z3;
+		viewer.m_camera.m_eye = radius * 2.5f * z3;
 
-		quat rotation = axis_angle(Y3, fmod(time, 2.f * c_pi));
+		quat rotation = axis_angle(y3, fmod(time, c_2pi));
 
-		Gnode& scene = viewer.m_scene->begin();
-		gfx::node(scene, object, offset, rotation);
+		Gnode& scene = viewer.m_scene.begin();
+		gfx::node(scene, offset, rotation); // object
 		gfx::radiance(scene, "radiance/tiber_1_1k.hdr", BackgroundMode::Radiance);
 		return viewer;
 	}
 
 	SceneViewer& material_viewer(Widget& parent, Material& material)
 	{
-		SceneViewer& viewer = asset_empty_viewer(parent, Ref(&material), Zero3, 1.f);
-		gfx::shape(*viewer.m_scene->m_graph.m_nodes[0], Sphere(), Symbol(Colour::White), 0U, &material);
+		SceneViewer& viewer = asset_empty_viewer(parent, Ref(&material), vec3(0.f), 1.f);
+		gfx::shape(*viewer.m_scene.m_graph.m_nodes[0], Sphere(), Symbol(Colour::White), 0U, &material);
 		return viewer;
 	}
 
 	SceneViewer& model_viewer(Widget& parent, Model& model)
 	{
 		SceneViewer& viewer = asset_empty_viewer(parent, Ref(&model), -model.m_origin, model.m_radius);
-		gfx::item(*viewer.m_scene->m_graph.m_nodes[0], model);
+		gfx::item(*viewer.m_scene.m_graph.m_nodes[0], model);
 		return viewer;
 	}
 
-	SceneViewer& particles_viewer(Widget& parent, ParticleGenerator& particles)
+	SceneViewer& particles_viewer(Widget& parent, Flow& particles)
 	{
-		SceneViewer& viewer = asset_empty_viewer(parent, Ref(&particles), Zero3, 1.f); // particles.m_radius
-		gfx::particles(*viewer.m_scene->m_graph.m_nodes[0], particles);
+		SceneViewer& viewer = asset_empty_viewer(parent, Ref(&particles), vec3(0.f), 1.f); // particles.m_radius
+		gfx::flows(*viewer.m_scene.m_graph.m_nodes[0], particles);
 		return viewer;
 	}
 
@@ -270,9 +180,9 @@ namespace mud
 	public:
 		DispatchAssetViewer()
 		{
-			dispatch_branch<Material>			(*this, [](Material& material, Widget& parent) -> SceneViewer&				{ return material_viewer(parent, material); });
-			dispatch_branch<Model>				(*this, [](Model& model, Widget& parent) -> SceneViewer&					{ return model_viewer(parent, model); });
-			dispatch_branch<ParticleGenerator>	(*this, [](ParticleGenerator& generator, Widget& parent) -> SceneViewer&	{ return particles_viewer(parent, generator); });
+			dispatch_branch<Material>		(*this, +[](Material& material, Widget& parent) -> SceneViewer&			{ return material_viewer(parent, material); });
+			dispatch_branch<Model>			(*this, +[](Model& model, Widget& parent) -> SceneViewer&				{ return model_viewer(parent, model); });
+			dispatch_branch<Flow>	(*this, +[](Flow& generator, Widget& parent) -> SceneViewer&	{ return particles_viewer(parent, generator); });
 		}
 	};
 
@@ -281,10 +191,10 @@ namespace mud
 		return DispatchAssetViewer::me.dispatch(asset, parent);
 	}
 
-	Widget& asset_item(Widget& parent, cstring icon, cstring name, Ref asset)
+	Widget& asset_item(Widget& parent, const string& icon, const string& name, Ref asset)
 	{
 		Widget& self = ui::element(parent, asset);
-		ui::multi_item(self, carray<cstring, 2>{ icon, name });
+		ui::multi_item(self, { icon.c_str(), name.c_str() });
 		//if(self.selected())
 		//	asset_viewer(self, asset);
 		if(Widget* tooltip = ui::hoverbox(self, 0.f))
@@ -292,14 +202,14 @@ namespace mud
 		return self;
 	}
 
-	Widget& asset_element(ui::Sequence& sequence, cstring icon, cstring name, Ref asset)
+	Widget& asset_element(ui::Sequence& sequence, const string& icon, const string& name, Ref asset)
 	{
 		Widget& self = asset_item(sequence.m_body ? *sequence.m_body : sequence, icon, name, asset);
 		ui::multiselect_logic(self, asset, *sequence.m_selection);
 		return self;
 	}
 
-	void asset_browser(Widget& parent, GfxSystem& gfx_system, std::vector<Ref>& selection)
+	void asset_browser(Widget& parent, GfxSystem& gfx, vector<Ref>& selection)
 	{
 		Section& self = section(parent, "Assets");
 
@@ -321,42 +231,42 @@ namespace mud
 		sequence.m_selection = &selection;
 
 		if(materials)
-			for(auto& name_material : gfx_system.materials().m_assets)
-				if(!name_material.second->m_builtin)
+			for(Material* material : gfx.materials().m_vector)
+				if(!material->m_builtin)
 				{
-					asset_element(sequence, "(material)", name_material.first.c_str(), Ref(name_material.second.get()));
+					asset_element(sequence, "(material)", material->m_name, Ref(material));
 				}
 
 		if(programs)
-			for(auto& name_program : gfx_system.programs().m_assets)
+			for(Program* program : gfx.programs().m_vector)
 			{
-				Widget& element = ui::element(sequence, Ref(name_program.second.get()));
-				ui::multi_item(element, carray<cstring, 2>{ "(program)", name_program.first.c_str() });
+				Widget& element = ui::element(sequence, Ref(program));
+				ui::multi_item(element, { "(program)", program->m_name.c_str() });
 			}
 
 		if(models)
-			for(auto& name_model : gfx_system.models().m_assets)
+			for(Model* model : gfx.models().m_vector)
 			{
-				asset_element(sequence, "(model)", name_model.first.c_str(), Ref(name_model.second.get()));
+				asset_element(sequence, "(model)", model->m_name, Ref(model));
 			}
 
 		if(particles)
-			for(auto& name_particles : gfx_system.particles().m_assets)
+			for(Flow* particle : gfx.flows().m_vector)
 			{
-				asset_element(sequence, "(particles)", name_particles.first.c_str(), Ref(name_particles.second.get()));
+				asset_element(sequence, "(particles)", particle->m_name, Ref(particle));
 			}
 	}
 
-	void asset_browser(Widget& parent, GfxSystem& gfx_system)
+	void asset_browser(Widget& parent, GfxSystem& gfx)
 	{
-		static std::vector<Ref> selection = {};
-		asset_browser(parent, gfx_system, selection);
+		static vector<Ref> selection = {};
+		asset_browser(parent, gfx, selection);
 	}
 
-	void asset_browser(Widget& parent, GfxSystem& gfx_system, Ref& selected)
+	void asset_browser(Widget& parent, GfxSystem& gfx, Ref& selected)
 	{
-		static std::vector<Ref> selection = {};
-		asset_browser(parent, gfx_system, selection);
+		static vector<Ref> selection = {};
+		asset_browser(parent, gfx, selection);
 		if(selection.size() > 0)
 			selected = selection[0];
 		else
@@ -367,12 +277,13 @@ namespace mud
 	{
 		ScrollSheet& scroll_sheet = ui::scroll_sheet(parent);
 		Widget& self = ui::sheet(*scroll_sheet.m_body);
+		UNUSED(self); UNUSED(viewer);
 
-		RenderFilters& filters = viewer.m_filters;
-		object_edit_expandbox(self, Ref(&filters.m_dof_blur));
-		object_edit_expandbox(self, Ref(&filters.m_glow));
-		object_edit_expandbox(self, Ref(&filters.m_bcs));
-		object_edit_expandbox(self, Ref(&filters.m_tonemap));
+		Entt& filters = viewer.m_viewport;
+		object_edit_expandbox(self, Ref(&filters.comp<DofBlur>()));
+		object_edit_expandbox(self, Ref(&filters.comp<Glow>()));
+		object_edit_expandbox(self, Ref(&filters.comp<BCS>()));
+		object_edit_expandbox(self, Ref(&filters.comp<Tonemap>()));
 	}
 
 #if 0
@@ -399,14 +310,14 @@ namespace mud
 	}
 #endif
 
-	void edit_gfx_scenes(Widget& parent, GfxSystem& gfx_system)
+	void edit_gfx_scenes(Widget& parent, GfxSystem& gfx)
 	{
 		Widget& self = ui::layout(parent);
-		UNUSED(gfx_system);
+		UNUSED(gfx);
 		UNUSED(self);
 	}
 
-	void gfx_editor(Widget& parent, GfxSystem& gfx_system)
+	void gfx_editor(Widget& parent, GfxSystem& gfx)
 	{
 		enum Modes { SELECT = 1 << 0 };
 
@@ -418,17 +329,17 @@ namespace mud
 		if(ui::modal_button(sheet, sheet, "Select", SELECT))
 		{
 			Widget& modal = ui::auto_modal(sheet, SELECT, { 800.f, 600.f });
-			asset_browser(*modal.m_body, gfx_system, asset);
+			asset_browser(*modal.m_body, gfx, asset);
 		}
 
 		if(asset)
 		{
-			if(type(asset).is<ParticleGenerator>())
-				particle_edit(sheet, gfx_system, val<ParticleGenerator>(asset));
+			if(type(asset).is<Flow>())
+				particle_edit(sheet, gfx, val<Flow>(asset));
 		}
 	}
 
-	void edit_gfx_system(Widget& parent, GfxSystem& gfx_system)
+	void edit_gfx(Widget& parent, GfxSystem& gfx)
 	{
 		Tabber& tabber = ui::tabber(parent);
 
@@ -437,41 +348,49 @@ namespace mud
 
 #if 0
 		if(Widget* textures = ui::tab(tabber, "Textures"))
-			multi_object_edit_container<Texture>(*textures, gfx_system.m_textures);
+			multi_object_edit_container<Texture>(*textures, gfx.m_textures);
 
 		if(Widget* programs = ui::tab(tabber, "Programs"))
-			multi_object_edit_container<Program>(*programs, gfx_system.m_programs);
+			multi_object_edit_container<Program>(*programs, gfx.m_programs);
 
 		if(Widget* materials = ui::tab(tabber, "Materials"))
-			multi_object_edit_container<Material>(*materials, gfx_system.m_materials);
+			multi_object_edit_container<Material>(*materials, gfx.m_materials);
 
 		if(Widget* blocks = ui::tab(tabber, "Blocks"))
-			multi_object_edit_container<GfxBlock>(*blocks, gfx_system.m_pipeline->m_gfx_blocks);
+			multi_object_edit_container<GfxBlock>(*blocks, gfx.m_renderer.m_gfx_blocks);
 
 #endif
 
 #if 0
 		if(Widget* items = ui::tab(tabber, "Items"))
-			edit_gfx_items(*items, gfx_system);
+			edit_gfx_items(*items, gfx);
 
 		if(Widget* scenes = ui::tab(tabber, "Scenes"))
-			edit_gfx_scenes(*scenes, gfx_system);
+			edit_gfx_scenes(*scenes, gfx);
 #endif
 
 		if(Widget* editor = ui::tab(tabber, "Editor"))
-			gfx_editor(*editor, gfx_system);
+			gfx_editor(*editor, gfx);
 
 		if(Widget* particles = ui::tab(tabber, "Particle Editor"))
-			particle_editor(*particles, gfx_system);
+			particle_editor(*particles, gfx);
 	}
+
+	export_ inline Var construct(Type& type)
+	{
+		return meta(type).m_empty_var;
+	}
+
+	export_ template <class T>
+	T& upcast(Ref value) { Ref base = cls(value).upcast(value, type<T>()); return val<T>(base); }
 
 	bool edit_shape(Widget& parent, ShapeVar& shape)
 	{
 		bool changed = false;
 
 		// @todo: only these shape random distributions are implemented so far
-		static std::vector<Type*> shape_types = type_vector<Sphere, SphereRing, Circle, Ring, Rect, Points>();
-		//static std::vector<Type*> shape_types = type_vector<Line, Rect, Quad, Polygon, Grid2, Triangle, Circle,
+		static vector<Type*> shape_types = type_vector<Sphere, SphereRing, Circle, Ring, Rect, Points>();
+		//static vector<Type*> shape_types = type_vector<Line, Rect, Quad, Polygon, Grid2, Triangle, Circle,
 		//													Ring, Ellipsis, Arc, Cylinder, Capsule, Cube, Aabb,
 		//													Box, Sphere, SphereRing, Spheroid, Points, ConvexHull>();
 
@@ -502,9 +421,9 @@ namespace mud
 			g_edit_specs[type.m_id].m_setup = true;
 		};
 
-		nest_mode(type<BaseMaterialBlock>(), EditNestMode::Embed);
-		nest_mode(type<UnshadedMaterialBlock>(), EditNestMode::Embed);
-		nest_mode(type<PbrMaterialBlock>(), EditNestMode::Embed);
+		nest_mode(type<MaterialBase>(), EditNestMode::Embed);
+		nest_mode(type<MaterialSolid>(), EditNestMode::Embed);
+		nest_mode(type<MaterialPbr>(), EditNestMode::Embed);
 
 		nest_mode(type<MaterialParam<float>>(), EditNestMode::Embed);
 		nest_mode(type<MaterialParam<Colour>>(), EditNestMode::Embed);
@@ -513,13 +432,13 @@ namespace mud
 
 		{
 			DispatchInput& dispatch = DispatchInput::me;
-			dispatch_branch<ShapeVar>(dispatch, [](ShapeVar& object, Widget& parent) { return edit_shape(parent, object); });
+			dispatch_branch<ShapeVar>(dispatch, +[](ShapeVar& object, Widget& parent) { return edit_shape(parent, object); });
 		}
 
 		{
 			DispatchItem& dispatch = DispatchItem::me();
-			dispatch_branch<Material>	(dispatch, [](Material& material, Widget& parent) -> Widget&	{ return asset_item(parent, "(material)", material.m_name.c_str(), Ref(&material)); });
-			dispatch_branch<Model>		(dispatch, [](Model& model, Widget& parent) -> Widget&			{ return asset_item(parent, "(model)", model.m_name.c_str(), Ref(&model)); });
+			dispatch_branch<Material>	(dispatch, +[](Material& material, Widget& parent) -> Widget&	{ return asset_item(parent, "(material)", material.m_name.c_str(), Ref(&material)); });
+			dispatch_branch<Model>		(dispatch, +[](Model& model, Widget& parent) -> Widget&			{ return asset_item(parent, "(model)", model.m_name.c_str(), Ref(&model)); });
 		}
 
 	}

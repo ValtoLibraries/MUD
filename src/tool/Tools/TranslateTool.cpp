@@ -4,8 +4,8 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.tool;
+#ifdef TWO_MODULES
+module two.tool;
 #else
 #include <math/Axes.h>
 #include <geom/Shapes.h>
@@ -17,11 +17,11 @@ module mud.tool;
 #include <gfx-ui/Viewer.h>
 #endif
 
-namespace mud
+namespace two
 {
-	TranslateAction::TranslateAction(array<Transform*> targets)
+	TranslateAction::TranslateAction(span<Transform*> targets)
 		: TransformAction(targets)
-		, m_translation(Zero3)
+		, m_translation(vec3(0.f))
 	{}
 
 	void TranslateAction::apply(Transform& transform)
@@ -48,55 +48,56 @@ namespace mud
 		m_gizmos.push_back(planar_gizmo(Axis::X, 0.f));
 		m_gizmos.push_back(planar_gizmo(Axis::Y, 1.f / 3.f));
 		m_gizmos.push_back(planar_gizmo(Axis::Z, 2.f / 3.f));
-		m_current = &m_gizmos.front();
+		m_current = &*m_gizmos.front();
 	}
 
 	Item& translate_1d_gizmo(Gnode& parent, Axis axis, Colour colour, float radius, uint32_t flags = 0U)
 	{
-		Gnode& node = gfx::transform(parent, {}, to_vec3(axis), ZeroQuat);
+		Gnode& node = gfx::transform(parent, to_vec3(axis), ZeroQuat);
 		return gfx::shape(node, Cylinder(radius, 1.f, axis), Symbol(colour, Colour::None, true), flags);
 	}
 
 	Item& translate_2d_gizmo(Gnode& parent, Axis axis, Colour colour, uint32_t flags = 0U)
 	{
-		Gnode& node = gfx::transform(parent, {}, 0.5f * (c_tangents[uint(axis)] + c_binormals[uint(axis)]), ZeroQuat);
-		return gfx::shape(node, Quad(0.3f, c_tangents[uint(axis)], c_binormals[uint(axis)]), Symbol(colour, Colour::None, true, true), flags);
+		Gnode& node = gfx::transform(parent, 0.5f * (c_tangents[axis] + c_binormals[axis]), ZeroQuat);
+		return gfx::shape(node, Quad(0.3f, c_tangents[axis], c_binormals[axis]), Symbol(colour, Colour::None, true, true), flags);
 	}
 
-	Gizmo TranslateTool::linear_gizmo(Axis axis, float hue)
+	class TranslateLinearGizmo : public TransformGizmo
 	{
-#ifdef MUD_MODULES // @todo clang bug
-		return {};
-#else
-		auto grab_point = [this, axis](Viewer& viewer, const vec2& pos) { UNUSED(pos); return gizmo_grab_linear(viewer, m_transform, axis); };
+	public:
+		TranslateLinearGizmo(TransformTool& tool, Axis axis, float hue) : TransformGizmo(tool, axis, hue) {}
 
-		auto draw_handle = [=](Gnode& parent) { return &translate_1d_gizmo(parent, axis, Colour::Invisible, 0.05f, ItemFlag::Ui); };
-		auto draw_gizmo = [=](Gnode& parent, bool active) { translate_1d_gizmo(parent, axis, gizmo_colour(hue, active), 0.02f); };
-		return { draw_handle, draw_gizmo, nullptr, false, grab_point };
-#endif
+		virtual vec3 grab_point(Viewer& viewer, const vec2& pos) { UNUSED(pos); return gizmo_grab_linear(viewer, m_tool.m_transform, m_axis); };
+
+		virtual Item* draw_handle(Gnode& parent) { return &translate_1d_gizmo(parent, m_axis, Colour::Invisible, 0.05f, ItemFlag::Ui); };
+		virtual void draw_gizmo(Gnode& parent, bool active) { translate_1d_gizmo(parent, m_axis, gizmo_colour(m_hue, active), 0.02f); };
+	};
+
+	class TranslatePlanarGizmo : public TransformGizmo
+	{
+	public:
+		TranslatePlanarGizmo(TransformTool& tool, Axis axis, float hue) : TransformGizmo(tool, axis, hue) {}
+
+		virtual vec3 grab_point(Viewer& viewer, const vec2& pos) { UNUSED(pos); return gizmo_grab_planar(viewer, m_tool.m_transform, m_axis); };
+
+		virtual Item* draw_handle(Gnode& parent) { return &translate_2d_gizmo(parent, m_axis, Colour::Invisible, ItemFlag::Ui); };
+		virtual void draw_gizmo(Gnode& parent, bool active) { translate_2d_gizmo(parent, m_axis, gizmo_colour(m_hue, active)); };;
+	};
+
+	unique<Gizmo> TranslateTool::linear_gizmo(Axis axis, float hue)
+	{
+		return make_unique<TranslateLinearGizmo>(*this, axis, hue);
 	}
 
-	Colour to_rgba(const Colour& colour, float a)
+	unique<Gizmo> TranslateTool::planar_gizmo(Axis normal, float hue)
 	{
-		return Colour(colour.m_r, colour.m_g, colour.m_b, a);
+		return make_unique<TranslatePlanarGizmo>(*this, normal, hue);
 	}
 
-	Gizmo TranslateTool::planar_gizmo(Axis normal, float hue)
+	object<TransformAction> TranslateTool::create_action(span<Transform*> targets)
 	{
-#ifdef MUD_MODULES // @todo clang bug
-		return {};
-#else
-		auto grab_point = [this, normal](Viewer& viewer, const vec2& pos) { UNUSED(pos); return gizmo_grab_planar(viewer, m_transform, normal); };
-
-		auto draw_handle = [=](Gnode& parent) { return &translate_2d_gizmo(parent, normal, Colour::Invisible, ItemFlag::Ui); };
-		auto draw_gizmo = [=](Gnode& parent, bool active) { translate_2d_gizmo(parent, normal, gizmo_colour(hue, active)); };
-		return { draw_handle, draw_gizmo, nullptr, false, grab_point };
-#endif
-	}
-
-	object_ptr<TransformAction> TranslateTool::create_action(array<Transform*> targets)
-	{
-		return make_object<TranslateAction>(targets);
+		return oconstruct<TranslateAction>(targets);
 	}
 
 }

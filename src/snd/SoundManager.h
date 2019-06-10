@@ -4,9 +4,12 @@
 
 #pragma once
 
-#include <infra/NonCopy.h>
+#include <stl/function.h>
+#include <stl/string.h>
+#include <stl/vector.h>
+#include <stl/memory.h>
+#include <stl/map.h>
 #include <type/Unique.h>
-#include <type/Util/LocklessQueue.h>
 #include <math/Timer.h>
 #include <math/Vec.h>
 #include <snd/Forward.h>
@@ -14,136 +17,140 @@
 #include <snd/SoundListener.h>
 #include <snd/Sound.h>
 
-#include <string>
-#include <list>
-#include <vector>
-#include <map>
-#include <thread>
-#include <functional>
+#ifdef SOUND_THREADED
+#include <type/Util/LocklessQueue.h>
+//#include <thread>
+//#include <memory>
+#endif
 
-namespace mud
+namespace two
 {
-	using string = std::string;
-	using SoundCallback = std::function<void(Sound&)>;
+	using SoundCallback = void(*)(Sound&);
 
 	bool openal_check_error();
 
-	class MUD_SND_EXPORT SoundManager : public NonCopy, public SoundImplementer
+	class TWO_SND_EXPORT SoundManager : public SoundImplementer
 	{
 	public:
-		typedef std::function<void ()> SoundAction;
-		typedef std::list<Sound*> SoundList;
-		typedef std::vector<Sound*> SoundVector;
-		typedef std::vector<ALuint> SourceVector;
+		using SoundAction = function<void()>;
+		using SourceVector = vector<ALuint>;
 
-	// Thread-safe interface
+		// Thread-safe interface
 	public:
-		SoundManager(cstring resourcePath = "");
+		SoundManager(const string& resource_path = "");
 		~SoundManager();
 
-		bool init(cstring deviceName = "", unsigned int maxSources = 100);
+		SoundManager(const SoundManager& other) = delete;
+		SoundManager& operator=(const SoundManager& other) = delete;
 
-		Sound* createSound(cstring file, bool loop = false, bool stream = false, SoundCallback callback = {});
+		bool init(const string& device_name = "", unsigned int max_sources = 100);
 
-	public:
-		void setMasterVolume(ALfloat vol);
-		void setGlobalPitch(float pitch);
-
-		void setDistanceModel(ALenum value);
-		void setDopplerFactor(float factor = 1.f);
-		void setSpeedOfSound(float speed = 363.f);
+		Sound* create_sound(const string& file, bool loop = false, bool stream = false, SoundCallback callback = {});
 
 	public:
-		void playSound(Sound* sound);
-		void stopSound(Sound* sound);
-		void pauseSound(Sound* sound);
-		void destroySound(Sound* sound);
+		void set_master_volume(ALfloat vol);
+		void set_global_pitch(float pitch);
 
-		void updatePosition(Sound* sound, const vec3& position);
+		void set_distance_model(ALenum value);
+		void set_doppler_factor(float factor = 1.f);
+		void set_speed_of_sound(float speed = 363.f);
 
-		void stopAllSounds();
-		void pauseAllSounds();
-		void muteAllSounds();
-		void unmuteAllSounds();
-		void resumeAllSounds();
+	public:
+		void play_sound(Sound& sound);
+		void stop_sound(Sound& sound);
+		void pause_sound(Sound& sound);
+		void destroy_sound(Sound& sound);
+
+		void update_position(Sound& sound, const vec3& position);
+
+		void stop_all_sounds();
+		void pause_all_sounds();
+		void mute_all_sounds();
+		void unmute_all_sounds();
+		void resume_all_sounds();
 
 	private:
-		void enumDevices();
-		int createSourcePool(int numSources);
+		void enum_devices();
+		int create_source_pool(int numSources);
 
-		void clearSounds();
-		void clearSources();
-		void clearBuffers();
-		void releaseAll();
+		void clear_sounds();
+		void clear_sources();
+		void clear_buffers();
+		void release_all();
 
 	// Thread-safe implementation to be executed by one same unique thread
 	public:
-		void threadUpdate();
+		void update();
 
-		void createSoundImpl(Sound* sound, cstring filename, bool stream);
-		void destroySoundImpl(Sound* sound);
+		void create(unique<Sound> sound, const string& filename, bool stream);
+		void destroy(Sound& sound);
 
-		void playSoundImpl(Sound* sound);
-		void stopSoundImpl(Sound* sound);
-		void pauseSoundImpl(Sound* sound);
+		void play(Sound& sound);
+		void stop(Sound& sound);
+		void pause(Sound& sound);
 
-		void setGlobalPitchImpl();
+		void set_pitch();
 
-		void stopAllSoundsImpl();
-		void pauseAllSoundsImpl();
-		void resumeAllSoundsImpl();
+		void stop_all();
+		void pause_all();
+		void resume_all();
 
 	private:
-		void updateActiveSound(Sound* sound);
-		void releaseActiveSound(Sound* sound);
-		void queueActiveSound(Sound* sound);
+		void update_active(Sound& sound);
+		void release_active(Sound& sound);
+		void queue_active(Sound& sound);
 		
-		void activateSound(Sound* sound);
-		void disactivateSound(Sound* sound);
+		void activate(Sound& sound);
+		void disactivate(Sound& sound);
 
-		SharedBuffer& createSharedBuffer(cstring filename);
-		SharedBuffer& getSharedBuffer(cstring filename);
-		void releaseBuffer(SharedBuffer& buffer);
+		void log_features();
 
-		void logFeatureSupport();
+	public:
+		SharedBuffer& create_buffer(const string& filename);
+		SharedBuffer& get_buffer(const string& filename);
+		void release_buffer(SharedBuffer& buffer);
 
 	private:
-		void addAction(const SoundAction& action);
+		void add_action(const SoundAction& action);
 
-		void processActions();
-		void updateSounds();
+		void update_sounds();
 
+#ifdef SOUND_THREADED
+		void process_actions();
+#endif
 	private:
 		string m_resource_path;
 
-		LocklessQueue<SoundAction> m_actions;
-		LocklessQueue<SoundAction> m_delayedActions;
+#ifdef SOUND_THREADED
+		//std::unique_ptr<std::thread> m_update_thread = nullptr;
 
-		unique_ptr<std::thread> m_update_thread = nullptr;
-		bool m_shuttingDown = false;
+		LocklessQueue<SoundAction> m_actions;
+		LocklessQueue<SoundAction> m_delayed_actions;
+#endif
+
+		bool m_shutting_down = false;
 
 	public:
-		std::vector<string> m_devices;			// List of available devices strings
+		vector<string> m_devices;			// List of available devices strings
 		ALCdevice* m_device = nullptr;			// OpenAL device
 		ALCcontext* m_context = nullptr;		// OpenAL context
 
 		ALfloat	m_volume = 1.f;					// Main Volume
-		float m_globalPitch = 1.f;				// Global pitch modifier
+		float m_global_pitch = 1.f;				// Global pitch modifier
 		SoundListener m_listener;				// Listener object
 
 	private:
-		/** Sounds **/
-		SoundList m_active_sounds;				// list of all sounds : m_active_sounds.begin() to m_active_sounds[m_maxSources] are active
-		SoundList m_inactiveSounds;
-		SoundList m_pausedSounds;				// list of sounds currently paused
+		vector<unique<Sound>> m_sounds;			// list of all sounds : m_sounds.begin() to m_sounds[m_max_sources] are active
+		vector<Sound*> m_active_sounds;
+		vector<Sound*> m_inactive_sounds;
+		vector<Sound*> m_paused_sounds;				// list of sounds currently paused
 
-		SoundList::iterator m_lastActive;
-		SoundVector m_updateQueue;
+		vector<Sound*> m_update_queue;
 
-		unsigned int m_maxSources = 100;		// Maximum Number of sources to allocate
-		SourceVector m_sourcePool;				// List of available sources
+		unsigned int m_max_sources = 100;		// Maximum Number of sources to allocate
+		SourceVector m_source_pool;				// List of available sources
 
-		std::map<string, unique_ptr<SharedBuffer>> m_sharedBuffers;
+		map<string, unique<SharedBuffer>> m_shared_buffers;
 
 		Clock m_clock;
 	};

@@ -4,33 +4,30 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
+#include <stl/vector.h>
 #include <refl/Injector.h>
 #endif
 #include <tool/Forward.h>
 #include <tool/Action.h>
 #include <tool/Tools/TranslateTool.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#endif
-
-namespace mud
+namespace two
 {
-	export_ class refl_ MUD_TOOL_EXPORT CopyAction : public TranslateAction
+	export_ class refl_ TWO_TOOL_EXPORT CopyAction : public TranslateAction
 	{
 	public:
-		CopyAction(array<Transform*> targets);
+		CopyAction(span<Transform*> targets);
 
 		virtual void apply(Transform& transform) final;
 		virtual void undo(Transform& transform) final;
 
 	private:
-		//std::vector<Transform*> m_copies;
+		//vector<Transform*> m_copies;
 		//Injector m_injector;
 	};
 
-	export_ class refl_ MUD_TOOL_EXPORT CopyTool final : public TransformTool
+	export_ class refl_ TWO_TOOL_EXPORT CopyTool final : public TransformTool
 	{
 	public:
 		CopyTool(ToolContext& context);
@@ -39,9 +36,9 @@ namespace mud
 		void update(const vec3& position);
 		void end();
 
-		virtual object_ptr<TransformAction> create_action(array<Transform*> targets) final;
+		virtual object<TransformAction> create_action(span<Transform*> targets) final;
 
 	private:
-		object_ptr<CopyAction> m_action;
+		object<CopyAction> m_action;
 	};
 }

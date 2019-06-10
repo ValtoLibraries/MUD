@@ -4,8 +4,8 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.tool;
+#ifdef TWO_MODULES
+module two.tool;
 #else
 #include <math/Axes.h>
 #include <geom/Shapes.h>
@@ -17,9 +17,9 @@ module mud.tool;
 #include <gfx-ui/Viewer.h>
 #endif
 
-namespace mud
+namespace two
 {
-	RotateAction::RotateAction(array<Transform*> targets, const vec3& axis)
+	RotateAction::RotateAction(span<Transform*> targets, const vec3& axis)
 		: TransformAction(targets)
 		, m_axis(axis)
 		, m_angle(0.f)
@@ -47,35 +47,37 @@ namespace mud
 		m_gizmos.push_back(rotation_gizmo(Axis::X, 0.f));
 		m_gizmos.push_back(rotation_gizmo(Axis::Y, 1.f / 3.f));
 		m_gizmos.push_back(rotation_gizmo(Axis::Z, 2.f / 3.f));
-		m_current = &m_gizmos.front();
+		m_current = &*m_gizmos.front();
 	}
 
 	Item& rotate_gizmo(Gnode& parent, Axis axis, Colour colour, float ring_radius, uint32_t flags = 0U)
 	{
-		Gnode& node = gfx::transform(parent, {}, Zero3, ZeroQuat);
+		Gnode& node = gfx::transform(parent, vec3(0.f), ZeroQuat);
 		return gfx::shape(node, Torus(1.f, ring_radius, axis), Symbol(colour, Colour::None, true, true), ItemFlag::Render | flags);
 	}
 
-	Gizmo RotateTool::rotation_gizmo(Axis axis, float hue)
+	class RotationGizmo : public TransformGizmo
 	{
-#ifdef MUD_MODULES // @todo clang bug
-		return {};
-#else
-		auto grab_point = [this, axis](Viewer& viewer, const vec2& pos) { UNUSED(pos); return gizmo_grab_planar(viewer, m_transform, axis) - m_transform.m_position; };
+	public:
+		RotationGizmo(TransformTool& tool, Axis axis, float hue) : TransformGizmo(tool, axis, hue) {}
 
-		auto draw_handle = [=](Gnode& parent) { return &rotate_gizmo(parent, axis, Colour::Invisible, 0.05f, ItemFlag::Ui); };
-		auto draw_gizmo = [=](Gnode& parent, bool active) { rotate_gizmo(parent, axis, gizmo_colour(hue, active), 0.01f); };
+		virtual vec3 grab_point(Viewer& viewer, const vec2& pos) { UNUSED(pos); return gizmo_grab_planar(viewer, m_tool.m_transform, m_axis) - m_tool.m_transform.m_position; };
 
-		return { draw_handle, draw_gizmo, nullptr, false, grab_point };
-#endif
+		virtual Item* draw_handle(Gnode& parent) { return &rotate_gizmo(parent, m_axis, Colour::Invisible, 0.05f, ItemFlag::Ui); };
+		virtual void draw_gizmo(Gnode& parent, bool active) { rotate_gizmo(parent, m_axis, gizmo_colour(m_hue, active), 0.01f); };
+	};
+
+	unique<Gizmo> RotateTool::rotation_gizmo(Axis axis, float hue)
+	{
+		return make_unique<RotationGizmo>(*this, axis, hue);
 	}
 
-	object_ptr<TransformAction> RotateTool::create_action(array<Transform*> targets)
+	object<TransformAction> RotateTool::create_action(span<Transform*> targets)
 	{
-		vec3 axis = m_current == &m_gizmos[0] ? -X3
-				  : m_current == &m_gizmos[1] ?  Y3
-											  : -Z3;
-		return make_object<RotateAction>(targets, axis);
+		vec3 axis = m_current == &*m_gizmos[0] ? -x3
+				  : m_current == &*m_gizmos[1] ?  y3
+											   : -z3;
+		return oconstruct<RotateAction>(targets, axis);
 	}
 
 }

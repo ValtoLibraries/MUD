@@ -3,32 +3,30 @@
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #include <infra/Cpp20.h>
-#ifndef MUD_CPP_20
-#include <map>
-#include <string>
-#endif
 
-#ifdef MUD_MODULES
-module mud.ui;
+#ifdef TWO_MODULES
+module two.ui;
 #else
+#include <stl/string.h>
+#include <stl/map.h>
+#include <stl/algorithm.h>
 #include <infra/Vector.h>
+#include <tree/Graph.hpp>
 #include <ui/Dock.h>
-#include <ui/Structs/Dock.h>
-#include <ui/Structs/Window.h>
-#include <ui/Structs/Container.h>
+#include <ui/DockStruct.h>
+#include <ui/WindowStruct.h>
+#include <ui/ContainerStruct.h>
 #endif
 
-namespace mud
+namespace two
 {
-	using string = std::string;
-
 namespace ui
 {
-	Widget& dockline(Widget& parent, uint16_t index, Dim dim)
+	Widget& dockline(Widget& parent, uint16_t index, Axis dim)
 	{
 		if(parent.m_nodes.size() > index && parent.m_nodes[index]->m_heartbeat == parent.m_heartbeat)
 			return *parent.m_nodes[index];
-		for(size_t i = 0; i < index; ++i)
+		for(uint16_t i = 0; i < index; ++i)
 			parent.subx(i).init(dock_styles().dockline, false, dim);
 		Widget& self = parent.subx(index).init(dock_styles().dockline, false, dim);
 		grid_sheet_logic(self, dim);
@@ -48,28 +46,26 @@ namespace ui
 	{
 		Dockspace& self = parent.suba<Dockspace, Docksystem&>(docksystem);
 		self.init(dock_styles().dockspace);
-		self.m_mainline = &dockline(self, 0, DIM_Y);
+		self.m_mainline = &dockline(self, 0, Axis::Y);
 		return self;
 	}
 
 	Dockbar& dockbar(Widget& parent, Docksystem& docksystem)
 	{
 		Dockbar& self = parent.suba<Dockbar, Docksystem&>(docksystem);
-		self.init(dock_styles().dockbar);
+		self.init(dock_styles().dockbar).layer();
 
 		self.m_togglebar = &widget(self, dock_styles().docktabs);
 
-		static float width = 300.f;
-
 		Widget& drag_handle = widget(self, styles().drag_handle);
-		if(MouseEvent mouse_event = drag_handle.mouse_event(DeviceType::MouseLeft, EventType::Dragged))
-			width -= mouse_event.m_delta.x;
+		if(MouseEvent event = drag_handle.mouse_event(DeviceType::MouseLeft, EventType::Dragged))
+			self.width -= event.m_delta.x;
 
 		self.m_dockzone = &widget(self, dock_styles().dockdiv);
 		if(self.m_current_tab == SIZE_MAX)
-			self.m_dockzone->m_frame.m_size = { 0.f, 0.f };
+			self.m_dockzone->m_frame.m_size = vec2(0.f);
 		else
-			self.m_dockzone->m_frame.m_size = { width, 0.f };
+			self.m_dockzone->m_frame.m_size = vec2(self.width, 0.f);
 
 		return self;
 	}
@@ -83,13 +79,13 @@ namespace ui
 		}
 		else
 		{
-			Window& container = window(parent, dock.m_name, static_cast<WindowState>(WINDOW_DOCKABLE | WINDOW_DEFAULT), &dock);
+			Window& container = window(parent, dock.m_name, WindowState(uint(WindowState::Dockable) | uint(WindowState::Default)), &dock);
 			container.m_dock = &dock;
 			return &container;
 		}
 	}
 
-	Widget* dockitem(Docker& docker, cstring name, array<uint16_t> dockid, float span)
+	Widget* dockitem(Docker& docker, cstring name, span<uint16_t> dockid, float span)
 	{
 		if(docker.m_docksystem->m_docks.find(name) == docker.m_docksystem->m_docks.end())
 		{

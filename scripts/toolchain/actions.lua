@@ -1,17 +1,17 @@
--- mud toolchain
+-- two toolchain
 -- actions
 
-function mud_amalgamate(modules)
+function amalgamate(modules)
     for _, m in ipairs(modules) do
         local dir = os.getcwd()
         os.chdir(m.root)
-        os.execute(path.join(MUD_DIR, "3rdparty/amalgamate/amalgamate.py") .. " -c " .. m.path .. "/Refl/amalgam.h.json" .. " -s " .. MUD_SRC_DIR)
-        os.execute(path.join(MUD_DIR, "3rdparty/amalgamate/amalgamate.py") .. " -c " .. m.path .. "/Refl/amalgam.cpp.json" .. " -s " .. MUD_SRC_DIR)
+        local jsonfile = m.path .. "/amalg.json"
+        os.execute(path.join(TWO_DIR, "bin/amalg") .. " " .. jsonfile)
         os.chdir(dir)
     end
 end
 
-function mud_write_api(m)
+function write_api(m)
     headers = os.matchfiles(path.join(m.path, "**.h"))
     --table.insert(headers, os.matchfiles(path.join(m.path, "**.hpp")))
     
@@ -26,7 +26,7 @@ function mud_write_api(m)
     f:close()
 end
 
-function mud_write_mxx(m)
+function write_mxx(m)
 	local f, err = io.open(path.join(m.path, m.dotname .. ".mxx"), "wb")
     io.output(f)
     
@@ -57,14 +57,46 @@ function mud_write_mxx(m)
     f:close()
 end
 
-function mud_bootstrap(modules)
+function bootstrap(modules)
     for _, m in ipairs(modules) do
-        mud_write_api(m)
-        mud_write_mxx(m)
+        two_write_api(m)
+        two_write_mxx(m)
     end
 end
 
-function mud_reflect(modules)
+function concat_files(files)
+    for _, filepath in ipairs(files) do
+        if os.isfile(filepath) then
+            local js, jserr = io.open(filepath, "r")
+            local content = js:read("*a")
+            io.printf(content)
+            js:close()
+        end
+    end
+end
+
+function gluejs(modules)
+    local glue_path = path.join(BUILD_DIR, "js", "glue.js")
+    local f, err = io.open(glue_path, "wb")
+    io.output(f)
+    
+    local files = { path.join(TWO_DIR, "src/clrefl", "Module.js") }
+    for _, m in ipairs(modules) do
+        if m ~= null then
+            table.insert(files, path.join(m.root, "bind", string.gsub(m.name, "-", ".") .. ".js"))
+        end
+    end
+    concat_files(files)
+    io.printf("")
+    
+    f:close()
+
+    linkoptions {
+        "--post-js " .. glue_path
+    }
+end
+
+function reflect(modules)
     local current = {}
     includedirs = function(dirs)
         for _, dir in ipairs(dirs) do
@@ -79,7 +111,7 @@ function mud_reflect(modules)
     local jsons = {}
     for _, m in ipairs(modules) do
         if m.refl then
-            print('mud reflect ' .. m.idname)
+            print('two reflect ' .. m.idname)
             current = {
                 namespace = iif(m.namespace, m.namespace, ''),
                 name = m.name,
@@ -88,8 +120,6 @@ function mud_reflect(modules)
                 root = m.root,
                 subdir = m.subdir,
                 path = m.path,
-                basetypes = m.basetypes,
-                aliases = m.aliases,
                 dependencies = {},
                 includedirs = {},
             }
@@ -119,15 +149,15 @@ function mud_reflect(modules)
         end
     end
     
-    print(path.join(MUD_DIR, "src/refl/Metagen", "generator.py") .. " " .. table.concat(jsons, " "))
-    os.execute(path.join(MUD_DIR, "src/refl/Metagen", "generator.py") .. " " .. table.concat(jsons, " "))
+    print(path.join(TWO_DIR, "bin/metagen") .. " " .. table.concat(jsons, " "))
+    os.execute(path.join(TWO_DIR, "bin/metagen") .. " " .. table.concat(jsons, " "))
 end
 
 newaction {
     trigger     = "bootstrap",
     description = "Bootstrap c++ modules",
     execute     = function()
-        mud_bootstrap(MODULES)
+        bootstrap(MODULES)
     end
 }
 
@@ -135,7 +165,7 @@ newaction {
     trigger     = "reflect",
     description = "Generate reflection",
     execute     = function()
-        mud_reflect(MODULES)
+        reflect(MODULES)
     end
 }
 
@@ -143,7 +173,7 @@ newaction {
     trigger     = "amalgamate",
     description = "Generate amalgamation files",
     execute     = function()
-        mud_amalgamate(MODULES)
+        amalgamate(MODULES)
     end
 }
 

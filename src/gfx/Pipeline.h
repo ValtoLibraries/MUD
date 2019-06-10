@@ -4,102 +4,35 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <infra/EnumArray.h>
+#ifndef TWO_MODULES
+#include <stl/vector.h>
+#include <stl/function.h>
+#include <stl/table.h>
 #endif
 #include <gfx/Forward.h>
 #include <gfx/Renderer.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#include <functional>
-#endif
-
-namespace mud
+namespace two
 {
-	using PassJob = std::function<void(const Pass&)>;
+	using PassJob = function<void(GfxSystem&, Render&, const Pass&)>;
 
-	export_ MUD_GFX_EXPORT void pipeline_minimal(GfxSystem& gfx_system, Pipeline& pipeline);
+	export_ TWO_GFX_EXPORT void pipeline_minimal(GfxSystem& gfx, Renderer& pipeline, bool deferred);
 
-	export_ struct MUD_GFX_EXPORT PassJobs
+	export_ struct TWO_GFX_EXPORT PassJobs
 	{
-#ifdef MUD_MODULES
-		enum_array<PassType, std::vector<PassJob>, size_t(PassType::Count)> m_jobs;
-#else
-		enum_array<PassType, std::vector<PassJob>> m_jobs;
-#endif
+		table<PassType, vector<PassJob>> m_jobs;
 	};
 
-	export_ class MUD_GFX_EXPORT Pipeline : public NonCopy
-	{
-	public:
-		Pipeline(GfxSystem& gfx_system);
-		~Pipeline();
+	export_ TWO_GFX_EXPORT func_ void pass_clear_fbo(GfxSystem& gfx, Render& render, FrameBuffer& fbo, const Colour& colour, float depth = 1.f);
 
-		template <class T_Block>
-		T_Block* block() { for(auto& block : m_gfx_blocks) if(&(block->m_type) == &type<T_Block>()) return &as<T_Block>(*block); return nullptr; }
+	export_ TWO_GFX_EXPORT func_ void pass_clear(GfxSystem& gfx, Render& render);
+	export_ TWO_GFX_EXPORT func_ void pass_gclear(GfxSystem& gfx, Render& render);
+	export_ TWO_GFX_EXPORT func_ void pass_depth(GfxSystem& gfx, Render& render);
+	export_ TWO_GFX_EXPORT func_ void pass_background(GfxSystem& gfx, Render& render);
+	export_ TWO_GFX_EXPORT func_ void pass_solid(GfxSystem& gfx, Render& render);
+	export_ TWO_GFX_EXPORT func_ void pass_flip(GfxSystem& gfx, Render& render);
 
-		template <class T_Block, class... T_Args>
-		T_Block& add_block(T_Args&&... args) { m_gfx_blocks.emplace_back(make_unique<T_Block>(std::forward<T_Args>(args)...)); return as<T_Block>(*m_gfx_blocks.back()); }
-
-		array<GfxBlock*> pass_blocks(PassType pass);
-
-		std::vector<unique_ptr<GfxBlock>> m_gfx_blocks;
-
-#ifdef MUD_MODULES
-		enum_array<PassType, std::vector<GfxBlock*>, size_t(PassType::Count)> m_pass_blocks;
-#else
-		enum_array<PassType, std::vector<GfxBlock*>> m_pass_blocks;
-#endif
-	};
-
-	export_ class MUD_GFX_EXPORT PassClear : public RenderPass
-	{
-	public:
-		PassClear(GfxSystem& gfx_system);
-
-		virtual void submit_render_pass(Render& render) final;
-	};
-
-	export_ class MUD_GFX_EXPORT PassUnshaded : public DrawPass
-	{
-	public:
-		PassUnshaded(GfxSystem& gfx_system);
-
-		virtual void next_draw_pass(Render& render, Pass& render_pass) final;
-		virtual void queue_draw_element(Render& render, DrawElement& element) final;
-	};
-
-	export_ class MUD_GFX_EXPORT PassBackground : public RenderPass
-	{
-	public:
-		PassBackground(GfxSystem& gfx_system);
-
-		virtual void submit_render_pass(Render& render) final;
-	};
-
-	export_ class MUD_GFX_EXPORT PassFlip : public RenderPass
-	{
-	public:
-		PassFlip(GfxSystem& gfx_system, BlockCopy& copy);
-
-		virtual void submit_render_pass(Render& render) final;
-
-		BlockCopy& m_copy;
-	};
-
-	struct MinimalRenderer : public Renderer
-	{
-		MinimalRenderer(GfxSystem& gfx_system, Pipeline& pipeline);
-	};
-
-	struct UnshadedRenderer : public Renderer
-	{
-		UnshadedRenderer(GfxSystem& gfx_system, Pipeline& pipeline);
-	};
-
-	struct ClearRenderer : public Renderer
-	{
-		ClearRenderer(GfxSystem& gfx_system, Pipeline& pipeline);
-	};
+	export_ TWO_GFX_EXPORT func_ void render_minimal(GfxSystem& gfx, Render& render);
+	export_ TWO_GFX_EXPORT func_ void render_solid(GfxSystem& gfx, Render& render);
+	export_ TWO_GFX_EXPORT func_ void render_clear(GfxSystem& gfx, Render& render);
 }

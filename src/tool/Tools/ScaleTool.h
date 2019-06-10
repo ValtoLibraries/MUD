@@ -4,22 +4,19 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
+#include <stl/vector.h>
 #include <math/Vec.h>
 #endif
 #include <tool/Forward.h>
 #include <tool/Tool.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#endif
-
-namespace mud
+namespace two
 {
-	export_ class refl_ MUD_TOOL_EXPORT ScaleAction : public TransformAction
+	export_ class refl_ TWO_TOOL_EXPORT ScaleAction : public TransformAction
 	{
 	public:
-		ScaleAction(array<Transform*> targets);
+		ScaleAction(span<Transform*> targets);
 
 		virtual void apply(Transform& transform) override;
 		virtual void undo(Transform& transform) override;
@@ -30,16 +27,16 @@ namespace mud
 		vec3 m_scale_offset;
 	};
 
-	export_ class refl_ MUD_TOOL_EXPORT ScaleTool final : public TransformTool
+	export_ class refl_ TWO_TOOL_EXPORT ScaleTool final : public TransformTool
 	{
 	public:
 		ScaleTool(ToolContext& context);
 
-		Gizmo linear_gizmo(Axis axis, float hue);
-		Gizmo planar_gizmo(Axis normal, float hue);
-		Gizmo uniform_gizmo();
+		unique<Gizmo> linear_gizmo(Axis axis, float hue);
+		unique<Gizmo> planar_gizmo(Axis normal, float hue);
+		unique<Gizmo> uniform_gizmo();
 
-		virtual object_ptr<TransformAction> create_action(array<Transform*> transforms);
+		virtual object<TransformAction> create_action(span<Transform*> transforms);
 	};
 
 }

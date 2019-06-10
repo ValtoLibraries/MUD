@@ -4,17 +4,13 @@
 
 #pragma once
 
+#include <stl/vector.h>
 #include <type/Ref.h>
 #include <type/Type.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#include <functional>
-#endif
-
-namespace mud
+namespace two
 {
-	export_ class MUD_TYPE_EXPORT DoubleDispatch
+	export_ class TWO_TYPE_EXPORT DoubleDispatch
 	{
 	public:
 		DoubleDispatch()
@@ -39,13 +35,13 @@ namespace mud
 			return check(*first.m_type, *second.m_type);
 		}
 
-		bool check(Type& first, Type& second)
+		bool check(const Type& first, const Type& second)
 		{
 			if(m_branches.size() > first.m_id && m_branches[first.m_id].size() > second.m_id)
 				return m_branches[first.m_id][second.m_id] != nullptr;
 			return false;
 		}
 
-		std::vector<std::vector<std::function<void (Ref, Ref)>>> m_branches;
+		vector<vector<void (*)(Ref, Ref)>> m_branches;
 	};
 }

@@ -4,71 +4,86 @@
 
 #include <gfx/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.gfx;
+#ifdef TWO_MODULES
+module two.gfx;
 #else
+#include <stl/set.h>
+#include <stl/hash_base.hpp>
 #include <pool/Pool.h>
 #include <gfx/Types.h>
 #include <gfx/Prefab.h>
+#include <gfx/Animated.h>
 #include <gfx/Gfx.h>
 #include <gfx/Assets.h>
 #include <gfx/Importer.h>
 #include <gfx/GfxSystem.h>
 #endif
 
-#include <set>
-
-namespace mud
+namespace two
 {
-#ifdef MUD_PREFABNODE
+#ifdef TWO_PREFABNODE
 	PrefabNode::PrefabNode()
 	{}
 
 	void PrefabNode::draw(Gnode& parent)
 	{
-		Gnode& self = gfx::node(parent, m_object);
-		Gnode& item = gfx::node(self, Ref(this), m_transform.m_position, m_transform.m_rotation, m_transform.m_scale);
+		Gnode& self = gfx::node(parent); // , m_object);
+		Gnode& item = gfx::node(self, m_transform.m_position, m_transform.m_rotation, m_transform.m_scale); // Ref(this), 
 
 		if(m_call.m_callable)
-			m_call.m_arguments[0] = Ref(&item);
+			m_call.m_args[0] = Ref(&item);
 		if(m_call.validate())
 			m_call();
 		//else
-		//	printf("WARNING: invalid prefab node element arguments\n");
+		//	printf("[warning] invalid prefab node element arguments\n");
 
 		for(PrefabNode& node : m_nodes)
 			node.draw(self);
 	}
 #endif
 
-	Prefab::Prefab(cstring name)
+	Prefab::Prefab(const string& name)
 		: m_name(name)
 	{}
 
-	Prefab& import_prefab(GfxSystem& gfx_system, ModelFormat format, const string& name, const ImportConfig& config)
+	void Prefab::add(Scene& scene, Mime* mime)
 	{
-		string filename = "models/" + name;
-		LocatedFile location = gfx_system.locate_file(filename.c_str(), carray<cstring, 1>{ format == ModelFormat::obj ? ".obj" : ".gltf" });
-		Prefab& prefab = gfx_system.prefabs().create(name.c_str());
-		string filepath = string(location.m_location) + location.m_name;
-		gfx_system.importer(format)->import_prefab(prefab, filepath, config);
+		span<Node3> nodes = gfx::nodes(scene).addvec(m_nodes);
+
+		for(Elem& elem : m_items)
+		{
+			Item& it = gfx::items(scene).add(Item(nodes[elem.node], *elem.item.m_model, elem.item.m_flags));
+		}
+
+		if(mime)
+		{
+			mime->add_nodes(nodes);
+			mime->m_anims = m_anims;
+		}
+	}
+
+	Prefab& import_prefab(GfxSystem& gfx, ModelFormat format, const string& name, const ImportConfig& config)
+	{
+		LocatedFile location = gfx.locate_file("models/" + name, { format == ModelFormat::obj ? ".obj" : ".gltf" });
+		Prefab& prefab = gfx.prefabs().create(name);
+		gfx.importer(format)->import_prefab(prefab, location.path(false), config);
 		return prefab;
 	}
 
-	void destroy_prefab(GfxSystem& gfx_system, Prefab& prefab)
+	void destroy_prefab(GfxSystem& gfx, Prefab& prefab)
 	{
-		std::set<Model*> models;
-		for(Item& item : prefab.m_items)
-			models.insert(item.m_model);
+		set<Model*> models;
+		for(Prefab::Elem& elem : prefab.m_items)
+			models.insert(elem.item.m_model);
 
 		for(Model* model : models)
 		{
-			for(ModelItem& model_item : model->m_items)
+			for(ModelElem& elem : model->m_items)
 			{
-				gfx_system.meshes().destroy(Ref(model_item.m_mesh));
+				gfx.meshes().destroy(Ref(elem.m_mesh));
 			}
 
-			gfx_system.models().destroy(model->m_name.c_str());
+			gfx.models().destroy(model->m_name);
 		}
 	}
 }

@@ -4,42 +4,38 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
+#include <stl/string.h>
+#include <stl/map.h>
 #include <math/Vec.h>
 #endif
 #include <gfx/Renderer.h>
 
-namespace mud
+namespace two
 {
 	export_ enum ShaderOptionFilter : unsigned int
 	{
-		FILTER_UNPACK_DEPTH,
-		FILTER_SOURCE_DEPTH,
-		FILTER_SOURCE_0_CUBE,
-		FILTER_SOURCE_0_ARRAY,
-		FILTER_DEBUG_UV,
+		UNPACK_DEPTH,
+		SOURCE_DEPTH,
+		SOURCE_0_CUBE,
+		SOURCE_0_ARRAY,
+		DEBUG_UV,
 	};
 
 	export_ struct FilterUniform
 	{
 		void createUniforms()
 		{
-			s_source_0		= bgfx::createUniform("s_source_0",		bgfx::UniformType::Int1);
-			s_source_1		= bgfx::createUniform("s_source_1",		bgfx::UniformType::Int1);
-			s_source_2		= bgfx::createUniform("s_source_2",		bgfx::UniformType::Int1);
-			s_source_3		= bgfx::createUniform("s_source_3",		bgfx::UniformType::Int1);
-			s_source_depth	= bgfx::createUniform("s_source_depth",	bgfx::UniformType::Int1);
+			s_source_0		= bgfx::createUniform("s_source_0",		bgfx::UniformType::Sampler);
+			s_source_1		= bgfx::createUniform("s_source_1",		bgfx::UniformType::Sampler);
+			s_source_2		= bgfx::createUniform("s_source_2",		bgfx::UniformType::Sampler);
+			s_source_3		= bgfx::createUniform("s_source_3",		bgfx::UniformType::Sampler);
+			s_source_depth	= bgfx::createUniform("s_source_depth",	bgfx::UniformType::Sampler);
+			
+			u_filter_p0		= bgfx::createUniform("u_filter_p0",	bgfx::UniformType::Vec4);
 
-			u_source_0_level	 = bgfx::createUniform("u_source_0_level",		bgfx::UniformType::Int1);
-			u_source_1_level	 = bgfx::createUniform("u_source_1_level",		bgfx::UniformType::Int1);
-			u_source_2_level	 = bgfx::createUniform("u_source_2_level",		bgfx::UniformType::Int1);
-			u_source_3_level	 = bgfx::createUniform("u_source_3_level",		bgfx::UniformType::Int1);
-			u_source_depth_level = bgfx::createUniform("u_source_depth_level",	bgfx::UniformType::Int1);
-
-			u_source_0_crop		 = bgfx::createUniform("u_source_0_crop",		bgfx::UniformType::Vec4);
-
-			u_screen_size_pixel_size =		bgfx::createUniform("u_screen_size_pixel_size",		bgfx::UniformType::Vec4);
-			u_camera_params =				bgfx::createUniform("u_camera_params",				bgfx::UniformType::Vec4);
+			u_source_levels = bgfx::createUniform("u_source_levels", bgfx::UniformType::Vec4);
+			u_source_crop	= bgfx::createUniform("u_source_crop",	 bgfx::UniformType::Vec4);
 		}
 
 		bgfx::UniformHandle s_source_0;
@@ -48,78 +44,61 @@ namespace mud
 		bgfx::UniformHandle s_source_3;
 		bgfx::UniformHandle s_source_depth;
 
-		bgfx::UniformHandle u_source_0_level;
-		bgfx::UniformHandle u_source_1_level;
-		bgfx::UniformHandle u_source_2_level;
-		bgfx::UniformHandle u_source_3_level;
-		bgfx::UniformHandle u_source_depth_level;
+		bgfx::UniformHandle u_filter_p0;
 
-		bgfx::UniformHandle u_source_0_crop;
-
-		bgfx::UniformHandle u_screen_size_pixel_size;
-		bgfx::UniformHandle u_camera_params;
+		bgfx::UniformHandle u_source_levels;
+		bgfx::UniformHandle u_source_crop;
 	};
 
-	export_ class refl_ MUD_GFX_EXPORT Filter
+	export_ class refl_ TWO_GFX_EXPORT BlockFilter : public GfxBlock
 	{
 	public:
-		virtual ~Filter() {}
-	};
-
-	export_ struct refl_ MUD_GFX_EXPORT RenderQuad
-	{
-		vec4 m_source;
-		vec4 m_dest;
-		bool m_fbo_flip = false;
-		RenderQuad(vec4 crop, vec4 dest, bool fbo_flip = false) : m_source(crop), m_dest(dest), m_fbo_flip(fbo_flip) {}
-		RenderQuad() {}
-	};
-
-	RenderQuad copy_quad(const FrameBuffer& target, const vec4& rect);
-
-	//RenderQuad copy_quad(const FrameBuffer& source, const FrameBuffer& target, const vec4& source_rect, const vec4& dest_rect);
-	
-	export_ class refl_ MUD_GFX_EXPORT BlockFilter : public GfxBlock
-	{
-	public:
-		BlockFilter(GfxSystem& gfx_system);
+		BlockFilter(GfxSystem& gfx);
 
 		virtual void init_block() override;
 
 		virtual void begin_render(Render& render) override;
-		virtual void begin_pass(Render& render) override;
 
-		void set_uniforms(Render& render, bgfx::Encoder& encoder);
+		meth_ void submit(const Pass& pass, FrameBuffer& fbo, const ProgramVersion& program, const RenderQuad& quad, uint64_t flags = 0U, bool render = false);
+		meth_ void quad(const Pass& pass, FrameBuffer& fbo, const ProgramVersion& program, uint64_t flags = 0U, bool render = false);
 
-		void submit_quad(FrameBuffer& target, uint8_t view, bgfx::FrameBufferHandle fbo, bgfx::ProgramHandle program, const RenderQuad& quad, uint64_t flags = 0U, bool render = false);
-		void submit_quad(FrameBuffer& target, uint8_t view, bgfx::FrameBufferHandle fbo, bgfx::ProgramHandle program, const uvec4& rect, uint64_t flags = 0U, bool render = false);
+		meth_ void multiply(float mul);
 
-		void submit_quad(FrameBuffer& target, uint8_t view, bgfx::ProgramHandle program, const RenderQuad& quad, uint64_t flags = 0U, bool render = false);
-		void submit_quad(FrameBuffer& target, uint8_t view, bgfx::ProgramHandle program, const uvec4& rect, uint64_t flags = 0U, bool render = false);
-		void submit_quad(FrameBuffer& target, uint8_t view, bgfx::ProgramHandle program, uint64_t flags = 0U, bool render = false);
+		meth_ void source0p(Texture& texture, ProgramVersion& program, int level = 0, uint32_t flags = UINT32_MAX);
+
+		meth_ void source0(Texture& texture, uint32_t flags = UINT32_MAX);
+		meth_ void source1(Texture& texture, uint32_t flags = UINT32_MAX);
+		meth_ void source2(Texture& texture, uint32_t flags = UINT32_MAX);
+		meth_ void source3(Texture& texture, uint32_t flags = UINT32_MAX);
+		meth_ void sourcedepth(Texture& texture, uint32_t flags = UINT32_MAX);
+
+		void uniform(const Pass& pass, const string& name, const mat4& value);
+		meth_ void uniform(const Pass& pass, const string& name, const vec4& value);
+		meth_ void uniforms(const Pass& pass, const string& name, span<float> values);
+		void uniforms4(const Pass& pass, const string& name, span<vec4> values);
 
 		FilterUniform u_uniform;
 
+		map<string, bgfx::UniformHandle> m_uniforms;
+
 		Program& m_quad_program;
+
+		float m_multiply = 1.f;
 	};
 
-	export_ class refl_ MUD_GFX_EXPORT BlockCopy : public GfxBlock
+	export_ class refl_ TWO_GFX_EXPORT BlockCopy : public GfxBlock
 	{
 	public:
-		BlockCopy(GfxSystem& gfx_system, BlockFilter& filter);
+		BlockCopy(GfxSystem& gfx, BlockFilter& filter);
 
 		virtual void init_block() override;
 
 		virtual void begin_render(Render& render) override;
-		virtual void begin_pass(Render& render) override;
 
-		void submit_quad(FrameBuffer& target, uint8_t view, bgfx::FrameBufferHandle fbo, bgfx::TextureHandle texture, const RenderQuad& quad, uint64_t flags = 0U);
-		void submit_quad(FrameBuffer& target, uint8_t view, bgfx::FrameBufferHandle fbo, bgfx::TextureHandle texture, const uvec4& rect, uint64_t flags = 0U);
-		void submit_quad(FrameBuffer& target, uint8_t view, bgfx::TextureHandle texture, const RenderQuad& quad, uint64_t flags = 0U);
-		void submit_quad(FrameBuffer& target, uint8_t view, bgfx::TextureHandle texture, const uvec4& rect, uint64_t flags = 0U);
-		void submit_quad(FrameBuffer& target, uint8_t view, bgfx::TextureHandle texture, uint64_t flags = 0U);
+		meth_ void submit(const Pass& pass, FrameBuffer& fbo, Texture& texture, const RenderQuad& quad, uint64_t flags = 0U);
+		meth_ void quad(const Pass& pass, FrameBuffer& fbo, Texture& texture, uint64_t flags = 0U);
 
-		void debug_show_texture(Render& render, bgfx::TextureHandle texture, const vec4& rect, bool is_depth = false, bool is_depth_packed = false, bool is_array = false, int level = 0);
+		meth_ void debug_show_texture(Render& render, Texture& texture, const vec4& rect, int level = 0);
 
 		BlockFilter& m_filter;
 

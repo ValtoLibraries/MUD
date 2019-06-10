@@ -4,21 +4,17 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
+#include <stl/vector.h>
 #include <math/Vec.h>
 #include <math/Colour.h>
 #include <geom/Aabb.h>
-#include <geom/Geom.h>
 #endif
 #include <gfx/Forward.h>
 
 #include <bgfx/bgfx.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#endif
-
-namespace mud
+namespace two
 {
 	export_ struct ItemFlag
 	{
@@ -33,10 +29,11 @@ namespace mud
 			Selectable = 1 << 5,
 			Ui = 1 << 6,
 			NoUpdate = 1 << 7,
-			Lod0 = 1 << 8,
-			Lod1 = 1 << 9,
-			Lod2 = 1 << 10,
-			Lod3 = 1 << 11,
+			NoCull = 1 << 8,
+			Lod0 = 1 << 9,
+			Lod1 = 1 << 10,
+			Lod2 = 1 << 11,
+			Lod3 = 1 << 12,
 			LodAll = Lod0 | Lod1 | Lod2 | Lod3,
 			Default = Render | Shadows | LodAll
 		};
@@ -48,13 +45,38 @@ namespace mud
 		DoubleSided
 	};
 
-	export_ class refl_ MUD_GFX_EXPORT Item
+	export_ struct refl_ TWO_GFX_EXPORT Batch
+	{
+		constr_ Batch();
+		constr_ Batch(Item& item, uint16_t stride);
+
+		attr_ Item* m_item = nullptr;
+		attr_ uint16_t m_stride;
+
+		bgfx::InstanceDataBuffer m_buffer;
+		vector<bgfx::InstanceDataBuffer> m_buffers;
+		vector<float> m_cache;
+		//span<mat4> m_transforms;
+
+		meth_ void update_aabb(span<mat4> instances);
+		meth_ void transforms(span<mat4> instances);
+
+		meth_ span<float> begin(uint32_t count);
+		meth_ void commit(span<float> data);
+		meth_ void cache(span<float> data);
+
+		meth_ void transform(const mat4& m);
+
+		void submit(bgfx::Encoder& encoder, const ModelElem& item); // const;
+	};
+
+	export_ class refl_ TWO_GFX_EXPORT Item
 	{
 	public:
-		Item(Node3& node, const Model& model, uint32_t flags = 0, Material* material = nullptr, size_t instances = 0);
-		~Item();
+		constr_ Item();
+		constr_ Item(Node3& node, const Model& model, uint32_t flags = 0, Material* material = nullptr);
 
-		attr_ Node3* m_node;
+		attr_ Node3* m_node = nullptr;
 		attr_ Model* m_model = nullptr;
 		attr_ uint32_t m_flags = 0;
 		attr_ Colour m_colour = Colour::White;
@@ -63,22 +85,14 @@ namespace mud
 		attr_ ItemShadow m_shadow = ItemShadow::Default;
 		attr_ Rig* m_rig = nullptr;
 
-		Aabb m_aabb;
+		attr_ Aabb m_aabb;
+		attr_ Batch* m_batch = nullptr;
 
-		void update();
-		void update_instances();
+		meth_ void update_aabb();
 
-		void submit(bgfx::Encoder& encoder, uint64_t& bgfx_state, const ModelItem& item) const;
+		void submit(bgfx::Encoder& encoder, uint64_t& bgfx_state, const ModelElem& item) const;
 
-		std::vector<mat4> m_instances;
-
-		std::vector<bgfx::InstanceDataBuffer> m_instance_buffers;
-		
-		std::vector<Light*> m_lights;
-		//std::vector<ReflectionProbe*> m_reflection_probes;
-		//std::vector<GIProbe*> m_gi_probes;
-		
-		std::vector<LightmapItem*> m_lightmaps;
+		vector<LightmapItem*> m_lightmaps;
 
 		float m_depth = 0.f;
 		uint32_t m_layer_mask = 1;

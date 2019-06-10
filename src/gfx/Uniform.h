@@ -4,7 +4,10 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#if 0
+
+#ifndef TWO_MODULES
+#include <stl/string.h>
 #include <math/Vec.h>
 #include <type/Type.h>
 #include <type/TypeUtils.h>
@@ -14,36 +17,32 @@
 
 #include <bgfx/bgfx.h>
 
-#ifndef MUD_CPP_20
-#include <string>
-#endif
+#include <algorithm>
 
-namespace mud
+namespace two
 {
-	using string = std::string;
-
 	// @todo automatical definition of structs to uniforms using reflection
 	// - vectors and floats are packed to Vec4 in the order they appear, adding padding if next vector is too big to fit
 	// - enums are sent as a define switch using enum value label
 	// - booleans are sent as a define switch using parameter name
 
-	export_ struct MUD_GFX_EXPORT Uniform
+	export_ struct TWO_GFX_EXPORT Uniform
 	{
-		Uniform(const string& name, Address member, bgfx::UniformType::Enum type) : m_name(name), m_member(member), m_type(type), m_floats(16) {}
+		Uniform(const string& name, size_t member, bgfx::UniformType::Enum type) : m_name(name), m_member(member), m_type(type), m_floats(16) {}
 
 		string m_name;
-		Address m_member;
+		size_t m_member;
 		bgfx::UniformType::Enum m_type;
 		bgfx::UniformHandle m_uniform;
-		std::vector<float> m_floats;
+		vector<float> m_floats;
 
 		struct Field
 		{
 			string m_name;
-			Address m_member;
+			size_t m_member;
 			size_t m_size;
 		};
-		std::vector<Field> m_fields;
+		vector<Field> m_fields;
 		size_t m_space = 4;
 
 		void create()
@@ -74,17 +73,17 @@ namespace mud
 		}
 	};
 
-	export_ struct MUD_GFX_EXPORT Sampler
+	export_ struct TWO_GFX_EXPORT Sampler
 	{
 		string m_name;
-		Address m_member;
+		size_t m_member;
 		uint8_t m_stage;
 		Texture* m_default;
 		bgfx::UniformHandle m_uniform;
 
 		void create()
 		{
-			m_uniform = bgfx::createUniform(m_name.c_str(), bgfx::UniformType::Int1);
+			m_uniform = bgfx::createUniform(m_name.c_str(), bgfx::UniformType::Sampler);
 		}
 
 		template <class T>
@@ -96,21 +95,21 @@ namespace mud
 		}
 	};
 
-	export_ struct MUD_GFX_EXPORT UniformBlock
+	export_ struct TWO_GFX_EXPORT UniformBlock
 	{
 		UniformBlock(Type& type, const string& name);
 
 		Type& m_type;
 		string m_name;
-		std::vector<Uniform> m_uniforms;
-		std::vector<Sampler> m_samplers;
+		vector<Uniform> m_uniforms;
+		vector<Sampler> m_samplers;
 		string m_shader_decl;
 		size_t m_num_packed = 0;
 
 		void pack_member(size_t size, Member& member);
-		void create_member(GfxSystem& gfx_system, const string& name, Member& member);
+		void create_member(GfxSystem& gfx, const string& name, Member& member);
 		string shader_decl();
-		void create(GfxSystem& gfx_system);
+		void create(GfxSystem& gfx);
 	};
 	
 	template <class T>
@@ -130,3 +129,4 @@ namespace mud
 		}
 	};
 }
+#endif

@@ -4,16 +4,18 @@
 
 #pragma once
 
+#include <stl/base.h>
 #include <math/Forward.h>
-#include <math/Math.h>
 
-namespace mud
+namespace two
 {
 	export_ enum class refl_ Axis : unsigned int
 	{
 		X = 0,
 		Y = 1,
 		Z = 2,
+		None = 2, // @hack for ui lib usage
+		Count
 	};
 
 	export_ enum class refl_ Axes : unsigned int
@@ -35,6 +37,7 @@ namespace mud
 		MinusY = 3,
 		PlusZ  = 4,
 		MinusZ = 5,
+		Count
 	};
 
 	export_ inline SignedAxis to_signed_axis(Axis axis, bool positive)
@@ -50,5 +53,6 @@ namespace mud
 		Down  = uint(SignedAxis::MinusY),
 		Back  = uint(SignedAxis::PlusZ),
 		Front = uint(SignedAxis::MinusZ),
+		Count
 	};
 }

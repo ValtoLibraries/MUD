@@ -1,10 +1,9 @@
-
-
 #pragma once
 
 #include <infra/Config.h>
 
 #include <infra/Forward.h>
+#include <jobs/Forward.h>
 #include <type/Forward.h>
 #include <pool/Forward.h>
 #include <math/Forward.h>
@@ -13,51 +12,17 @@
 #include <ctx-glfw/Forward.h>
 #include <bgfx/Forward.h>
 
-#ifndef MUD_GFX_EXPORT
-#define MUD_GFX_EXPORT MUD_IMPORT
+#ifndef TWO_GFX_EXPORT
+#define TWO_GFX_EXPORT TWO_IMPORT
 #endif
 
-
-    
-    
-
-namespace std {
-
-    
-    
-}
-
-namespace mud {
-namespace ui {
-
-    
-    
-}
-}
-
-namespace glm {
-
-    
-    
-}
-
-namespace bx {
-
-    
-    
-}
-
-namespace json11 {
-
-    
-    
-}
-
-namespace mud {
-
+namespace two
+{
+	enum class AnimTarget : unsigned int;
     enum class Interpolation : unsigned int;
     enum class TextureHint : unsigned int;
     enum class ShaderType : unsigned int;
+	enum class ShaderColor : unsigned int;
     enum ShaderOption : unsigned int;
     enum class TextureSampler : unsigned int;
     enum class PassType : unsigned int;
@@ -65,10 +30,15 @@ namespace mud {
     enum class CullMode : unsigned int;
     enum class DepthDraw : unsigned int;
     enum class DepthTest : unsigned int;
+	enum class DepthMethod : unsigned int;
     enum class MaterialFlag : unsigned int;
+	enum class TextureFormat : unsigned int;
     enum class TextureChannel : unsigned int;
+	enum class MaterialBlock : unsigned int;
+	enum class Lighting : unsigned int;
     enum class PbrDiffuseMode : unsigned int;
     enum class PbrSpecularMode : unsigned int;
+	enum class PhongEnvBlendMode : unsigned int;
     enum PbrShaderOption : unsigned int;
     enum class ModelFormat : unsigned int;
     enum class EmitterFlow : unsigned int;
@@ -86,56 +56,61 @@ namespace mud {
     
     template <class T> class AssetStore;
     template <class T> struct MaterialParam;
-    
-    struct AnimationCursor;
-    class AnimationTrack;
+
+	struct AnimNode;
+	struct AnimCursor;
+	struct AnimPlay;
+    class AnimTrack;
     class Animation;
     class Node3;
-    struct Bone;
     class Skeleton;
     struct Joint;
     class Skin;
     class Rig;
-    struct AnimatedTrack;
-    struct AnimationPlay;
-    class Animated;
-    class GfxContext;
+    class Mime;
+	struct MirrorCamera;
+    class GfxWindow;
     struct LocatedFile;
     class GfxSystem;
     class Texture;
     struct ShaderDefine;
     struct ShaderBlock;
+	struct ProgramMode;
     struct ProgramBlock;
-    struct ProgramBlockArray;
     class Program;
-    struct ShaderVersion;
+    struct ProgramVersion;
     struct Pass;
     struct RenderFrame;
     struct Render;
     class GfxBlock;
     class DrawBlock;
-    class RenderPass;
     struct DrawElement;
 	struct DrawCluster;
-    class DrawPass;
     class Renderer;
-    struct BaseMaterialBlock;
-    struct UnshadedMaterialBlock;
-    struct FresnelMaterialBlock;
-    struct PbrMaterialBlock;
-    struct PbrBlock;
+    struct MaterialBase;
+	struct MaterialAlpha;
+    struct MaterialSolid;
+	struct MaterialPoint;
+	struct MaterialLine;
+	struct MaterialLit;
+    struct MaterialFresnel;
+    struct MaterialPbr;
+	struct MaterialPhong;
+	struct MaterialUser;
     class Material;
+	class BlockMaterial;
+	class Import;
     struct ImportConfig;
 	class Importer;
-    struct ModelItem;
+    struct ModelElem;
     class Model;
     struct GpuMesh;
     class Mesh;
     struct Particle;
     struct ParticleSort;
-    struct ParticleGenerator;
+    struct Flow;
     struct ParticleVertex;
-    struct Particles;
+    struct Flare;
     class ParticleSystem;
     class BlockParticles;
     class PassParticles;
@@ -145,11 +120,11 @@ namespace mud {
 	class Culler;
 	class Froxelizer;
     struct DepthParams;
+	struct DistanceParams;
     class PassDepth;
     class BlockDepth;
     class ImmediateDraw;
     class SymbolIndex;
-    class BlockResolve;
     class PassEffects;
     class PassPostProcess;
     struct FilterUniform;
@@ -159,72 +134,71 @@ namespace mud {
     class BlockCopy;
     class Frustum;
     struct FrustumSlice;
+	struct ClusteredFrustum;
     class Light;
+	class Lines;
     class Gnode;
-    class Item;
+	class Item;
+	class Direct;
+	struct Batch;
     class Viewport;
-    struct ManualRender;
     struct PickQuery;
     class Picker;
     struct PassJobs;
-    class Pipeline;
     class PassClear;
-    class PassUnshaded;
+    class PassSolid;
     class PassBackground;
     class PassFlip;
     struct MinimalRenderer;
-    struct UnshadedRenderer;
+    struct SolidRenderer;
     struct ClearRenderer;
     class FrameBuffer;
-    struct SwapBuffer;
-    struct Cascade;
+	class SwapBuffer;
+	class Cascade;
+	class SwapCascade;
     class RenderTarget;
     struct Sun;
     struct Radiance;
+	struct Skylight;
     struct Background;
     struct Fog;
-    struct Environment;
+    struct Zone;
     class Scene;
     class Shot;
     struct Uniform;
     struct Sampler;
     struct UniformBlock;
-    class DynamicValueController;
-    class SunController;
-    struct ProceduralSky;
-    struct PerezSky;
     class BlockSky;
 	class GIProbe;
+	class ReflectionProbe;
 	class Lightmap;
 	class LightmapAtlas;
 	class LightmapItem;
 }
 
-namespace mud {
-namespace detail {
+#ifdef TWO_META_GENERATOR
+#include <stl/vector.h>
+#include <stl/span.h>
+namespace stl
+{
+	export_ extern template struct refl_ span_ span<two::mat4>;
 
-    
-    
+	export_ extern template struct refl_ span_ span<two::Node3>;
+	export_ extern template struct refl_ span_ span<two::Item>;
+	export_ extern template struct refl_ span_ span<two::Batch>;
+	export_ extern template struct refl_ span_ span<two::Direct>;
+	export_ extern template struct refl_ span_ span<two::Mime>;
+	export_ extern template struct refl_ span_ span<two::Light>;
+	export_ extern template struct refl_ span_ span<two::Flare>;
+
+	export_ extern template struct refl_ span_ span<two::Texture*>;
+
+	export_ extern template class refl_ seque_ vector<two::Mesh*>;
+	export_ extern template class refl_ seque_ vector<two::Model*>;
+	export_ extern template class refl_ seque_ vector<two::Texture*>;
+	export_ extern template class refl_ seque_ vector<two::Material*>;
+
+	export_ extern template class refl_ seque_ vector<two::Animation*>;
+	export_ extern template class refl_ seque_ vector<two::AnimPlay>;
 }
-}
-
-namespace mud {
-namespace gfx {
-
-    
-    
-}
-}
-
-namespace bimg {
-
-    
-    
-}
-
-namespace bgfx {
-
-    
-    
-}
-
+#endif

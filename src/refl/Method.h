@@ -4,29 +4,48 @@
 
 #pragma once
 
-#include <infra/Array.h>
-#include <infra/Strung.h>
-#include <refl/Forward.h>
+#include <stl/vector.h>
+#include <stl/span.h>
 #include <type/Type.h>
-#include <type/Var.h>
+#include <type/Ref.h>
+#include <refl/Forward.h>
 
-#ifndef MUD_CPP_20
-#include <functional>
-#include <vector>
-#include <memory>
-#endif
+#include <stdint.h>
 
-namespace mud
+namespace two
 {
+	export_ using cstring = const char*;
+
 	export_ using FunctionPointer = void* (*)();
 
-	export_ using ConstructorFunc = void(*)(Ref, array<Var>);
-	export_ using CopyConstructorFunc = void(*)(Ref, Ref);
-	export_ using DestructorFunc = void(*)(Ref);
-	export_ using MethodFunc = void(*)(Ref, array<Var>, Var&);
-	export_ using FunctionFunc = void(*)(array<Var>, Var&);
+	export_ using ConstructorFunc = void(*)(void*, span<void*>);
+	export_ using CopyConstructorFunc = void(*)(void*, void*);
+	export_ using DestructorFunc = void(*)(void*);
+	export_ using MethodFunc = void(*)(void*, span<void*>, void*&);
+	export_ using FunctionFunc = void(*)(span<void*>, void*&);
 
-	export_ class refl_ MUD_REFL_EXPORT Param
+	export_ struct refl_ TWO_REFL_EXPORT QualType
+	{
+		enum Flags
+		{
+			None = 0,
+			Pointer = (1 << 0),
+			Reference = (1 << 1),
+			Const = (1 << 2),
+		};
+
+		Type* m_type;
+		Flags m_flags;
+
+		bool isvoid() const;
+
+		bool operator==(const QualType& other) const;
+		bool operator!=(const QualType& other) const;
+	};
+
+	export_ extern TWO_REFL_EXPORT const QualType g_qvoid;
+
+	export_ class refl_ TWO_REFL_EXPORT Param
 	{
 	public:
 		enum Flags
@@ -39,12 +58,16 @@ namespace mud
 		};
 
 	public:
-		Param(cstring name, Var value, Flags flags = None);
+		Param() {}
+		Param(cstring name, Type& type, Flags flags = None, void* default_val = nullptr);
 		
-		size_t m_index;
-		cstring m_name;
-		Var m_value;
-		Flags m_flags;
+		size_t m_index = 0;
+		cstring m_name = nullptr;
+		Type* m_type = nullptr;
+		Flags m_flags = None;
+		void* m_default = nullptr;
+
+		Ref default_val() const { return Ref(m_default, *m_type); }
 
 		bool nullable() const { return (m_flags & Nullable) != 0; }
 		bool reference() const { return (m_flags & Reference) != 0; }
@@ -52,56 +75,57 @@ namespace mud
 		bool output() const { return (m_flags & Output) != 0; }
 	};
 
-	export_ class refl_ MUD_REFL_EXPORT Signature
+	export_ class refl_ TWO_REFL_EXPORT Signature
 	{
 	public:
-		Signature(const std::vector<Param>& params = {}, const Var& returnval = Var());
+		Signature(span<Param> params = {}, QualType return_type = g_qvoid);
 
-		std::vector<Param> m_params;
-		Var m_returnval;
+		vector<Param> m_params;
+		QualType m_return_type;
 	};
 
 	
-	export_ class refl_ MUD_REFL_EXPORT Callable
+	export_ class refl_ TWO_REFL_EXPORT Callable
 	{
 	public:
-		Callable(cstring name, const std::vector<Param>& params = {}, Var returnval = Var());
+		Callable();
+		Callable(cstring name, span<Param> params = {}, QualType return_type = g_qvoid);
 		virtual ~Callable() {}
 
 		void setup();
 
-		bool validate(array<Var> args, size_t offset = 0) const;
+		bool validate(span<Var> args, size_t offset = 0) const;
 
-		virtual void operator()(array<Var> args) const { Var none; return (*this)(args, none); }
-		virtual void operator()(array<Var> args, Var& result) const = 0;
+		virtual void operator()(span<void*> args) const;
+		virtual void operator()(span<void*> args, void*& result) const;
 
 		uint32_t m_index;
 		cstring m_name;
 
-		Var m_returnval;
-
-		std::vector<Param> m_params;
+		vector<Param> m_params;
+		QualType m_return_type;
 		size_t m_num_defaults;
 		size_t m_num_required;
 
-		std::vector<Var> m_arguments;
+		//vector<Var> m_args;
 
-		bool checkArgs(const std::vector<Var>& args) const { for(const Param& param : m_params) if(!type(args[param.m_index]).is(type(param.m_value))) return false; return true; }
+		//bool checkArgs(span<Var> args) const; // { for(const Param& param : m_params) if(!type(args[param.m_index]).is(type(param.m_value))) return false; return true; }
 	};
 
-	export_ class refl_ MUD_REFL_EXPORT Function final : public Callable
+	export_ class refl_ TWO_REFL_EXPORT Function final : public Callable
 	{
 	public:
-		Function(Namespace* location, cstring name, FunctionPointer identity, FunctionFunc function, const std::vector<Param>& params = {}, Var returnval = Var());
+		Function();
+		Function(Namespace* location, cstring name, FunctionPointer identity, FunctionFunc function, span<Param> params = {}, QualType return_type = g_qvoid);
 
-		virtual void operator()(array<Var> args, Var& result) const { return m_call(args, result); }
+		virtual void operator()(span<void*> args, void*& result) const;
 
 		Namespace* m_namespace;
 		FunctionPointer m_identity;
 		FunctionFunc m_call;
 	};
 
-	export_ struct refl_ MUD_REFL_EXPORT Operator
+	export_ struct refl_ TWO_REFL_EXPORT Operator
 	{
 		attr_ Function* m_function;
 		attr_ Type* m_type;
@@ -110,23 +134,20 @@ namespace mud
 		explicit operator bool() { return m_function != nullptr; }
 	};
 
-	export_ MUD_REFL_EXPORT Operator as_operator(Function& function);
+	export_ TWO_REFL_EXPORT Operator as_operator(Function& function);
 
-	export_ class refl_ MUD_REFL_EXPORT Method final : public Callable
+	export_ class refl_ TWO_REFL_EXPORT Method final : public Callable
 	{
 	public:
-		Method(Type& object_type, cstring name, Address address, MethodFunc method, const std::vector<Param>& params = {}, Var returnval = Var());
+		Method();
+		Method(Type& object_type, cstring name, Address address, MethodFunc method, span<Param> params = {}, QualType return_type = g_qvoid);
 
-		virtual void operator()(array<Var> args, Var& result) const { return m_call(args[0], array<Var>{ args, 1 }, result); }
+		virtual void operator()(span<void*> args, void*& result) const;
 
 		Type* m_object_type;
 		Address m_address;
 		MethodFunc m_call;
 	};
-
-	export_ using VirtualMethod = std::function<void(Method&, Ref, array<Var>)>;
-
-	export_ template <> MUD_REFL_EXPORT Type& type<VirtualMethod>();
 
 	export_ enum class ConstructorIndex : unsigned int
 	{
@@ -135,62 +156,47 @@ namespace mud
 		ProtoParts = 1
 	};
 
-	export_ class refl_ MUD_REFL_EXPORT Constructor final : public Callable
+	export_ class refl_ TWO_REFL_EXPORT Constructor final : public Callable
 	{
 	public:
-		Constructor(Type& object_type, ConstructorFunc func, const std::vector<Param>& params = {});
-		Constructor(Type& object_type, cstring name, ConstructorFunc func, const std::vector<Param>& params = {});
+		Constructor();
+		Constructor(Type& object_type, ConstructorFunc func, span<Param> params = {});
+		Constructor(Type& object_type, cstring name, ConstructorFunc func, span<Param> params = {});
 
-		virtual void operator()(array<Var> args, Var& result) const { UNUSED(result); m_call(args[0], array<Var>{ args, 1 }); }
-
+		virtual void operator()(span<void*> args, void*& result) const;
+		
 		size_t m_index;
 		Type* m_object_type;
 		ConstructorFunc m_call;
 	};
 
-	export_ class refl_ MUD_REFL_EXPORT CopyConstructor final : public Callable
+	export_ class refl_ TWO_REFL_EXPORT CopyConstructor final : public Callable
 	{
 	public:
+		CopyConstructor();
 		CopyConstructor(Type& object_type, CopyConstructorFunc func);
 
-		virtual void operator()(array<Var> args, Var& result) const { UNUSED(result); m_call(args[0], args[1]); }
+		virtual void operator()(span<void*> args, void*& result) const;
 
 		Type* m_object_type;
 		CopyConstructorFunc m_call;
 	};
 
-	export_ class refl_ MUD_REFL_EXPORT Destructor final: public Callable
+	export_ class refl_ TWO_REFL_EXPORT Destructor final: public Callable
 	{
 	public:
+		Destructor();
 		Destructor(Type& object_type, DestructorFunc func);
 
-		virtual void operator()(array<Var> args, Var& result) const { UNUSED(result); m_call(args[0]); }
+		virtual void operator()(span<void*> args, void*& result) const;
 
 		Type* m_object_type;
 		DestructorFunc m_call;
 	};
 
-	export_ struct refl_ MUD_REFL_EXPORT Call
-	{
-	public:
-		constr_ Call();
-		constr_ Call(const Callable& callable, std::vector<Var> arguments);
-		Call(const Callable& callable);
-		Call(const Callable& callable, Ref object);
+	export_ template <class T_Function>
+	inline FunctionPointer funcptr(T_Function func) { return reinterpret_cast<FunctionPointer>(func); }
 
-		bool validate();
-
-		const Var& operator()();
-		const Var& operator()(Ref object);
-
-		const Callable* m_callable = nullptr;
-		attr_ std::vector<Var> m_arguments;
-		attr_ Var m_result;
-	};
-
-	export_ template<typename T_Function>
-	inline FunctionPointer function_id(T_Function func) { return reinterpret_cast<FunctionPointer>(func); }
-
-	export_ template <typename T_Function>
-	inline Function& function(T_Function func);
+	export_ template <class T_Function>
+	inline Function& func(T_Function func);
 }

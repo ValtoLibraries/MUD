@@ -9,25 +9,15 @@
 #include <type/DoubleDispatch.h>
 #include <type/DispatchDecl.h>
 #include <infra/Global.h>
-#include <infra/String.h>
+#include <infra/StringOps.h>
 
-namespace mud
+namespace two
 {
-	export_ class refl_ MUD_REFL_EXPORT Convert
-	{
-	public:
-		std::function<void(const Var&, string&)> m_to_string;
-		std::function<void(const string&, Ref)> m_from_string;
-	};
-
-	export_ MUD_REFL_EXPORT string to_name(Type& type, Ref value);
+	export_ TWO_REFL_EXPORT string to_name(const Type& type, Ref value);
 	export_ inline string to_name(Ref value) { return to_name(type(value), value); }
 
 	export_ template <>
-	inline void to_string<Ref>(const Ref& object, string& str) { convert(*object.m_type).m_to_string(object, str); }
-
-	export_ template <>
-	inline void to_string<Var>(const Var& value, string& str) { convert(type(value)).m_to_string(value, str); }
+	inline void to_string<Ref>(const Ref& object, string& str) { convert(*object.m_type).m_to_string(object.m_value, str); }
 
 	export_ template <class T_Source, class T_Dest>
 	void convert(T_Source& from, T_Dest& to)
@@ -41,15 +31,15 @@ namespace mud
 		to = T_Dest(from);
 	}
 
-	export_ class MUD_REFL_EXPORT TypeConverter : public DoubleDispatch, public LazyGlobal<TypeConverter>
+	export_ class TWO_REFL_EXPORT TypeConverter : public DoubleDispatch, public LazyGlobal<TypeConverter>
 	{
 	public:
 		TypeConverter();
 
-		bool check(Type& input, Type& output);
-		bool check(Ref input, Type& output);
-		Var convert(Ref input, Type& output);
-		void convert(Ref input, Type& output, Var& result);
+		bool check(const Type& input, const Type& output);
+		bool check(Ref input, const Type& output);
+		Var convert(Ref input, const Type& output);
+		void convert(Ref input, const Type& output, Var& result);
 
 		template <class T_First, class T_Second>
 		void default_converter()

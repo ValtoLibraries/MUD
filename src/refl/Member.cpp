@@ -4,34 +4,34 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.refl;
+#ifdef TWO_MODULES
+module two.refl;
 #else
 #include <refl/Member.h>
 #include <refl/Meta.h>
 #include <refl/System.h>
 #endif
 
-namespace mud
+namespace two
 {
+	Static::Static() {}
 	Static::Static(Type& parent_type, cstring name, Ref value)
 		: m_parent_type(&parent_type)
 		, m_name(name)
 		, m_value(value)
 	{}
 
-	Member::Member(Type& object_type, Address address, Type& type, cstring name, Var default_value, Flags flags, MemberGet get)
+	Member::Member() {}
+	Member::Member(Type& object_type, size_t offset, Type& type, cstring name, const void* default_value, Flags flags, MemberGet get)
 		: m_index(0)
 		, m_object_type(&object_type)
-		, m_address(address)
+		, m_offset(offset)
 		, m_type(&type)
 		, m_name(name)
-		, m_default_value(default_value)
+		, m_default_value((void*)default_value, type)
 		, m_flags(flags)
 		, m_get(get)
-	{
-		m_offset = *reinterpret_cast<size_t*>(m_address.value);
-	}
+	{}
 
 	Member::~Member()
 	{}

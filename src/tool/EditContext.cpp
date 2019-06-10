@@ -4,27 +4,29 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.tool;
+#ifdef TWO_MODULES
+module two.tool;
 #else
+#include <geom/Geom.hpp>
 #include <type/Any.h>
 #include <pool/ObjectPool.h>
-#include <ecs/Registry.h>
+#include <ecs/ECS.h>
 #include <lang/Lua.h>
 #include <lang/VisualScript.h>
+#include <ui/Ui.h>
 #include <ui/Edit/Console.h>
-#include <uio/Edit/Inspector.h>
-#include <uio/Edit/UiEdit.h>
+#include <uio/Inspector.h>
+#include <uio/UiEdit.h>
+#include <gfx-edit/GfxEdit.h>
 #include <tool/Types.h>
 #include <tool/EditContext.h>
-#include <gfx-edit/GfxEdit.h>
 #include <tool/Brush.h>
 #endif
 
-namespace mud
+namespace two
 {
-	EditContext::EditContext(GfxSystem& gfx_system)
-		: m_gfx_system(gfx_system)
+	EditContext::EditContext(GfxSystem& gfx)
+		: m_gfx(gfx)
 		, m_undo_tool(m_tool_context)
 		, m_redo_tool(m_tool_context)
 		, m_work_plane() //vec3(0.f, 10.f, 0.f), Entity::FrontVector, Entity::RightVector)
@@ -121,18 +123,21 @@ namespace mud
 		}
 	}
 
-	void object_editor(Widget& parent, const std::vector<Ref>& selection)
+	void object_editor(Widget& parent, const Selection& selection)
 	{
 		Widget& self = section(parent, "Inspector");
 
-		if(!selection.empty() && selection[0])
+		if(!selection.objects.empty() && selection.objects[0])
 		{
-			Ref selected = selection[0];
+			Ref selected = selection.objects[0];
 			Widget& sheet = ui::widget(*self.m_body, styles().sheet, (void*)selected.m_value);
-			if(selected.m_type->is<EntityRef>())
-				entity_edit(sheet, { as_ent(selected), 0 });
-			else
-				object_edit(sheet, selected);
+			object_edit(sheet, selected);
+		}
+		else if(!selection.entities.empty() && selection.entities[0])
+		{
+			Entity selected = selection.entities[0];
+			Widget& sheet = ui::widget(*self.m_body, styles().sheet, (void*)selected.m_handle);
+			entity_edit(sheet, selected);
 		}
 	}
 
@@ -143,21 +148,21 @@ namespace mud
 
 		//if(Widget* dock = ui::dockitem(dockbar, "Library", { 0 }))
 		//	library_section(section, { &type<World>(), &type<Entity>() }, game.m_selection);
-		if(Widget* dock = ui::dockitem(docker, "Inspect", carray<uint16_t, 1>{ 2U }))
+		if(Widget* dock = ui::dockitem(docker, "Inspect", { 2U }))
 			object_editor(*dock, context.m_selection);
-		if(Widget* dock = ui::dockitem(docker, "Edit", carray<uint16_t, 1>{ 3U }))
+		if(Widget* dock = ui::dockitem(docker, "Edit", { 3U }))
 			edit_transform(*dock, context);
-		if(Widget* dock = ui::dockitem(docker, "Script", carray<uint16_t, 1>{ 4U }))
+		if(Widget* dock = ui::dockitem(docker, "Script", { 4U }))
 			script_editor(*dock, context.m_script_editor);
-		//if(Widget* dock = ui::dockitem(*context.m_dockbar, "VisualScript", carray<uint16_t, 1>{ 5U }))
+		//if(Widget* dock = ui::dockitem(*context.m_dockbar, "VisualScript", { 5U }))
 		//	visual_script_edit(self, shell.m_editor.m_script_editor);
-		if(Widget* dock = ui::dockitem(docker, "Gfx", carray<uint16_t, 1>{ 6U }))
-			edit_gfx_system(*dock, context.m_gfx_system);
-		if(Widget* dock = ui::dockitem(docker, "Ui", carray<uint16_t, 1>{ 7U }))
+		if(Widget* dock = ui::dockitem(docker, "Gfx", { 6U }))
+			edit_gfx(*dock, context.m_gfx);
+		if(Widget* dock = ui::dockitem(docker, "Ui", { 7U }))
 			ui_debug(*dock, screen);
 
 		if(context.m_spatial_tool && context.m_viewer)
-			context.m_spatial_tool->process(*context.m_viewer, context.m_selection);
+			context.m_spatial_tool->process(*context.m_viewer, context.m_selection.objects);
 	}
 
 	void edit_tools(Widget& screen, EditContext& context)

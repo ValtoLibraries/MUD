@@ -1,174 +1,174 @@
-#include <ui/Api.h>
-//#include <uio/Api.h>
-#include <gfx/Api.h>
-#include <gfx-ui/Api.h>
-#include <mud/Shell.h>
+//#include <two/frame.h>
+#include <frame/Api.h>
+#include <gfx-pbr/Api.h>
+#include <refl/Api.h>
+#include <uio/Api.h>
+#include <meta/gfx.meta.h>
 
 #include <03_materials/03_materials.h>
 
-using namespace mud;
+using namespace two;
 
-Material& milky_white(GfxSystem& gfx_system, const string& name)
+Material& phong_white(GfxSystem& gfx, const string& name)
 {
-	Material& mat = gfx_system.fetch_material(name.c_str(), "pbr/pbr");
-	PbrMaterialBlock& pbr = mat.m_pbr_block;
-	pbr.m_enabled = true;
-	pbr.m_albedo.m_value = Colour::White;
-	pbr.m_metallic.m_value = 0.4f;
-	pbr.m_roughness.m_value = 0.35f;
-	//mat.m_pbr_block.m_roughness.m_value = 0.8f;
+	Material& mat = gfx.fetch_material(name.c_str(), "pbr/phong");
+	mat.m_phong.m_diffuse.m_value = Colour::White;
+	mat.m_phong.m_shininess.m_value = 100.f;
 	return mat;
 }
 
-Material& mirror(GfxSystem& gfx_system)
+Material& milky_white(GfxSystem& gfx, const string& name)
 {
-	Material& mat = gfx_system.fetch_material("mirror", "pbr/pbr");
-	PbrMaterialBlock& pbr = mat.m_pbr_block;
-	pbr.m_enabled = true;
+	Material& mat = gfx.fetch_material(name.c_str(), "pbr/pbr");
+	mat.m_pbr.m_albedo.m_value = Colour::White;
+	mat.m_pbr.m_metallic.m_value = 0.4f;
+	mat.m_pbr.m_roughness.m_value = 0.35f;
+	return mat;
+}
+
+Material& mirror(GfxSystem& gfx)
+{
+	Material& mat = gfx.fetch_material("mirror", "pbr/pbr");
+	MaterialPbr& pbr = mat.m_pbr;
 	pbr.m_albedo.m_value = Colour::White;
 	pbr.m_metallic.m_value = 1.f;
 	pbr.m_roughness.m_value = 0.02f;
 	return mat;
 }
 
-Material& material(GfxSystem& gfx_system, const string& name)
+Material& material(GfxSystem& gfx, const string& name)
 {
-	static carray<cstring, 1> exts = { ".jpg" };
+	Material& mat = gfx.fetch_material(name.c_str(), "pbr/pbr");
 
-	Material& mat = gfx_system.fetch_material(name.c_str(), "pbr/pbr");
-	PbrMaterialBlock& pbr = mat.m_pbr_block;
+	mat.m_pbr.m_albedo = gfx.textures().file(name + "/" + name + "_col.jpg");
+	mat.m_lit.m_normal = gfx.textures().file(name + "/" + name + "_nrm.jpg");
+	mat.m_pbr.m_roughness = gfx.textures().file(name + "/" + name + "_rgh.jpg");
 
-	pbr.m_enabled = true;
-	pbr.m_albedo.m_texture = gfx_system.textures().file((name + "/" + name + "_col.jpg").c_str());
-	pbr.m_normal.m_texture = gfx_system.textures().file((name + "/" + name + "_nrm.jpg").c_str());
-	pbr.m_roughness.m_texture = gfx_system.textures().file((name + "/" + name + "_rgh.jpg").c_str());
-
-	if(gfx_system.locate_file(("textures/" + name + "/" + name + "_AO").c_str(), exts).m_location != nullptr)
-		pbr.m_ambient_occlusion.m_texture = gfx_system.textures().file((name + "/" + name + "_AO.jpg").c_str());
-	if(gfx_system.locate_file(("textures/" + name + "/" + name + "_disp").c_str(), exts).m_location != nullptr)
-		pbr.m_depth.m_texture = gfx_system.textures().file((name + "/" + name + "_disp.jpg").c_str());
-	if(gfx_system.locate_file(("textures/" + name + "/" + name + "_met").c_str(), exts).m_location != nullptr)
+	if(Texture* ao = gfx.textures().file(name + "/" + name + "_AO.jpg"))
+		mat.m_lit.m_occlusion = ao;
+	if(Texture* depth = gfx.textures().file(name + "/" + name + "_disp.jpg"))
+		mat.m_pbr.m_depth = depth;
+	if(Texture* met = gfx.textures().file(name + "/" + name + "_met.jpg"))
 	{
-		pbr.m_metallic.m_texture = gfx_system.textures().file((name + "/" + name + "_met.jpg").c_str());
-		pbr.m_metallic.m_value = 1.f;
+		mat.m_pbr.m_metallic = met;
+		mat.m_pbr.m_metallic.m_value = 1.f;
 	}
 
 	return mat;
 }
 
-Material& fabric_08(GfxSystem& gfx_system)
+Material& fabric_08(GfxSystem& gfx)
 {
-	Material& mat = material(gfx_system, "Fabric08");
-	mat.m_pbr_block.m_deep_parallax = true;
-	mat.m_pbr_block.m_depth.m_value = -0.05f;
+	Material& mat = material(gfx, "Fabric08");
+	mat.m_pbr.m_deep_parallax = true;
+	mat.m_pbr.m_depth.m_value = -0.05f;
 	return mat;
 }
 
-Material& paving_stones_08(GfxSystem& gfx_system)
+Material& paving_stones_08(GfxSystem& gfx)
 {
-	Material& mat = material(gfx_system, "PavingStones08");
-	mat.m_pbr_block.m_deep_parallax = true;
-	mat.m_pbr_block.m_depth.m_value = -0.04f;
+	Material& mat = material(gfx, "PavingStones08");
+	mat.m_pbr.m_deep_parallax = true;
+	mat.m_pbr.m_depth.m_value = -0.04f;
 	return mat;
 }
 
-Material& metal_plates_02(GfxSystem& gfx_system)
+Material& metal_plates_02(GfxSystem& gfx)
 {
-	Material& mat = material(gfx_system, "MetalPlates02");
-	//mat.m_pbr_block.m_deep_parallax = true;
-	//mat.m_pbr_block.m_depth.m_value = -0.04f;
+	Material& mat = material(gfx, "MetalPlates02");
+	//mat.m_pbr.m_deep_parallax = true;
+	//mat.m_pbr.m_depth.m_value = -0.04f;
 	return mat;
 }
 
-Material& paving_stones_11(GfxSystem& gfx_system)
+Material& paving_stones_11(GfxSystem& gfx)
 {
-	Material& mat = material(gfx_system, "PavingStones11");
-	mat.m_pbr_block.m_deep_parallax = true;
-	mat.m_pbr_block.m_depth.m_value = -0.04f;
+	Material& mat = material(gfx, "PavingStones11");
+	mat.m_pbr.m_deep_parallax = true;
+	mat.m_pbr.m_depth.m_value = -0.04f;
 	return mat;
 }
 
-Material& rocks_01(GfxSystem& gfx_system)
+Material& rocks_01(GfxSystem& gfx)
 {
-	Material& mat = material(gfx_system, "Rocks01");
-	mat.m_pbr_block.m_deep_parallax = true;
-	mat.m_pbr_block.m_depth.m_value = -0.08f;
+	Material& mat = material(gfx, "Rocks01");
+	mat.m_pbr.m_deep_parallax = true;
+	mat.m_pbr.m_depth.m_value = -0.08f;
 	return mat;
 }
 
-Material& wood_floor_05(GfxSystem& gfx_system)
+Material& wood_floor_05(GfxSystem& gfx)
 {
-	Material& mat = material(gfx_system, "WoodFloor05");
+	Material& mat = material(gfx, "WoodFloor05");
 	return mat;
 }
 
-Material& roughness_material(GfxSystem& gfx_system, const string& name, Colour albedo, float metallic, float roughness)
+Material& roughness_material(GfxSystem& gfx, const string& name, Colour albedo, float metallic, float roughness)
 {
-	Material& mat = gfx_system.fetch_material(name.c_str(), "pbr/pbr");
-	PbrMaterialBlock& pbr = mat.m_pbr_block;
-	pbr.m_enabled = true;
+	Material& mat = gfx.fetch_material(name.c_str(), "pbr/pbr");
+	MaterialPbr& pbr = mat.m_pbr;
 	pbr.m_albedo.m_value = albedo;
 	pbr.m_metallic.m_value = metallic;
 	pbr.m_roughness.m_value = roughness;
 	return mat;
 }
 
-std::vector<Material*> create_roughness_dielectric_materials(GfxSystem& gfx_system)
+vector<Material*> create_roughness_dielectric_materials(GfxSystem& gfx)
 {
-	std::vector<Material*> materials;
+	vector<Material*> materials;
 	for(size_t i = 0; i < 8; ++i)
 	{
 		float roughness = i / float(8 - 1);
-		materials.push_back(&roughness_material(gfx_system, "roughness_dieletric_" + to_string(roughness), Colour::Black, 0.f, roughness));
+		materials.push_back(&roughness_material(gfx, "roughness_dieletric_" + to_string(roughness), Colour::Black, 0.f, roughness));
 	}
 	return materials;
 }
 
-std::vector<Material*> create_roughness_metallic_materials(GfxSystem& gfx_system)
+vector<Material*> create_roughness_metallic_materials(GfxSystem& gfx)
 {
-	std::vector<Material*> materials;
+	vector<Material*> materials;
 	for(size_t i = 0; i < 8; ++i)
 	{
 		float roughness = i / float(8 - 1);
-		materials.push_back(&roughness_material(gfx_system, "roughness_metallic_" + to_string(roughness), Colour::White, 1.f, roughness));
+		materials.push_back(&roughness_material(gfx, "roughness_metallic_" + to_string(roughness), Colour::White, 1.f, roughness));
 	}
 	return materials;
 }
 
-void material_spheres(Gnode& parent, array<Material*> materials)
+void material_spheres(Gnode& parent, span<Material*> materials)
 {
 	float spacing = 2.f;
 	float center = (materials.size() - 1) * spacing / 2.f;
 
 	for(size_t i = 0; i < materials.size(); ++i)
 	{
-		Gnode& material_node = gfx::node(parent, Ref(materials[i]), vec3{ -center + float(i) * spacing, 0.f, 0.f });
-		gfx::shape(material_node, Sphere(), Symbol(), 0, materials[i]);
-		//gfx::model(material_node, "sphere", 0, materials[i]);
+		Gnode& node = gfx::node(parent, vec3(-center + float(i) * spacing, 0.f, 0.f));
+		//node.m_node->m_object = Ref(materials[i]);
+
+		gfx::shape(node, Sphere(), Symbol(), 0, materials[i]);
+		//gfx::model(node, "sphere", 0, materials[i]);
 	}
 }
 
 void roughness_spheres(Gnode& parent)
 {
-	GfxSystem& gfx_system = parent.m_scene->m_gfx_system;
+	GfxSystem& gfx = parent.m_scene->m_gfx;
 
-	static std::vector<Material*> roughness_dielectric_materials = create_roughness_dielectric_materials(gfx_system);
-	static std::vector<Material*> roughness_metallic_materials = create_roughness_metallic_materials(gfx_system);
+	static vector<Material*> dielectric = create_roughness_dielectric_materials(gfx);
+	static vector<Material*> metallic = create_roughness_metallic_materials(gfx);
 
-	float dielectric_center = roughness_dielectric_materials.size() * 2.f / 2.f;
-	for(size_t i = 0; i < roughness_dielectric_materials.size(); ++i)
+	float di_center = dielectric.size() * 2.f / 2.f;
+	for(size_t i = 0; i < dielectric.size(); ++i)
 	{
-		Gnode& material_node = gfx::node(parent, {}, vec3{ -dielectric_center + float(i) * 2.f, 0.f, 0.f });
-		//Item& item = gfx::shape(material_node, Sphere(), Symbol());
-		gfx::shape(material_node, Sphere(), Symbol(), 0U, roughness_dielectric_materials[i]);
+		Gnode& node = gfx::node(parent, vec3(-di_center + float(i) * 2.f, 0.f, 0.f));
+		gfx::shape(node, Sphere(), Symbol(), 0U, dielectric[i]);
 	}
 
-	float metallic_center = roughness_metallic_materials.size() * 2.f / 2.f;
-	for(size_t i = 0; i < roughness_metallic_materials.size(); ++i)
+	float met_center = metallic.size() * 2.f / 2.f;
+	for(size_t i = 0; i < metallic.size(); ++i)
 	{
-		Gnode& material_node = gfx::node(parent, {}, vec3{ -metallic_center + float(i) * 2.f, 0.f, 4.f });
-		//Item& item = gfx::shape(material_node, Sphere(), Symbol());
-		gfx::shape(material_node, Sphere(), Symbol(), 0U, roughness_metallic_materials[i]);
+		Gnode& node = gfx::node(parent, vec3(-met_center + float(i) * 2.f, 0.f, 4.f));
+		gfx::shape(node, Sphere(), Symbol(), 0U, metallic[i]);
 	}
 }
 
@@ -177,66 +177,67 @@ void ex_03_materials(Shell& app, Widget& parent, Dockbar& dockbar)
 	UNUSED(app);
 	SceneViewer& viewer = ui::scene_viewer(parent);
 	OrbitController& controller = ui::orbit_controller(viewer);
+	UNUSED(controller);
 
-	Gnode& scene = viewer.m_scene->begin();
+	//viewer.m_viewport.m_to_gamma = true;
 
-	Gnode& ground_node = gfx::node(scene, {}, vec3{ 0.f, -1.f, 0.f });
-	gfx::shape(ground_node, Rect(vec2{ -50.f, -50.f }, vec2{ 100.f }), Symbol(), 0U, &milky_white(viewer.m_gfx_system));
+	Gnode& scene = viewer.m_scene.begin();
+
+	Gnode& ground_node = gfx::node(scene, -y3);
+	gfx::shape(ground_node, Rect(vec2(-50.f), vec2(100.f)), Symbol(), 0U, &milky_white(app.m_gfx));
 
 	gfx::direct_light_node(scene);
 	gfx::radiance(scene, "radiance/tiber_1_1k.hdr", BackgroundMode::Radiance);
 
-	GfxSystem& gfx_system = scene.m_scene->m_gfx_system;
+	GfxSystem& gfx = scene.m_scene->m_gfx;
 	
-	//static std::vector<Material*> materials = { &milky_white(gfx_system), &mirror(gfx_system), &rocks_01(gfx_system), &fabric_08(gfx_system), &paving_stones_11(gfx_system), 
-	//											&wood_floor_05(gfx_system), &paving_stones_08(gfx_system) };
-	static std::vector<Material*> materials = { &paving_stones_11(gfx_system), &metal_plates_02(gfx_system), &paving_stones_08(gfx_system) };
+	//static vector<Material*> materials = { &milky_white(gfx), &mirror(gfx), &rocks_01(gfx), &fabric_08(gfx), &paving_stones_11(gfx), 
+	//											&wood_floor_05(gfx), &paving_stones_08(gfx) };
+	static vector<Material*> materials = { &paving_stones_11(gfx), &metal_plates_02(gfx), &paving_stones_08(gfx) };
 
 	static Material* edited = materials[0];
 
 	//roughness_spheres(scene);
 	material_spheres(scene, materials);
 
-#if 0
-	if(MouseEvent mouse_event = viewer.mouse_event(DeviceType::MouseLeft, EventType::Stroked))
+	if(MouseEvent event = viewer.mouse_event(DeviceType::MouseLeft, EventType::Stroked))
 	{
 		auto callback = [&](Item* item)
 		{
 			if(!item->m_node->m_object) return;
-			edited = &val<Material>(item->m_node->m_object);
+			//edited = &val<Material>(item->m_node->m_object);
 			float center = float(materials.size()) * 4.f / 2.f;
 			size_t index = edited->m_index - materials[0]->m_index;
-			controller.m_position = vec3{ -center + index * 4.f, 0.f, 0.f };
+			controller.m_position = { -center + index * 4.f, 0.f, 0.f };
 		};
-		viewer.picker(0).pick_point(viewer.m_viewport, mouse_event.m_relative, callback, ItemFlag::Default | ItemFlag::Selectable);
+		viewer.picker(0).pick_point(viewer.m_viewport, event.m_relative, callback, ItemFlag::Default | ItemFlag::Selectable);
 	}
-#endif
 
-	if(Widget* dock = ui::dockitem(dockbar, "Game", carray<uint16_t, 1>{ 1U }))
+	if(Widget* dock = ui::dockitem(dockbar, "Game", { 1U }))
 	{
-		Widget& sheet = ui::columns(*dock, carray<float, 2>{ 0.3f, 0.7f });
+		Widget& sheet = ui::columns(*dock, { 0.3f, 0.7f });
 
-		ui::label(sheet, "Environment :");
-		ui::number_field<float>(sheet, "Ambient", { viewer.m_environment.m_radiance.m_ambient, { 0.f, 100.f, 0.01f } });
+		ui::label(sheet, "Zone :");
+		ui::color_field(sheet, "Ambient", viewer.m_scene.m_env.m_radiance.m_ambient);
 
-		//if(edited)
-		//	object_edit(*dock, Ref(edited)); // "Particle Editor" // identity = edited
+		if(edited)
+			object_edit(*dock, Ref(edited)); // "Particle Editor" // identity = edited
 	}
 }
 
 #ifdef _03_MATERIALS_EXE
-void pump(Shell& app)
+void pump(Shell& app, ShellWindow& window)
 {
-	shell_context(app.m_ui->begin(), app.m_editor);
+	shell_context(window.m_ui->begin(), app.m_editor);
 	ex_03_materials(app, *app.m_editor.m_screen, *app.m_editor.m_dockbar);
-	//edit_context(app.m_ui->begin(), app.m_editor, true);
-	//ex_03_materials(app, *app.m_editor.m_screen, *app.m_editor.m_dockbar);
 }
 
 int main(int argc, char *argv[])
 {
-	cstring example_path = MUD_RESOURCE_PATH "examples/03_materials/";
-	Shell app(carray<cstring, 2>{ MUD_RESOURCE_PATH, example_path }, argc, argv);
+	Shell app(TWO_RESOURCE_PATH, exec_path(argc, argv));
+	System::instance().load_modules({ &two_gfx::m() });
+	app.m_gfx.add_resource_path("examples/03_materials");
+	app.m_gfx.init_pipeline(pipeline_pbr);
 	app.run(pump);
 }
 #endif

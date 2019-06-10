@@ -6,58 +6,77 @@
 
 #include <bgfx/bgfx.h>
 
-#ifdef MUD_MODULES
-module mud.gfx;
+#ifdef TWO_MODULES
+module two.gfx;
 #else
-#include <infra/Vector.h>
+#include <stl/algorithm.h>
 #include <gfx/Item.h>
 #include <gfx/Material.h>
 #include <gfx/GfxSystem.h>
 #include <gfx/Types.h>
 #include <gfx/Depth.h>
+#include <gfx/Asset.h>
 #endif
 
-namespace mud
+namespace two
 {
-	PassDepth::PassDepth(GfxSystem& gfx_system, cstring name, BlockDepth& block_depth)
-		: DrawPass(gfx_system, name, PassType::Depth)
-		, m_block_depth(block_depth)
-	{}
-
-	PassDepth::PassDepth(GfxSystem& gfx_system, BlockDepth& block_depth)
-		: PassDepth(gfx_system, "depth", block_depth)
-	{}
-
-	void PassDepth::next_draw_pass(Render& render, Pass& render_pass)
+	bool queue_depth(GfxSystem& gfx, Render& render, Pass& pass, DrawElement& element)
 	{
-		UNUSED(render);
-		render_pass.m_bgfx_state = 0 | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LEQUAL | BGFX_STATE_CULL_CW ;
+		static BlockDepth& block_depth = *gfx.m_renderer.block<BlockDepth>();
 
-		bgfx::setViewMode(render_pass.m_index, bgfx::ViewMode::DepthAscending);
+		if(element.m_material->m_base.m_depth_draw != DepthDraw::Enabled
+		|| element.m_material->m_alpha.m_is_alpha)
+			return false;
 
-		m_block_depth.m_current_params = &m_block_depth.m_depth_params;
+		const DepthMethod depth_method = block_depth.m_depth_method;
+		const Program& program = depth_method == DepthMethod::Distance ? *block_depth.m_distance_program
+																	   : *block_depth.m_depth_program;
+
+		element.set_program(program);
+		return true;
 	}
 
-	void PassDepth::queue_draw_element(Render& render, DrawElement& element)
+	void pass_depth(GfxSystem& gfx, Render& render, Pass& pass, bool submit)
+	{
+		static BlockDepth& block_depth = *gfx.m_renderer.block<BlockDepth>();
+		block_depth.submit(render, pass);
+
+		UNUSED(render);
+		if(block_depth.m_depth_method == DepthMethod::Distance)
+			pass.m_bgfx_state = 0 | BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LEQUAL | BGFX_STATE_WRITE_A | BGFX_STATE_CULL_CW;
+		else
+			pass.m_bgfx_state = 0 | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LEQUAL | BGFX_STATE_CULL_CW;
+
+		bgfx::setViewMode(pass.m_index, bgfx::ViewMode::DepthAscending);
+
+		if(submit)
+			gfx.m_renderer.pass(render, pass, queue_depth);
+	}
+
+#if 0
+	void pass_override(GfxSystem& gfx, Render& render, Pass& pass, Program& program)
 	{
 		UNUSED(render);
-		
-		if(element.m_material->m_base_block.m_depth_draw_mode == DepthDraw::Enabled)
+		pass.m_bgfx_state = 0 | BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LEQUAL | BGFX_STATE_CULL_CW;
+
+		auto queue_draw_element = [&](GfxSystem& gfx, Render& render, Pass& pass, DrawElement& element)
 		{
-			if(element.m_item->m_shadow == ItemShadow::DoubleSided)
-				element.m_material = m_block_depth.m_depth_material_twosided;
-			else
-				element.m_material = m_block_depth.m_depth_material;
+			element.set_program(program);
+			return true;
+		};
 
-			element.m_program = element.m_material->m_program;
-			element.m_shader_version = { element.m_material->m_program };
+		gfx.m_renderer.pass(render, pass, queue_draw_element);
+	}
+#endif
 
-			this->add_element(render, element);
-		}
+	void pass_depth(GfxSystem& gfx, Render& render)
+	{
+		Pass pass = render.next_pass("depth", PassType::Depth);
+		pass_depth(gfx, render, pass);
 	}
 
-	BlockDepth::BlockDepth(GfxSystem& gfx_system)
-		: DrawBlock(gfx_system, type<BlockDepth>())
+	BlockDepth::BlockDepth(GfxSystem& gfx)
+		: DrawBlock(gfx, type<BlockDepth>())
 	{}
 
 	BlockDepth::~BlockDepth()
@@ -65,36 +84,38 @@ namespace mud
 
 	void BlockDepth::init_block()
 	{
-		m_depth_material = &m_gfx_system.fetch_material("depth", "depth");
-		m_depth_material_twosided = &m_gfx_system.fetch_material("depth_twosided", "depth");
-		m_depth_material_twosided->m_base_block.m_cull_mode = CullMode::None;
+		m_depth_program = m_gfx.programs().file("depth");
+		m_distance_program = m_gfx.programs().file("distance");
+
 		u_depth.createUniforms();
 	}
 
 	void BlockDepth::begin_render(Render& render)
 	{
 		UNUSED(render);
+
+		m_depth_params = {};
+		m_distance_params = {};
 	}
 
-	void BlockDepth::begin_pass(Render& render)
+	void BlockDepth::options(Render& render, const DrawElement& element, ProgramVersion& program) const
 	{
-		UNUSED(render);
+		UNUSED(render); UNUSED(program);
 	}
 
-	void BlockDepth::begin_draw_pass(Render& render)
+	void BlockDepth::submit(Render& render, const Pass& pass) const
 	{
-		UNUSED(render);
+		UNUSED(render); UNUSED(pass);
+		bgfx::setViewUniform(pass.m_index, u_depth.u_depth_p0, &m_depth_params);
+
+		vec4 distance_p0 = { m_distance_params.m_eye, 0.f };
+		vec4 distance_p1 = { m_distance_params.m_near, m_distance_params.m_far, 0.f, 0.f };
+		bgfx::setViewUniform(pass.m_index, u_depth.u_distance_p0, &distance_p0);
+		bgfx::setViewUniform(pass.m_index, u_depth.u_distance_p1, &distance_p1);
 	}
 
-	void BlockDepth::options(Render& render, ShaderVersion& shader_version) const
+	void BlockDepth::submit(Render& render, const DrawElement& element, const Pass& pass) const
 	{
-		UNUSED(render); UNUSED(shader_version);
-	}
-
-	void BlockDepth::submit(Render& render, const Pass& render_pass) const
-	{
-		UNUSED(render);
-		bgfx::Encoder& encoder = *render_pass.m_encoder;
-		encoder.setUniform(u_depth.u_depth_params, &(*m_current_params));
+		UNUSED(render); UNUSED(element); UNUSED(pass);
 	}
 }

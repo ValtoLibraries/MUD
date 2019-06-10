@@ -4,15 +4,16 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.geom;
+#ifdef TWO_MODULES
+module two.geom;
 #else
+#include <math/Vec.hpp>
 #include <geom/Shape/Cylinder.h>
 #include <geom/Shape/Circle.h>
-#include <geom/Primitive.h>
+#include <geom/Primitive.hpp>
 #endif
 
-namespace mud
+namespace two
 {
 	ShapeSize size_shape_lines(const ProcShape& shape, const Cylinder& cylinder)
 	{
@@ -22,15 +23,15 @@ namespace mud
 	
 	void draw_shape_lines(const ProcShape& shape, const Cylinder& cylinder, MeshAdapter& writer)
 	{
-		vec3 offset = cylinder.m_axis == Axis::X ? X3 * cylinder.m_height / 2.f
-					: cylinder.m_axis == Axis::Y ? Y3 * cylinder.m_height / 2.f
-												 : Z3 * cylinder.m_height / 2.f;
+		vec3 offset = cylinder.m_axis == Axis::X ? x3 * cylinder.m_height / 2.f
+					: cylinder.m_axis == Axis::Y ? y3 * cylinder.m_height / 2.f
+												 : z3 * cylinder.m_height / 2.f;
 
 		Circle circle = { cylinder.m_radius, cylinder.m_axis };
-		uint16_t subdiv = circle_vertices(shape, cylinder.m_center + offset, vec2{ circle.m_radius }, to_signed_axis(circle.m_axis, true), true, writer);
-						  circle_vertices(shape, cylinder.m_center - offset, vec2{ circle.m_radius }, to_signed_axis(circle.m_axis, false), true, writer);
+		uint16_t subdiv = circle_vertices(shape, cylinder.m_center + offset, vec2(circle.m_radius), to_signed_axis(circle.m_axis, true), true, writer);
+						  circle_vertices(shape, cylinder.m_center - offset, vec2(circle.m_radius), to_signed_axis(circle.m_axis, false), true, writer);
 
-		for (uint16_t i = 0; i < subdiv; i++)
+		for(uint16_t i = 0; i < subdiv; i++)
 		{
 			writer.line(i, i + 1 < subdiv ? i + 1 : 0);
 			writer.line(subdiv + i, i + 1 < subdiv ? subdiv + i + 1 : subdiv);
@@ -46,26 +47,26 @@ namespace mud
 	
 	void draw_shape_triangles(const ProcShape& shape, const Cylinder& cylinder, MeshAdapter& writer)
 	{
-		vec3 offset = cylinder.m_axis == Axis::X ? X3 * cylinder.m_height / 2.f
-					: cylinder.m_axis == Axis::Y ? Y3 * cylinder.m_height / 2.f
-												: Z3 * cylinder.m_height / 2.f;
+		vec3 offset = cylinder.m_axis == Axis::X ? x3 * cylinder.m_height / 2.f
+					: cylinder.m_axis == Axis::Y ? y3 * cylinder.m_height / 2.f
+												: z3 * cylinder.m_height / 2.f;
 
 		Circle circle = { cylinder.m_radius, cylinder.m_axis };
 
-		uint16_t subdiv = circle_vertices(shape, cylinder.m_center - offset, vec2{ circle.m_radius }, to_signed_axis(circle.m_axis, false), false, writer);
+		uint16_t subdiv = circle_vertices(shape, cylinder.m_center - offset, vec2(circle.m_radius), to_signed_axis(circle.m_axis, false), false, writer);
 
 		for(uint16_t i = 0; i < subdiv; i++)
 			writer.tri(i + 1 < subdiv ? i + 1 : 0, i, subdiv);
 		writer.next();
 
-		circle_vertices(shape, cylinder.m_center + offset, vec2{ circle.m_radius }, to_signed_axis(circle.m_axis, true), false, writer);
+		circle_vertices(shape, cylinder.m_center + offset, vec2(circle.m_radius), to_signed_axis(circle.m_axis, true), false, writer);
 
 		for(uint16_t i = 0; i < subdiv; i++)
 			writer.tri(i, i + 1 < subdiv ? i + 1 : 0, subdiv);
 		writer.next();
 
-		circle_vertices(shape, cylinder.m_center - offset, vec2{ circle.m_radius }, to_signed_axis(circle.m_axis, false), false, writer, true);
-		circle_vertices(shape, cylinder.m_center + offset, vec2{ circle.m_radius }, to_signed_axis(circle.m_axis, true), false, writer, true);
+		circle_vertices(shape, cylinder.m_center - offset, vec2(circle.m_radius), to_signed_axis(circle.m_axis, false), false, writer, true);
+		circle_vertices(shape, cylinder.m_center + offset, vec2(circle.m_radius), to_signed_axis(circle.m_axis, true), false, writer, true);
 
 		for(uint16_t i = 0; i < subdiv; i++)
 			writer.quad(i, i + 1 < subdiv ? i + 1 : 0, i + 1 < subdiv ? (subdiv + 1) + i + 1 : (subdiv + 1), (subdiv + 1) + i);

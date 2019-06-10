@@ -3,35 +3,38 @@
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #include <infra/Cpp20.h>
-#ifndef MUD_CPP_20
-#include <algorithm>
+#ifndef TWO_CPP_20
 #include <cmath>
-#include <limits>
-#include <numeric>
-#include <random>
+#include <cfloat>
 #endif
 
-#ifdef MUD_MODULES
-module mud.wfc;
+#ifdef TWO_MODULES
+module two.wfc;
 #else
-#include <infra/StringConvert.h>
+#include <stl/limits.h>
+#include <infra/ToString.h>
+#include <math/Random.h>
+#include <math/Grid.hpp>
 #include <wfc/Wfc.h>
 #endif
 
-namespace mud
+namespace two
 {
-	double calc_sum(const std::vector<double>& a)
+	double calc_sum(span<double> a)
 	{
-		return std::accumulate(a.begin(), a.end(), 0.0);
+		double sum = 0.0;
+		for(double d : a)
+			sum += d;
+		return sum;
 	}
 
 	// Pick a random index weighted by a
-	size_t spin_the_bottle(const std::vector<double>& a, double between_zero_and_one)
+	size_t spin_the_bottle(span<double> a, double between_zero_and_one)
 	{
 		double sum = calc_sum(a);
 
 		if(sum == 0.0)
-			return size_t(std::floor(between_zero_and_one * a.size()));
+			return size_t(floor(between_zero_and_one * a.size()));
 
 		double between_zero_and_sum = between_zero_and_one * sum;
 
@@ -56,22 +59,21 @@ namespace mud
 		, m_depth(depth)
 		, m_periodic(periodic)
 		, m_states(states, 1.0)
-		, m_wave(width, height, depth, std::vector<ubool>(states, true))
+		, m_wave(width, height, depth, vector<ubool>(states, true))
 	{
-		static DoubleGenerator generator;
-		m_random_double = [&] { return generator.next(); };
+		m_random_double = []() -> double { return randf<double>(); };
 	}
 
 	void Wave::clear()
 	{
-		m_wave.reset(m_width, m_height, m_depth, std::vector<ubool>(m_states.size(), true));
+		m_wave.reset(m_width, m_height, m_depth, vector<ubool>(m_states.size(), true));
 		m_changes.clear();
 	}
 
 	Result Wave::find_lowest_entropy(uvec3& coord)
 	{
 		// We actually calculate exp(entropy), i.e. the sum of the weights of the possible patterns
-		double min = std::numeric_limits<double>::infinity();
+		double min = FLT_MAX;// std::numeric_limits<double>::infinity();
 
 		for(uint16_t x = 0; x < m_width; ++x)
 			for(uint16_t y = 0; y < m_height; ++y)
@@ -118,7 +120,7 @@ namespace mud
 					}
 				}
 
-		if(min == std::numeric_limits<double>::infinity())
+		if(min == FLT_MAX) //std::numeric_limits<double>::infinity())
 			return Result::kSuccess;
 		else
 			return Result::kUnfinished;
@@ -133,7 +135,7 @@ namespace mud
 		if(m_state != Result::kUnfinished)
 			return m_state;
 
-		std::vector<double> distribution(m_states.size());
+		vector<double> distribution(m_states.size());
 		for(uint16_t t = 0; t < m_states.size(); ++t)
 			distribution[t] = m_wave.at(coord.x, coord.y, coord.z)[t] ? m_states[t] : 0;
 

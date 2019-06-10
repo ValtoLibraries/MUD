@@ -8,20 +8,15 @@
 #include <snd/SoundFileBuffer.h>
 #include <snd/OggFileBuffer.h>
 
-#include <functional>
-
-namespace mud
+namespace two
 {
 	class SharedBuffer
 	{
 	public:
-		typedef std::function<void (SharedBuffer&)> ReleaseCallback;
-
-	public:
-		SharedBuffer(const string& fileName, const ReleaseCallback& onRelease);
+		SharedBuffer(const string& fileName, SoundManager& manager);
 		~SharedBuffer();
 
-		unique_ptr<SoundFileBuffer> m_file_buffer;
+		unique<SoundFileBuffer> m_file_buffer;
 
 		ALuint m_al_buffer;
 
@@ -30,6 +25,6 @@ namespace mud
 
 	private:
 		int m_num_users = 0;
-		ReleaseCallback m_on_release;
+		SoundManager* m_manager = nullptr;
 	};
 }

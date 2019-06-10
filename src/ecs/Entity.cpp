@@ -4,41 +4,29 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.proto;
+#ifdef TWO_MODULES
+module two.ecs;
 #else
-#include <type/Indexer.h>
 #include <ecs/Entity.h>
-#include <ecs/Proto.h>
+#include <ecs/ECS.h>
+#include <ecs/ECS.hpp>
 #endif
 
-namespace mud
+namespace two
 {
 	ECS* s_ecs[256] = {};
 
 	template <> Type& type<EntityRef>() { static Type ty("EntityRef"); return ty; }
 
-	Complex::Complex(Id id, Type& type)
-		: m_id(index(type, id, Ref(this, type)))
-		, m_type(type)
-		, m_prototype(proto(type))
-		, m_parts(m_prototype.m_parts.size())
-	{}
-
-	Complex::Complex(Id id, Type& type, const std::vector<Ref>& parts)
-		: Complex(id, type)
+	void Entity::destroy()
 	{
-		this->setup(parts);
+		if(m_handle != UINT32_MAX)
+			s_ecs[m_ecs]->destroy(*this);
 	}
 
-	Complex::~Complex()
+	OEntt::~OEntt()
 	{
-		unindex(m_type, m_id);
-	}
-
-	void Complex::setup(const std::vector<Ref>& parts)
-	{
-		for (Ref ref : parts)
-			this->add_part(ref);
+		if(m_handle != UINT32_MAX)
+			m_ecs->destroy(m_handle);
 	}
 }

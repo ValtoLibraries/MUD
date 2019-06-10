@@ -4,26 +4,25 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.gfx-edit;
+#ifdef TWO_MODULES
+module two.gfx-edit;
 #else
 #include <type/Any.h>
-#include <infra/Vector.h>
-#include <infra/StringConvert.h>
+#include <stl/algorithm.h>
+//#include <infra/ToString.h>
 #include <refl/Convert.h>
 #include <refl/System.h>
-#include <ui/Structs/Container.h>
-#include <uio/Unode.h>
-#include <uio/Edit/Section.h>
-#include <uio/Edit/Inspector.h>
-#include <uio/Edit/Method.h>
+#include <ui/ContainerStruct.h>
+#include <ui/Section.h>
+#include <uio/Inspector.h>
+#include <uio/MethodEdit.h>
 #include <gfx/Types.h>
 #include <gfx/Prefab.h>
 #include <gfx/Gfx.h>
 #include <gfx-edit/PrefabEdit.h>
 #endif
 
-namespace mud
+namespace two
 {
 #if 0
 	TreeNode& prefab_node(Widget& parent, PrefabNode* parent_node, PrefabNode& node, PrefabNode*& selected)
@@ -64,8 +63,8 @@ namespace mud
 	{
 		Section& self = section(parent, "Prefab Inspector");
 
-		static cstring types[6] = { "None", "Item", "Model", "Shape", "Particles", "Light" };
-		static std::vector<Function*> functions = { nullptr, &function(gfx::item), &function(gfx::model), &function(gfx::shape), &function(&gfx::particles), &function(gfx::light) };
+		static cstring types[6] = { "None", "Item", "Model", "Shape", "Flare", "Light" };
+		static vector<Function*> functions = { nullptr, &function(gfx::item), &function(gfx::model), &function(gfx::shape), &function(&gfx::particles), &function(gfx::light) };
 
 		static cstring columns[2] = { "field", "value" };
 		Widget& table = ui::table(*self.m_body, { columns, 2 }, {});
@@ -82,9 +81,9 @@ namespace mud
 		return self;
 	}
 
-	void prefab_edit(Widget& parent, GfxSystem& gfx_system, PrefabNode& node, PrefabNode*& selected)
+	void prefab_edit(Widget& parent, GfxSystem& gfx, PrefabNode& node, PrefabNode*& selected)
 	{
-		UNUSED(gfx_system);
+		UNUSED(gfx);
 		Widget& self = ui::sheet(parent);
 
 		prefab_structure(self, node, selected);

@@ -4,92 +4,38 @@
 
 #pragma once
 
-#include <infra/NonCopy.h>
-#include <infra/Vector.h>
+#include <stl/vector.h>
 #include <type/Unique.h>
-#include <type/TypeUtils.h>
 
-namespace mud
+namespace two
 {
-	export_ template<class T>
-	class VecPool : public NonCopy
+	export_ template <class T>
+	class VecPool
 	{
 	public:
-		VecPool(size_t size = 256)
-			: m_size(size)
-			, m_chunk(operator new(size * sizeof(T)))
-			, m_memory((T*)m_chunk)
-			, m_last(m_memory + size - 1)
-		{
-			++s_count;
-			//printf("VecPool for type %s, count %u, size %u\n", type<T>().name().c_str(), s_count, size * sizeof(T));
+		VecPool(size_t size = 256);
+		~VecPool();
 
-			m_available.reserve(size);
-			m_objects.reserve(size);
-
-			for(size_t i = 0; i < size; ++i)
-				m_available.push_back(&m_memory[i]);
-		}
-
-		~VecPool()
-		{
-			--s_count;
-
-			for(T* object : m_objects)
-				any_destruct(*object);
-			operator delete(m_chunk);
-		}
-
-		T* alloc()
-		{
-			if(m_available.empty() && !m_next)
-				m_next = make_unique<VecPool<T>>(m_size * 2);
-			if(m_available.empty())
-				return m_next->alloc();
-
-			T* object = m_available.back();
-			m_available.pop_back();
-			m_objects.push_back(object);
-			return object;
-		}
-
-		void destroy(T* object)
-		{
-			any_destruct(*object);
-			this->free(object);
-		}
-
-		void free(T* object)
-		{
-			if(object < m_memory || object > m_last)
-				return m_next->free(object);
-
-			m_available.push_back(object);
-			vector_remove(m_objects, object);
-		}
+		T* alloc();
+		span<T> alloc(size_t count);
+		void destroy(T* object);
+		void free(T* object);
 
 	public:
-		template<class... Types>
-		inline T& construct(Types&&... args)
-		{
-			T* at = this->alloc();
-			new (at) T(std::forward<Types>(args)...);
-			return *at;
-		}
+		template <class... Types>
+		inline T& construct(Types&&... args);
 
 	public:
 		size_t m_size;
-		std::vector<T*> m_available;
-		std::vector<T*> m_objects;
-		void* m_chunk;
-		T* m_memory;
+		vector<T*> m_recycled;
+		vector<T*> m_objects;
+		void* m_memory;
+		T* m_first;
 		T* m_last;
+		T* m_end;
 
-		unique_ptr<VecPool<T>> m_next;
+		unique<VecPool<T>> m_next;
 
 		static int s_count;
 	};
-	
-	template<class T>
-	int VecPool<T>::s_count = 0;
 }

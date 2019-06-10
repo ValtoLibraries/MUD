@@ -7,47 +7,44 @@
 #include <type/Ref.h>
 #include <type/Type.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#include <functional>
-#endif
-
-namespace mud
+namespace two
 {
-	export_ template <class T_Return, class... T_Args>
+	export_ template <class T_Return, class... Args>
 	class Dispatch
 	{
 	public:
-		Dispatch()
-			: m_branches(c_max_types)
-		{}
+		using HandlerFunc = T_Return(*)(void*, Ref, Args...);
+		struct Func { void* f = nullptr; HandlerFunc handler = nullptr; };
 
-		void function(Type& type, const std::function<T_Return(Ref, T_Args...)>& func)
+		Dispatch() {}
+
+		void function(Type& type, HandlerFunc func)
 		{
-			m_branches[type.m_id] = func;
+			m_branches[type.m_id] = { nullptr, func };
 		}
 
 		template <class T>
-		void function(const std::function<T_Return(Ref, T_Args...)>& func)
+		void function(HandlerFunc func)
 		{
-			m_branches[type<T>().m_id] = func;
+			m_branches[type<T>().m_id] = { nullptr, func };
 		}
 
-		T_Return dispatch(Ref ref, T_Args... args)
+		T_Return dispatch(Ref ref, Args... args)
 		{
-			return m_branches[ref.m_type->m_id](ref, std::forward<T_Args>(args)...);
+			const Func& func = m_branches[ref.m_type->m_id];
+			return func.handler(func.f, ref, static_cast<Args&&>(args)...);
 		}
 
 		bool check(Type& type)
 		{
-			return m_branches[type.m_id] != nullptr;
+			return m_branches[type.m_id].handler != nullptr;
 		}
 
 		bool check(Ref ref)
 		{
-			return m_branches[ref.m_type->m_id] != nullptr;
+			return m_branches[ref.m_type->m_id].handler != nullptr;
 		}
 
-		std::vector<std::function<T_Return(Ref, T_Args...)>> m_branches;
+		Func m_branches[c_max_types] = {};
 	};
 }

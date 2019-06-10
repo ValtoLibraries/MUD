@@ -1,8 +1,8 @@
--- mud toolchain
+-- two toolchain
 -- global configuration
 
 flags {
-    "Cpp14",
+    "Cpp17",
 }
 
 removeflags {
@@ -12,8 +12,6 @@ removeflags {
 
 configuration { "Debug" }
     targetsuffix "_d"
-
-    --removeflags { "NoExceptions" }
 
 configuration { "Release" }
     targetsuffix ""

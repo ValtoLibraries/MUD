@@ -4,19 +4,21 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.geom;
+#ifdef TWO_MODULES
+module two.geom;
 #else
+#include <math/Vec.hpp>
 #include <geom/Shape/Geom.h>
-#include <geom/Mesh.h>
+#include <geom/Geometry.h>
+#include <geom/Primitive.hpp>
 #endif
 
-namespace mud
+namespace two
 {
 	ShapeSize size_shape_lines(const ProcShape& shape, const Geometry& geometry)
 	{
 		UNUSED(shape);
-		return { int(geometry.m_vertices.size()), int(geometry.m_triangles.size()) * 6 };
+		return { uint32_t(geometry.m_vertices.size()), uint32_t(geometry.m_triangles.size()) * 6U };
 	}
 
 	void draw_shape_lines(const ProcShape& shape, const Geometry& geometry, MeshAdapter& writer)
@@ -36,7 +38,7 @@ namespace mud
 	ShapeSize size_shape_triangles(const ProcShape& shape, const Geometry& geometry)
 	{
 		UNUSED(shape);
-		return { int(geometry.m_vertices.size()), int(geometry.m_triangles.size()) * 3 };
+		return { uint32_t(geometry.m_vertices.size()), uint32_t(geometry.m_triangles.size()) * 3U };
 	}
 
 	void draw_shape_triangles(const ProcShape& shape, const Geometry& geometry, MeshAdapter& writer)

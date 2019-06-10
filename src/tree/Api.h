@@ -1,3 +1,3 @@
-#include <tree/Node.h>
-#include <tree/Node.inl.h>
+#include <tree/Graph.h>
+#include <tree/Graph.hpp>
 

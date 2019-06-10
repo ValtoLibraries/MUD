@@ -1,5 +1,3 @@
-
-
 #pragma once
 
 #include <infra/Config.h>
@@ -9,55 +7,19 @@
 #include <pool/Forward.h>
 #include <refl/Forward.h>
 
-#ifndef MUD_LANG_EXPORT
-#define MUD_LANG_EXPORT MUD_IMPORT
+#ifndef TWO_LANG_EXPORT
+#define TWO_LANG_EXPORT TWO_IMPORT
 #endif
 
-
-    
-    
-
-namespace std {
-
-    
-    
-}
-
-namespace mud {
-namespace ui {
-
-    
-    
-}
-}
-
-namespace glm {
-
-    
-    
-}
-
-namespace bgfx {
-
-    
-    
-}
-
-namespace json11 {
-
-    
-    
-}
-
-namespace mud {
-
+namespace two
+{
     enum class Language : unsigned int;
     enum StreamModifier : unsigned int;
     enum ValveKind : unsigned int;
     
-    
     class Script;
     class TextScript;
+	struct ScriptError;
     class Interpreter;
     class ScriptClass;
     class LuaInterpreter;
@@ -82,31 +44,9 @@ namespace mud {
     class WrenInterpreter;
 }
 
-namespace mud {
-namespace detail {
-
-    
-    
+#ifdef TWO_META_GENERATOR
+#include <stl/vector.h>
+namespace stl
+{
 }
-}
-
-namespace mud {
-namespace gfx {
-
-    
-    
-}
-}
-
-namespace bimg {
-
-    
-    
-}
-
-namespace bx {
-
-    
-    
-}
-
+#endif

@@ -4,22 +4,138 @@
 
 #pragma once
 
-#include <infra/Array.h>
+#include <stdint.h>
+#include <stl/base.h>
+#include <math/Axis.h>
 #include <math/Forward.h>
 
-#ifndef MUD_CPP_20
-#include <cstdint>
-#endif
-
-#ifndef MUD_META_GENERATOR
-//#define MUD_NO_GLM
-#endif
-
-#include <math/VecMath.h>
-
-#ifdef MUD_NO_GLM
-namespace mud
+namespace two
 {
+	template <class T>
+	export_ struct refl_ struct_ array_ v2
+	{
+		typedef uint length_type;
+		typedef T type;
+		constr_ constexpr v2() {}
+		constr_ constexpr explicit v2(T v) : x(v), y(v) {}
+		constr_ constexpr v2(T x, T y) : x(x), y(y) {}
+		template <class V>
+		explicit v2(V v);
+		T operator[](uint index) const;
+		T& operator[](uint index);
+		T operator[](Axis axis) const;
+		T& operator[](Axis axis);
+		bool operator==(const v2& other) const;
+		bool operator!=(const v2& other) const;
+		union {
+			struct { attr_ T x; attr_ T y; };
+			T f[2];
+		};
+	};
+
+	template <class T>
+	export_ struct refl_ struct_ array_ v3
+	{
+		typedef uint length_type;
+		typedef T type;
+		typedef v2<T> type2;
+		constr_ constexpr v3() {}
+		constr_ constexpr explicit v3(T v) : x(v), y(v), z(v) {}
+		constr_ constexpr v3(T x, T y, T z) : x(x), y(y), z(z) {}
+		v3(v2<T> a, T z);
+		template <class V>
+		explicit v3(V v);
+		T operator[](uint index) const;
+		T& operator[](uint index);
+		T operator[](Axis axis) const;
+		T& operator[](Axis axis);
+		bool operator==(const v3& other) const;
+		bool operator!=(const v3& other) const;
+		union {
+			struct { attr_ T x; attr_ T y; attr_ T z; };
+			struct { T r; T g; T b; };
+			T f[3];
+		};
+	};
+
+	template <class T>
+	export_ struct refl_ struct_ array_ v4
+	{
+		typedef uint length_type;
+		typedef T type;
+		typedef v2<T> type2;
+		typedef v3<T> type3;
+		constr_ constexpr v4() {}
+		constr_ constexpr explicit v4(T v) : x(v), y(v), z(v), w(v) {}
+		constr_ constexpr v4(T x, T y, T z, T w) : x(x), y(y), z(z), w(w) {}
+		v4(v3<T> a, T w);
+		v4(T x, v3<T> b);
+		v4(v2<T> a, v2<T> b);
+		v4(v2<T> a, T z, T w);
+		v4(T x, T y, v2<T> b);
+		template <class V>
+		explicit v4(V v);
+		T operator[](uint index) const;
+		T& operator[](uint index);
+		T operator[](Axis axis) const;
+		T& operator[](Axis axis);
+		bool operator==(const v4& other) const;
+		bool operator!=(const v4& other) const;
+		union {
+			struct { attr_ T x; attr_ T y; attr_ T z; attr_ T w; };
+			struct { T r; T g; T b; T a; };
+			struct { T px; T py; T width; T height; };
+			struct { v2<T> pos; v2<T> size; };
+			T f[4];
+		};
+	};
+
+	template <class T> inline constexpr v2<T> operator-(const v2<T>& a) { return v2<T>(-a.x, -a.y); }
+	template <class T> inline constexpr v3<T> operator-(const v3<T>& a) { return v3<T>(-a.x, -a.y, -a.z); }
+	template <class T> inline constexpr v4<T> operator-(const v4<T>& a) { return v4<T>(-a.x, -a.y, -a.z, -a.w); }
+
+#ifdef TWO_META_GENERATOR
+	// extern is not actually necessary, only hiding the implementations + explicit instantiation
+	// deactived because of an apparent gcc bug with the inline definition of constructors above not playing well with those extern declarations
+	export_ extern template struct refl_ v2<float>;
+	export_ extern template struct refl_ v3<float>;
+	export_ extern template struct refl_ v4<float>;
+
+	export_ extern template struct refl_ v2<int>;
+	export_ extern template struct refl_ v3<int>;
+	export_ extern template struct refl_ v4<int>;
+
+	export_ extern template struct refl_ v2<uint>;
+	export_ extern template struct refl_ v3<uint>;
+	export_ extern template struct refl_ v4<uint>;
+
+	export_ extern template struct refl_ v2<bool>;
+	export_ extern template struct refl_ v3<bool>;
+	export_ extern template struct refl_ v4<bool>;
+#endif
+
+	export_ using half2 = v2<ushort>;
+	export_ using half3 = v3<ushort>;
+
+	export_ using float2 = v2<float>;
+	export_ using float3 = v3<float>;
+	export_ using float4 = v4<float>;
+
+	export_ using int2 = v2<int>;
+	export_ using int3 = v3<int>;
+	export_ using int4 = v4<int>;
+
+	export_ using uint2 = v2<uint>;
+	export_ using uint3 = v3<uint>;
+	export_ using uint4 = v4<uint>;
+
+	export_ using bool2 = v2<bool>;
+	export_ using bool3 = v3<bool>;
+	export_ using bool4 = v4<bool>;
+
+	export_ template <class T> inline typename T::type* value_ptr(T& v) { return &v[0]; }
+	export_ template <class T> inline const typename T::type* value_ptr(const T& v) { return &v.f[0]; }
+
 	export_ using vec2 = float2;
 	export_ using vec3 = float3;
 	export_ using vec4 = float4;
@@ -31,127 +147,83 @@ namespace mud
 	export_ using ivec4 = int4;
 	export_ using bvec3 = bool3;
 	export_ using bvec4 = bool4;
+
+	export_ struct refl_ struct_ array_ mat3
+	{
+		typedef float type;
+		constr_ mat3();
+		constr_ mat3(const float3& x, const float3& y, const float3& z);
+		constr_ mat3(float f0, float f1, float f2, float f3, float f4, float f5, float f6, float f7, float f8);
+
+		const float3& operator[](uint index) const { return v[index]; }
+		float3& operator[](uint index) { return v[index]; }
+
+		union
+		{
+			float m[3][3];
+			float3 v[3];
+			attr_ float f[9];
+		};
+	};
+
+	export_ struct refl_ struct_ array_ mat4
+	{
+		typedef float type;
+		typedef uint length_type;
+		constr_ mat4();
+		constr_ mat4(const float4& x, const float4& y, const float4& z, const float4& w);
+		constr_ mat4(float f0, float f1, float f2, float f3, float f4, float f5, float f6, float f7, float f8, float f9, float f10, float f11, float f12, float f13, float f14, float f15);
+
+		const float4& operator[](uint index) const { return v[index]; }
+		float4& operator[](uint index) { return v[index]; }
+
+		bool operator==(const mat4& other) const;
+		bool operator!=(const mat4& other) const { return !(*this == other); }
+
+		union
+		{
+			float m[4][4];
+			float4 v[4];
+			attr_ float f[16];
+		};
+	};
+
+	export_ struct refl_ struct_ quat : public float4 // array_
+	{
+		typedef float type;
+		constr_ constexpr quat() : float4() {}
+		constr_ constexpr quat(float x, float y, float z, float w) : float4(x, y, z, w) { }
+		constr_ explicit quat(const float3& euler_angles);
+	};
+
+	export_ enum refl_ Clockwise : unsigned int
+	{
+		CLOCKWISE,
+		ANTI_CLOCKWISE
+	};
 }
-#else
-#ifndef MUD_META_GENERATOR
-#define GLM_ENABLE_EXPERIMENTAL
 
-#if defined _MSC_VER
-#	pragma warning (push)
-#	pragma warning (disable : 4701)
-#endif
-
-#include <glm/vec2.hpp>
-#include <glm/vec3.hpp>
-#include <glm/vec4.hpp>
-#include <glm/mat2x2.hpp>
-#include <glm/mat3x3.hpp>
-#include <glm/mat4x4.hpp>
-#include <glm/gtc/quaternion.hpp>
-#include <glm/gtx/quaternion.hpp>
-#include <glm/gtc/type_ptr.hpp>
-#include <glm/gtx/vector_angle.hpp>
-
-#if defined _MSC_VER
-#	pragma warning (pop)
-#endif
-
-namespace mud
+namespace two
 {
-	export_ using glm::vec2;
-	export_ using glm::uvec2;
-	export_ using glm::ivec2;
-	export_ using glm::vec3;
-	export_ using glm::bvec3;
-	export_ using glm::uvec3;
-	export_ using glm::ivec3;
-	export_ using glm::vec4;
-	export_ using glm::bvec4;
-	export_ using glm::uvec4;
-	export_ using glm::ivec4;
-	export_ using glm::quat;
-	export_ using glm::mat2;
-	export_ using glm::mat3;
-	export_ using glm::mat4;
+	export_ constexpr inline vec3 x3 = { 1.f, 0.f, 0.f };
+	export_ constexpr inline vec3 y3 = { 0.f, 1.f, 0.f };
+	export_ constexpr inline vec3 z3 = { 0.f, 0.f, 1.f };
 
-	export_ using half3 = glm::vec<3, ushort, glm::highp>;
-	export_ using half2 = glm::vec<2, ushort, glm::highp>;
-	export_ using ushort2 = glm::vec<2, ushort, glm::highp>;
-	export_ using ushort3 = glm::vec<3, ushort, glm::highp>;
-	export_ using ushort4 = glm::vec<4, ushort, glm::highp>;
-}
-#endif
-#endif
+	export_ constexpr inline quat ZeroQuat = { 0.f, 0.f, 0.f, 1.f };
 
-#ifdef MUD_META_GENERATOR
-namespace mud
-{
-	struct refl_ array_ extern_ vec2  { constr_ vec2();   constr_ vec2(float a);     constr_ vec2(float x, float y);                                attr_ float x; attr_ float y; };
-	struct refl_ array_ extern_ uvec2 { constr_ uvec2();  constr_ uvec2(uint32_t a); constr_ uvec2(uint32_t x, uint32_t y);						   attr_ uint32_t x; attr_ uint32_t y; };
-	struct refl_ array_ extern_ vec3  { constr_ vec3();   constr_ vec3(float a);     constr_ vec3(float x, float y, float z);                       attr_ float x; attr_ float y; attr_ float z; };
-	struct refl_ array_ extern_ uvec3 { constr_ uvec3();  constr_ uvec3(uint32_t a); constr_ uvec3(uint32_t x, uint32_t y, uint32_t z);             attr_ uint32_t x;   attr_ uint32_t y;   attr_ uint32_t z; };
-	struct refl_ array_ extern_ ivec3 { constr_ ivec3();  constr_ ivec3(int a);      constr_ ivec3(int x, int y, int z);                            attr_ int x;   attr_ int y;   attr_ int z; };
-	struct refl_ array_ extern_ vec4  { constr_ vec4();   constr_ vec4(float a);     constr_ vec4(float w, float x, float y, float z);              attr_ float x; attr_ float y; attr_ float z; attr_ float w; };
-	struct refl_ array_ extern_ uvec4 { constr_ uvec4();  constr_ uvec4(uint32_t a); constr_ uvec4(uint32_t w, uint32_t x, uint32_t y, uint32_t z); attr_ uint32_t x; attr_ uint32_t y; attr_ uint32_t z; attr_ uint32_t w; };
-	struct refl_ array_ extern_ quat  { constr_ quat();   constr_ quat(float w, float x, float y, float z);   constr_ quat(vec3 euler_angles);      attr_ float x; attr_ float y; attr_ float z; attr_ float w; };
-	struct refl_ extern_ mat4 {};
-
-	struct refl_ extern_ bvec3 {};
-	struct refl_ extern_ bvec4 {};
-	struct refl_ extern_ ivec2 {};
-	struct refl_ extern_ ivec4 {};
-}
-#endif
-
-namespace mud
-{
-	export_ extern MUD_MATH_EXPORT const vec3 X3; // = { 1.f, 0.f, 0.f };
-	export_ extern MUD_MATH_EXPORT const vec3 Y3; // = { 0.f, 1.f, 0.f };
-	export_ extern MUD_MATH_EXPORT const vec3 Z3; // = { 0.f, 0.f, 1.f };
-
-	export_ extern MUD_MATH_EXPORT const vec3 Zero3; // = { 0.f, 0.f, 0.f };
-	export_ extern MUD_MATH_EXPORT const vec3 Unit3; // = { 1.f, 1.f, 1.f };
-
-	export_ extern MUD_MATH_EXPORT const quat ZeroQuat; // = { 1.f, 0.f, 0.f, 0.f };
-
-	export_ extern MUD_MATH_EXPORT const vec2 Zero2; // = { 0.f, 0.f };
-	export_ extern MUD_MATH_EXPORT const vec2 Unit2; // = { 1.f, 1.f };
-
-	export_ extern MUD_MATH_EXPORT const vec4 Zero4; // = { 0.f, 0.f, 0.f, 0.f };
-	export_ extern MUD_MATH_EXPORT const vec4 Rect4; // = { 0.f, 0.f, 1.f, 1.f };
-
-	export_ inline vec3 to_xz(const vec2& vec) { return{ vec.x, 0.f, vec.y }; }
-	export_ inline vec2 to_xz(const vec3& vec) { return{ vec.x, vec.z }; }
-	export_ inline ivec3 to_xz(const ivec2& vec) { return{ vec.x, 0, vec.y }; }
-	export_ inline ivec2 to_xz(const ivec3& vec) { return{ vec.x, vec.z }; }
-
-	export_ inline float& rect_w(vec4& rect) { return rect.z; }
-	export_ inline float& rect_h(vec4& rect) { return rect.w; }
-
-	export_ inline float rect_w(const vec4& rect) { return rect.z; }
-	export_ inline float rect_h(const vec4& rect) { return rect.w; }
-
-	export_ inline unsigned int& rect_w(uvec4& rect) { return rect.z; }
-	export_ inline unsigned int& rect_h(uvec4& rect) { return rect.w; }
-
-	export_ inline vec2 rect_offset(const vec4& rect) { return{ rect.x, rect.y }; }
-	export_ inline vec2 rect_size(const vec4& rect) { return{ rect.z, rect.w }; }
-	export_ inline vec2 rect_sum(const vec4& rect) { return vec2{ rect.x, rect.y } + vec2{ rect.z, rect.w }; }
-	export_ inline vec2 rect_center(const vec4& rect) { return rect_offset(rect) + rect_size(rect) * 0.5f; }
+	export_ constexpr inline vec4 Rect4 = { 0.f, 0.f, 1.f, 1.f };
 
 	export_ inline bool rect_intersects(const vec4& first, const vec4& second)
 	{
 		return !(second.x > first.x + first.z || second.y > first.y + first.w || second.x + second.z < first.x || second.y + second.w < first.y);
 	}
 
-	export_ struct refl_ MUD_MATH_EXPORT Transform
+	export_ struct refl_ TWO_MATH_EXPORT Transform
 	{
-		constr_ Transform() {}
-		constr_ Transform(const vec3& position, const quat& rotation, const vec3& scale) : m_position(position), m_rotation(rotation), m_scale(scale) {}
-		attr_ vec3 m_position = Zero3;
+		attr_ vec3 m_position = vec3(0.f);
 		attr_ quat m_rotation = ZeroQuat;
-		attr_ vec3 m_scale = Unit3;
+		attr_ vec3 m_scale = vec3(1.f);
 	};
 
-	Transform average_transforms(array<Transform*> transforms);
+	Transform average_transforms(span<Transform*> transforms);
 }

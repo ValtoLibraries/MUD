@@ -1,100 +1,82 @@
 #pragma once
 
+#include <stdint.h>
+#include <stl/string.h>
+#include <stl/vector.h>
 #include <geom/Forward.h>
 
-#if !defined MUD_MODULES || defined MUD_TYPE_LIB
+#if !defined TWO_MODULES || defined TWO_TYPE_LIB
 #include <type/Type.h>
-#include <type/Vector.h>
 #endif
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
 #include <type/Types.h>
 #include <math/Types.h>
 #endif
 
-#ifndef MUD_CPP_20
-#include <string>
-#include <cstdint>
-#include <vector>
-#endif
 
-
-namespace mud
+namespace two
 {
     // Exported types
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::DrawMode>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::PrimitiveType>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::SymbolDetail>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::CatmullType>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::DrawMode>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::PrimitiveType>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::SymbolDetail>();
     
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Distribution>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Face3>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::MeshPacker>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Plane>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Plane3>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Ray>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Segment>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Shape>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::ShapeVar>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Symbol>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Poisson>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Aabb>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Arc>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::ArcLine>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Box>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Capsule>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Circle>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::ConvexHull>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Cube>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Cylinder>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Ellipsis>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Geometry>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Grid2>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Grid3>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Line>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Points>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Polygon>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Quad>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Rect>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Ring>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Sphere>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::SphereRing>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Spheroid>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Torus>();
-    export_ template <> MUD_GEOM_EXPORT Type& type<mud::Triangle>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<stl::vector<two::vec2>>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<stl::vector<two::vec4>>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<stl::vector<two::ivec4>>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<stl::vector<two::Circle>>();
     
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Distribution*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Face3*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::MeshPacker*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Plane*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Plane3*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Ray*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Segment*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Shape*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::ShapeVar*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Symbol*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Poisson*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Aabb*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Arc*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::ArcLine*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Box*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Capsule*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Circle*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::ConvexHull*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Cube*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Cylinder*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Ellipsis*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Geometry*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Grid2*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Grid3*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Line*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Points*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Polygon*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Quad*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Rect*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Ring*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Sphere*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::SphereRing*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Spheroid*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Torus*>>;
-	export_ template struct MUD_GEOM_EXPORT Typed<std::vector<mud::Triangle*>>;
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Aabb>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Curve2>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Curve3>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::CurveSpline>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::CurveSpline3>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::CurveBezierCubic>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::CurveBezierCubic3>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::CurveLine>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::CurveLine3>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::CurveBezierQuadratic>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::CurveBezierQuadratic3>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::CurveCatmullRom3>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Plane>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Plane3>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Face3>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Segment>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Ray>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::MeshAdapter>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Shape>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::ShapeVar>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Geometry>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::MeshPacker>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Line>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Rect>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Quad>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Grid2>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Triangle>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Circle>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Torus>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::TorusKnot>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Ring>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Ellipsis>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Arc>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::ArcLine>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Cylinder>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Capsule>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Cube>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Tetraedr>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Sphere>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::SphereRing>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Spheroid>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Icosaedr>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Distribution>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Poisson>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Polygon>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Box>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Points>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Grid3>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::ConvexHull>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::Symbol>();
+    export_ template <> TWO_GEOM_EXPORT Type& type<two::MarchingCubes>();
 }

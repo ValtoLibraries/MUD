@@ -1,5 +1,3 @@
-
-
 #pragma once
 
 #include <infra/Config.h>
@@ -7,41 +5,19 @@
 #include <type/Forward.h>
 #include <math/Forward.h>
 
-#ifndef MUD_GEOM_EXPORT
-#define MUD_GEOM_EXPORT MUD_IMPORT
+#ifndef TWO_GEOM_EXPORT
+#define TWO_GEOM_EXPORT TWO_IMPORT
 #endif
 
-
-    
-    
-
-namespace std {
-
-    
-    
-}
-
-namespace glm {
-
-    
-    
-}
-
-namespace json11 {
-
-    
-    
-}
-
-namespace mud {
-
+namespace two
+{
     enum DrawMode : unsigned int;
     enum class PrimitiveType : unsigned int;
     enum class SymbolDetail : unsigned short;
-    
+	enum class CatmullType : unsigned int;
     
     class Shape;
-    struct ShapeVar;
+    class ShapeVar;
     struct Line;
     struct Rect;
     struct Quad;
@@ -49,6 +25,7 @@ namespace mud {
     struct Triangle;
     struct Circle;
     struct Torus;
+	struct TorusKnot;
     struct Ring;
     struct Ellipsis;
     struct Arc;
@@ -56,10 +33,23 @@ namespace mud {
     struct Cylinder;
     struct Capsule;
     struct Cube;
+	struct Tetraedr;
     struct Sphere;
     struct SphereRing;
     struct Spheroid;
+	struct Icosaedr;
     struct Aabb;
+	class Curve2;
+	class Curve3;
+	struct CurveBezierCubic;
+	struct CurveBezierCubic3;
+	struct CurveBezierQuadratic;
+	struct CurveBezierQuadratic3;
+	struct CurveCatmullRom3;
+	struct CurveLine;
+	struct CurveLine3;
+	struct CurveSpline;
+	struct CurveSpline3;
     struct Plane;
     struct Plane3;
     struct Face3;
@@ -75,6 +65,7 @@ namespace mud {
     struct MeshAdapter;
     class Geometry;
     struct MeshPacker;
+	class MarchingCubes;
     class Distribution;
     class Poisson;
     class RandomShapePoint;
@@ -91,11 +82,17 @@ namespace mud {
     class IcoSphere;
 }
 
-namespace mud {
-namespace detail {
+#ifdef TWO_META_GENERATOR
+#include <stl/vector.h>
+#include <stl/span.h>
+namespace stl
+{
+	export_ extern template struct refl_ span_ span<two::vec3>;
 
-    
-    
-}
-}
+	export_ extern template class refl_ seque_ vector<two::vec2>;
+	export_ extern template class refl_ seque_ vector<two::vec4>;
+	export_ extern template class refl_ seque_ vector<two::ivec4>;
 
+	export_ extern template class refl_ seque_ vector<two::Circle>;
+}
+#endif

@@ -7,32 +7,19 @@
 #include <math/Vec.h>
 #include <snd/Forward.h>
 
-namespace mud
+namespace two
 {
-	class MUD_SND_EXPORT SoundListener
+	class TWO_SND_EXPORT SoundListener
 	{
 	public:
 		SoundListener();
 
-		vec3 m_position = Zero3;
-		vec3 m_front = { 0.f, 0.f, -1.f }; //-Z3;
-		vec3 m_up = Y3;
+		vec3 m_position = vec3(0.f);
+		vec3 m_front = vec3(0.f, 0.f, -1.f); //-z3;
+		vec3 m_up = y3;
 
-		void setTransform(const vec3& position, const quat& rotation)
-		{
-			m_position = position;
-			m_front = rotate(rotation, -Z3);
-			m_up = rotate(rotation, Y3);
-			m_transformUpdated = true;
-		}
-
-		void setTransform(const vec3& position, const vec3& front, const vec3& up)
-		{
-			m_position = position;
-			m_front = front;
-			m_up = up;
-			m_transformUpdated = true;
-		}
+		void set_transform(const vec3& position, const quat& rotation);
+		void set_transform(const vec3& position, const vec3& front, const vec3& up);
 
 		void update();
 

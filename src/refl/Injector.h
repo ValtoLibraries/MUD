@@ -4,19 +4,15 @@
 
 #pragma once
 
-#include <type/Any.h>
+#include <stl/vector.h>
+#include <type/Var.h>
 #include <type/Unique.h>
-#include <infra/NonCopy.h>
 #include <refl/Forward.h>
-#include <refl/Method.h>
+#include <refl/Call.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#endif
-
-namespace mud
+namespace two
 {
-	export_ class refl_ MUD_REFL_EXPORT Injector : public Call
+	export_ class refl_ TWO_REFL_EXPORT Injector : public Call
 	{
 	public:
 		Injector(const Constructor& constructor);
@@ -35,7 +31,7 @@ namespace mud
 		void destroy(Ref object);
 	};
 
-	export_ class refl_ MUD_REFL_EXPORT Creator : public NonCopy
+	export_ class refl_ TWO_REFL_EXPORT Creator
 	{
 	public:
 		Creator(Type& type);
@@ -45,7 +41,7 @@ namespace mud
 		attr_ Type* m_prototype;
 		attr_ Injector& injector() const { return *m_injector; }
 
-		object_ptr<Injector> m_injector;
+		object<Injector> m_injector;
 
 		void set_prototype(Type& prototype);
 	};

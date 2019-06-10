@@ -3,17 +3,18 @@
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #include <infra/Cpp20.h>
-#ifndef MUD_CPP_20
+#ifndef TWO_CPP_20
 #include <cstdlib>
 #include <cstdio>
 #include <cmath>
 #include <ctime>
 #endif
 
-#ifdef MUD_MODULES
-module mud.fract;
+#ifdef TWO_MODULES
+module two.fract;
 #else
 #include <math/Colour.h>
+#include <math/Vec.hpp>
 #include <fract/Fract.h>
 #endif
 
@@ -22,9 +23,9 @@ module mud.fract;
 #define COEFF_ROTATION 15
 #define COEFF_V 0.004
 
-#ifndef MUD_CPP_20
+#ifndef TWO_CPP_20
 #include <cstdio>
-#include <string>
+#include <stl/string.h>
 #endif
 
 float rnd_float()
@@ -33,7 +34,7 @@ float rnd_float()
 	//rand()/RAND_MAX;
 }
 
-namespace mud
+namespace two
 {
 	void generate_fract(uvec2 resolution, const Pattern& pattern, Image256& output_image)
 	{
@@ -83,12 +84,12 @@ namespace mud
 		//normal_a = normal_ab*cos(pa);
 		//normal_b = normal_ab*sin(pa);
 
-		/*std::cerr << "AXIS" << std::endl;
-		std::cerr << cos(angle_t) << std::endl;
-		std::cerr << "dist : " << dist << std::endl;
-		std::cerr << "normal_c : " << normal_c << std::endl;
-		std::cerr << "ptt : " << ptt << std::endl;
-		std::cerr << "normal_ab : " << normal_ab << ", ptt/pt : " << ptt / dist << std::endl;*/
+		/*printf("AXIS" );
+		printf(cos(angle_t) );
+		printf("dist : " << dist );
+		printf("normal_c : " << normal_c );
+		printf("ptt : " << ptt );
+		printf("normal_ab : " << normal_ab << ", ptt/pt : " << ptt / dist );*/
 
 	}
 
@@ -101,8 +102,8 @@ namespace mud
 		c = normal_c;
 		
 		normal = vec3(a, b, 0.f);
-		if(normal == Zero3)
-			normal = X3;
+		if(normal == vec3(0.f))
+			normal = x3;
 		else
 			normal = normalize(normal);
 
@@ -194,25 +195,19 @@ namespace mud
 
 	uint32_t Fract::inverse_colour(int x, int y, const Rect& rect, const Pattern& pattern, Image256& image)
 	{
-		float ox = float(x) / float(image.m_width) * rect.m_size.x + rect.m_position.x - 0.5f;
-		float oy = float(y) / float(image.m_height) * rect.m_size.y + rect.m_position.y - 0.5f;
+		const vec2 o = vec2(float(x), float(y)) / vec2(image.m_size) * rect.m_size + rect.m_position - 0.5f;
+		vec2 p = o;
 
-		float px = ox;
-		float py = oy;
+		int num_reflects = this->inverse_point(p.x, p.y);
+		p *= vec2(image.m_size) / rect.m_size;
 
-		int num_reflects = this->inverse_point(px, py);
-
-		px *= image.m_width / rect.m_size.x;
-		py *= image.m_height / rect.m_size.y;
-
-		uint32_t color = pattern.sample(px, py, float(num_reflects));
-
+		uint32_t color = pattern.sample(p.x, p.y, float(num_reflects));
 		return color;
 	}
 
-	void Fract::render(const Rect& rect, const Pattern& pattern, uvec2 resolution, Image256& image)
+	void Fract::render(const Rect& rect, const Pattern& pattern, const uvec2& resolution, Image256& image)
 	{
-		image.resize(uint16_t(resolution.x), uint16_t(resolution.y));
+		image.resize(resolution);
 
 		image.m_palette = pattern.m_palette;
 
@@ -224,18 +219,19 @@ namespace mud
 		++m_update;
 	}
 
-	void Fract::render_whole(const Pattern& pattern, uvec2 resolution, Image256& image)
+	void Fract::render_whole(const Pattern& pattern, const uvec2& resolution, Image256& image)
 	{
 		Rect rect(0.f, 0.f, 1.f, 1.f);
 		this->render(rect, pattern, resolution, image);
 	}
 
-	void Fract::render_grid(uvec2 subdiv, const Pattern& pattern, uvec2 resolution, std::vector<Image256>& images)
+	void Fract::render_grid(const uvec2& subdiv, const Pattern& pattern, const uvec2& resolution, vector<Image256>& images)
 	{
 		for(size_t y = 0; y < subdiv.y; ++y)
 			for(size_t x = 0; x < subdiv.x; ++x)
 			{
-				Rect rect(float(x) / float(subdiv.x), float(y) / float(subdiv.y), 1.f / float(subdiv.x), 1.f / float(subdiv.y));
+				const uvec2 coord = uvec2(x, y);
+				Rect rect(vec2(coord) / vec2(subdiv), vec2(1.f) / vec2(subdiv));
 				images.emplace_back();
 				this->render(rect, pattern, resolution, images.back());
 			}

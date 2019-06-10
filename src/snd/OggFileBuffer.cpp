@@ -4,15 +4,14 @@
 
 #include <snd/OggFileBuffer.h>
 
-#include <iostream>
-#include <vector>
+#include <stl/vector.h>
 
 #include <vorbis/vorbisfile.h>
 
 #include <AL/al.h>
 #include <AL/alc.h>
 
-namespace mud
+namespace two
 {
 	static size_t ogg_read(void* ptr, size_t size, size_t count, void* file)
 	{
@@ -50,7 +49,7 @@ namespace mud
 	OggFileBuffer::~OggFileBuffer()
 	{}
 
-	void OggFileBuffer::open(cstring filename)
+	void OggFileBuffer::open(const string& filename)
 	{
 		m_impl->m_ogg_callbacks.read_func = ogg_read;
 		m_impl->m_ogg_callbacks.close_func = ogg_close;
@@ -62,7 +61,7 @@ namespace mud
 		//FILE* file = fopen(filename, "rb");
 		//int result = ov_open_callbacks(file, &m_oggFile, NULL, 0, m_oggCallbacks);
 
-		int result = ov_fopen(filename, &m_impl->m_ogg_file);
+		int result = ov_fopen(filename.c_str(), &m_impl->m_ogg_file);
 
 		if(result < 0)
 			return;
@@ -73,7 +72,7 @@ namespace mud
 		m_duration = static_cast<float>(ov_time_total(&m_impl->m_ogg_file, -1));
 		m_seekable = (ov_seekable(&m_impl->m_ogg_file) != 0);
 
-		if (!this->read_buffer_info())
+		if(!this->read_buffer_info())
 			return;
 
 		m_mono = ((m_format==AL_FORMAT_MONO16) || (m_format==AL_FORMAT_MONO8));
@@ -102,8 +101,8 @@ namespace mud
 
 	void OggFileBuffer::fill(ALuint buffer)
 	{
-		std::vector<char> data;
-		std::vector<char> chunk = std::vector<char>(m_chunk_size);
+		vector<char> data;
+		vector<char> chunk = vector<char>(m_chunk_size);
 
 		int size_read = 1;
 		int last_pos = 0;
@@ -111,7 +110,7 @@ namespace mud
 
 		while(size_read > 0)
 		{
-			//std::cerr << "reading : " << size_read << " at pos : " << last_pos << std::endl;
+			//printf("reading : " << size_read << " at pos : " << last_pos );
 			size_read = ov_read(&m_impl->m_ogg_file, chunk.data(), int(m_chunk_size), 0, 2, 1, &section);
 			data.insert(data.end(), chunk.begin(), chunk.begin() + size_read);
 			last_pos += size_read;
@@ -123,7 +122,7 @@ namespace mud
 
 	bool OggFileBuffer::fill_chunk(ALuint buffer)
 	{
-		std::vector<char> chunk = std::vector<char>(m_chunk_size);
+		vector<char> chunk = vector<char>(m_chunk_size);
 		
 		bool last_chunk = this->read_chunk(chunk.data(), m_chunk_size);
 
@@ -182,28 +181,28 @@ namespace mud
 			break;
 		case 4:
 				m_format = alGetEnumValue("AL_FORMAT_QUAD16");
-				if (!m_format) return false;
+				if(!m_format) return false;
 				// Set BufferSize to 250ms (Frequency * 8 (16bit 4-channel) divided by 4 (quarter of a second))
 				m_chunk_size = m_impl->m_vorbis_info->rate * 2;
 				m_chunk_size -= (m_chunk_size % 8);
 			break;
 		case 6:
 				m_format = alGetEnumValue("AL_FORMAT_51CHN16");
-				if (!m_format) return false;
+				if(!m_format) return false;
 				// Set BufferSize to 250ms (Frequency * 12 (16bit 6-channel) divided by 4 (quarter of a second))
 				m_chunk_size = m_impl->m_vorbis_info->rate * 3;
 				m_chunk_size -= (m_chunk_size % 12);
 			break;
 		case 7:
 				m_format = alGetEnumValue("AL_FORMAT_61CHN16");
-				if (!m_format) return false;
+				if(!m_format) return false;
 				// Set BufferSize to 250ms (Frequency * 16 (16bit 7-channel) divided by 4 (quarter of a second))
 				m_chunk_size = m_impl->m_vorbis_info->rate * 4;
 				m_chunk_size -= (m_chunk_size % 16);
 			break;
 		case 8:
 				m_format = alGetEnumValue("AL_FORMAT_71CHN16");
-				if (!m_format) return false;
+				if(!m_format) return false;
 				// Set BufferSize to 250ms (Frequency * 20 (16bit 8-channel) divided by 4 (quarter of a second))
 				m_chunk_size = m_impl->m_vorbis_info->rate * 5;
 				m_chunk_size -= (m_chunk_size % 20);

@@ -4,19 +4,16 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
+#include <stl/vector.h>
+#include <type/Unique.h>
 #include <type/Var.h>
-#include <infra/NonCopy.h>
 #endif
 #include <lang/Forward.h>
 #include <lang/Stream.h>
 #include <lang/Script.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#endif
-
-namespace mud
+namespace two
 {
 	export_ enum ValveKind : unsigned int
 	{
@@ -26,10 +23,10 @@ namespace mud
 		OUTPUT_VALVE
 	};
 
-	export_ class refl_ MUD_LANG_EXPORT Valve
+	export_ class refl_ TWO_LANG_EXPORT Valve
 	{
 	public:
-		Valve(Process& process, cstring name, ValveKind kind, Var value = {}, bool nullable = false, bool reference = false);
+		Valve(Process& process, cstring name, ValveKind kind, const Var& value = {}, bool nullable = false, bool reference = false);
 		Valve(Process& process, const Param& param);
 		~Valve();
 
@@ -40,7 +37,7 @@ namespace mud
 
 		Stream m_stream;
 
-		std::vector<Pipe*> m_pipes;
+		vector<Pipe*> m_pipes;
 
 		bool m_edit;
 
@@ -50,12 +47,12 @@ namespace mud
 		bool check(const StreamLocation& location);
 		const Var& read(const StreamLocation& location);
 
-		object_ptr<Pipe> try_connect(Valve& output, StreamModifier modifier = SM_NONE);
+		object<Pipe> try_connect(Valve& output, StreamModifier modifier = SM_NONE);
 
 		void propagate();
 	};
 
-	export_ class refl_ MUD_LANG_EXPORT Pipe
+	export_ class refl_ TWO_LANG_EXPORT Pipe
 	{
 	public:
 		Pipe(Valve& output, Valve& input, StreamModifier modifier = SM_NONE);
@@ -68,13 +65,13 @@ namespace mud
 		void propagate();
 	};
 
-	export_ class refl_ MUD_LANG_EXPORT Process
+	export_ class refl_ TWO_LANG_EXPORT Process
 	{
 	public:
 		Process(VisualScript& script, cstring title, Type& type);
 		virtual ~Process();
 
-		typedef std::function<void(Process&)> Callback;
+		using Callback = void(*)(Process&);
 
 		enum State
 		{
@@ -87,8 +84,8 @@ namespace mud
 		VisualScript& m_script;
 		size_t m_index;
 		string m_title;
-		std::vector<Valve*> m_inputs;
-		std::vector<Valve*> m_outputs;
+		vector<Valve*> m_inputs;
+		vector<Valve*> m_outputs;
 
 		State m_state = UNCOMPUTED;
 
@@ -98,13 +95,13 @@ namespace mud
 
 		float m_position[2];
 
-		Callback m_callback;
+		Callback m_callback = nullptr;
 
 		Valve* m_master_input = nullptr;
 		Valve* m_secondary_input = nullptr;
 
-		object_ptr<Valve> m_in_flow;
-		object_ptr<Valve> m_out_flow;
+		object<Valve> m_in_flow;
+		object<Valve> m_out_flow;
 
 		Stream m_execution_flow;
 
@@ -130,8 +127,8 @@ namespace mud
 		Valve& find_master_input();
 
 		Process& flow(Valve& valve);
-		Valve* pipe(std::vector<Valve*> params = {}, Process* flow = nullptr, std::vector<StreamModifier> modifiers = {});
-		Process& plug(std::vector<Valve*> params = {}, Process* flow = nullptr, std::vector<StreamModifier> modifiers = {});
+		Valve* pipe(span<Valve*> params = {}, Process* flow = nullptr, span<StreamModifier> modifiers = {});
+		Process& plug(span<Valve*> params = {}, Process* flow = nullptr, span<StreamModifier> modifiers = {});
 		Process& combine_flow(size_t masterInput, size_t secondaryInput);
 
 		void connected(Process& output);
@@ -139,21 +136,24 @@ namespace mud
 		int visit_order();
 	};
 
-	export_ class refl_ MUD_LANG_EXPORT VisualScript final : public NonCopy, public Script
+	export_ class refl_ TWO_LANG_EXPORT VisualScript final : public Script
 	{
 	public:
-		constr_ VisualScript(cstring name, const Signature& signature = {});
+		constr_ VisualScript(const string& name, const Signature& signature = {});
 
-		std::vector<object_ptr<Process>> m_processes;
-		std::vector<object_ptr<Pipe>> m_pipes;
+		VisualScript(const VisualScript& other) = delete;
+		VisualScript& operator=(const VisualScript& other) = delete;
 
-		std::vector<Process*> m_execution;
+		vector<object<Process>> m_processes;
+		vector<object<Pipe>> m_pipes;
 
-		std::vector<ProcessInput*> m_inputs;
-		std::vector<ProcessOutput*> m_outputs;
+		vector<Process*> m_execution;
+
+		vector<ProcessInput*> m_inputs;
+		vector<ProcessOutput*> m_outputs;
 
 		using Callable::operator();
-		virtual void operator()(array<Var> args, Var& result) const;
+		virtual void operator()(span<void*> args, void*& result) const;
 
 		void lock();
 		void unlock(bool execute = false);
@@ -172,7 +172,7 @@ namespace mud
 		template <class T, class... Types>
 		T& node(Types&&... args)
 		{
-			m_processes.push_back(make_object<T>(*this, std::forward<Types>(args)...)); return as<T>(*m_processes.back());
+			m_processes.push_back(oconstruct<T>(*this, static_cast<Types&&>(args)...)); return as<T>(*m_processes.back());
 		}
 
 		template <class T>
@@ -182,22 +182,22 @@ namespace mud
 		Valve& reference(T&& value);
 		
 		template <class T>
-		Valve* function(T func, std::vector<Valve*> params = {}, Process* flow = nullptr, std::vector<StreamModifier> modifiers = {});
+		Valve* function(T func, span<Valve*> params = {}, Process* flow = nullptr, span<StreamModifier> modifiers = {});
 
 		template <class T>
-		Valve& create(std::vector<Valve*> params = {}, Process* flow = nullptr, std::vector<StreamModifier> modifiers = {});
+		Valve& create(span<Valve*> params = {}, Process* flow = nullptr, span<StreamModifier> modifiers = {});
 
 		template <class T_Member>
-		Valve& get(T_Member mem, std::vector<Valve*> params = {}, Process* flow = nullptr, std::vector<StreamModifier> modifiers = {});
+		Valve& get(T_Member mem, span<Valve*> params = {}, Process* flow = nullptr, span<StreamModifier> modifiers = {});
 		
 		template <class T_Member>
-		void set(T_Member mem, std::vector<Valve*> params = {}, Process* flow = nullptr, std::vector<StreamModifier> modifiers = {});
+		void set(T_Member mem, span<Valve*> params = {}, Process* flow = nullptr, span<StreamModifier> modifiers = {});
 		
 		template <class T_Method>
-		Valve* method(T_Method meth, std::vector<Valve*> params = {}, Process* flow = nullptr, std::vector<StreamModifier> modifiers = {});
+		Valve* method(T_Method meth, span<Valve*> params = {}, Process* flow = nullptr, span<StreamModifier> modifiers = {});
 	};
 
-	export_ class refl_ MUD_LANG_EXPORT ProcessInput : public Process, public Param
+	export_ class refl_ TWO_LANG_EXPORT ProcessInput : public Process, public Param
 	{
 	public:
 		ProcessInput(VisualScript& script, const Param& param);
@@ -205,7 +205,7 @@ namespace mud
 		Valve m_output;
 	};
 
-	export_ class refl_ MUD_LANG_EXPORT ProcessOutput : public Process, public Param
+	export_ class refl_ TWO_LANG_EXPORT ProcessOutput : public Process, public Param
 	{
 	public:
 		ProcessOutput(VisualScript& script, const Param& param);

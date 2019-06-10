@@ -7,7 +7,7 @@
 #include <snd/Sound.h>
 #include <snd/SharedBuffer.h>
 
-namespace mud
+namespace two
 {
 	class StaticSound : public Sound
 	{
@@ -15,18 +15,18 @@ namespace mud
 		StaticSound(SoundImplementer& manager, SoundCallback callback = {});
 		~StaticSound();
 
-		virtual void openShared(SharedBuffer& buffer) final;
-		virtual void release() final;
+		virtual void open(SharedBuffer& buffer) override;
+		virtual void release() override;
 			    
-		virtual void updateBuffers() final;
-		virtual void fillBuffers() final;
-		virtual void clearBuffers() final;
+		virtual void update_buffers() override;
+		virtual void fill_buffers() override;
+		virtual void clear_buffers() override;
 			    
-		virtual void rewind() final;
-		virtual void updatePlayCursor() final;
-		virtual ALfloat getPlayCursor() final;
+		virtual void rewind() override;
+		virtual void update_play_cursor() override;
+		virtual ALfloat get_play_cursor() override;
 
-		void setLoop(bool loop);
+		void set_loop(bool loop);
 
 	private:
 		SharedBuffer* m_buffer;

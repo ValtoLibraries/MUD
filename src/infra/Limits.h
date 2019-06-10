@@ -4,7 +4,5 @@
 
 #pragma once
 
-#ifndef MUD_CPP_20
-#include <cstdint>
-#include <limits>
-#endif
+#include <stdint.h>
+#include <stl/limits.h>

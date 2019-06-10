@@ -4,22 +4,19 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
+#include <stl/vector.h>
 #include <math/Vec.h>
 #endif
 #include <tool/Forward.h>
 #include <tool/Tool.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#endif
-
-namespace mud
+namespace two
 {
-	export_ class refl_ MUD_TOOL_EXPORT RotateAction : public TransformAction
+	export_ class refl_ TWO_TOOL_EXPORT RotateAction : public TransformAction
 	{
 	public:
-		RotateAction(array<Transform*> targets, const vec3& axis);
+		RotateAction(span<Transform*> targets, const vec3& axis);
 
 		virtual void apply(Transform& transform) final;
 		virtual void undo(Transform& transform) final;
@@ -31,13 +28,13 @@ namespace mud
 		float m_angle;
 	};
 
-	export_ class refl_ MUD_TOOL_EXPORT RotateTool final : public TransformTool
+	export_ class refl_ TWO_TOOL_EXPORT RotateTool final : public TransformTool
 	{
 	public:
 		RotateTool(ToolContext& context);
 
-		Gizmo rotation_gizmo(Axis axis, float hue);
+		unique<Gizmo> rotation_gizmo(Axis axis, float hue);
 
-		virtual object_ptr<TransformAction> create_action(array<Transform*> transforms);
+		virtual object<TransformAction> create_action(span<Transform*> transforms);
 	};
 }

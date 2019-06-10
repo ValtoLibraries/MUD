@@ -4,9 +4,9 @@
 
 #pragma once
 
-namespace mud
+namespace two
 {
 	struct swallow {
-		template<typename... T> swallow(T...) {}
+		template <class... T> swallow(T...) {}
 	};
 }

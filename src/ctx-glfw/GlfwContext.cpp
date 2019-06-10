@@ -2,12 +2,14 @@
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
-#include <gfx/Cpp20.h>
-#ifndef MUD_CPP_20
+//#include <gfx/Cpp20.h>
+#ifndef TWO_CPP_20
 #include <cstdio>
 #endif
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
+#include <math/Math.h>
+#include <math/Vec.hpp>
 #include <ctx/KeyCode.h>
 #include <ctx/InputDevice.h>
 #include <ctx-glfw/GlfwContext.h>
@@ -15,32 +17,36 @@
 
 #include <GLFW/glfw3.h>
 
-#if defined MUD_PLATFORM_WINDOWS
+#if defined TWO_PLATFORM_WINDOWS
 	#define GLFW_EXPOSE_NATIVE_WIN32
-#elif defined MUD_PLATFORM_LINUX
+#elif defined TWO_PLATFORM_LINUX
 	#define GLFW_EXPOSE_NATIVE_X11
 	#define GLFW_EXPOSE_NATIVE_GLX
-#elif defined MUD_PLATFORM_OSX
+#elif defined TWO_PLATFORM_OSX
 	#define GLFW_EXPOSE_NATIVE_COCOA
 #endif
 
 #include <GLFW/glfw3native.h>
 
-#if defined MUD_PLATFORM_WINDOWS
+#if defined TWO_PLATFORM_WINDOWS
 	#undef max
 	#undef min
+	#undef near
+	#undef far
+	#undef NEAR
+	#undef FAR
 #endif
 
-#ifdef MUD_MODULES
-module mud.ctx.glfw;
+#ifdef TWO_MODULES
+module two.ctx.glfw;
 #endif
 
 void glfw_error(int error, const char* desc)
 {
-	printf("ERROR: GLFW %d: %s\n", error, desc);
+	printf("[ERROR] ctx glfw - GLFW %d: %s\n", error, desc);
 }
 
-namespace mud
+namespace two
 {
 	MouseButtonCode convert_glfw_button(int button)
 	{
@@ -185,10 +191,10 @@ namespace mud
 		else return translate(convert_glfw_key(key));
 	}
 
-	GlfwContext::GlfwContext(RenderSystem& render_system, cstring name, int width, int height, bool full_screen, bool auto_swap)
-		: Context(render_system, name, width, height, full_screen)
+	GlfwContext::GlfwContext(RenderSystem& gfx, const string& name, const uvec2& size, bool fullscreen, bool main, bool autoswap)
+		: Context(gfx, name, size, fullscreen, main)
 		, m_gl_window(nullptr)
-		, m_auto_swap(auto_swap)
+		, m_auto_swap(autoswap)
 	{
 		this->init_context();
 	}
@@ -200,19 +206,19 @@ namespace mud
 
 	void GlfwContext::init_context()
 	{
-		printf("INFO: Creating GLFW context. GLFW version %i.%i\n", GLFW_VERSION_MAJOR, GLFW_VERSION_MINOR);
+		printf("[info] ctx glfw - creating GLFW context. GLFW version %i.%i\n", GLFW_VERSION_MAJOR, GLFW_VERSION_MINOR);
 
 		glfwSetErrorCallback(glfw_error);
 
 		if(!glfwInit())
 		{
-			printf("ERROR: Failed to init GLFW.\n");
+			printf("[ERROR] ctx glfw - failed to init GLFW.\n");
 			return;
 		}
 
-#if defined MUD_RENDERER_BGFX && GLFW_VERSION_MINOR > 1
+#if defined TWO_RENDERER_BGFX && GLFW_VERSION_MINOR > 1
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-#elif not defined MUD_RENDERER_BGFX
+#elif not defined TWO_RENDERER_BGFX
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 #endif
@@ -220,7 +226,7 @@ namespace mud
 		glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, 1);
 		//glfwWindowHint(GLFW_DECORATED, 0);
 
-		m_gl_window = glfwCreateWindow(m_width, m_height, m_title.c_str(), NULL, NULL);
+		m_gl_window = glfwCreateWindow(int(m_size.x), int(m_size.y), m_title.c_str(), NULL, NULL);
 
 		if(!m_gl_window)
 		{
@@ -234,19 +240,14 @@ namespace mud
 		glfwSwapInterval(0);
 		glfwSetTime(0);
 
-#if defined MUD_PLATFORM_LINUX || defined MUD_PLATFORM_BSD
+#if defined TWO_PLATFORM_LINUX || defined TWO_PLATFORM_BSD
 		m_native_handle = (void*)(uintptr_t)glfwGetX11Window(m_gl_window);
 		m_native_target = glfwGetX11Display();
-#elif defined MUD_PLATFORM_OSX
+#elif defined TWO_PLATFORM_OSX
 		m_native_handle = glfwGetCocoaWindow(m_gl_window);
-#elif defined MUD_PLATFORM_WINDOWS
+#elif defined TWO_PLATFORM_WINDOWS
 		m_native_handle = glfwGetWin32Window(m_gl_window);
 #endif
-	}
-
-	void GlfwContext::reset(uint16_t width, uint16_t height)
-	{
-		UNUSED(width); UNUSED(height);
 	}
 
 	void GlfwContext::lock_mouse(bool locked)
@@ -258,30 +259,33 @@ namespace mud
 			glfwSetInputMode(m_gl_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 	}
 
-	bool GlfwContext::next_frame()
+	bool GlfwContext::begin_frame()
 	{
 		this->update_size();
 
 		glfwPollEvents();
 
+		return !glfwWindowShouldClose(m_gl_window);
+	}
+
+	void GlfwContext::end_frame()
+	{
 		if(m_auto_swap)
 			glfwSwapBuffers(m_gl_window);
-
-		return !glfwWindowShouldClose(m_gl_window);
 	}
 
 	void GlfwContext::update_size()
 	{
 		int width, height;
-		int fbWidth, fbHeight;
+		int fb_width, fb_height;
 		glfwGetWindowSize(m_gl_window, &width, &height);
-		glfwGetFramebufferSize(m_gl_window, &fbWidth, &fbHeight);
+		glfwGetFramebufferSize(m_gl_window, &fb_width, &fb_height);
 
 		// Calculate pixel ration for hi-dpi devices.
-		// float pxRatio = (float)fbWidth / (float)winWidth;
+		m_pixel_ratio = (float)fb_width / (float)width;
 
-		m_width = width;
-		m_height = height;
+		m_size = { uint(width), uint(height) };
+		m_fb_size = { uint(fb_width), uint(fb_height) };
 	}
 
 	void GlfwContext::init_input(Mouse& mouse, Keyboard& keyboard)
@@ -289,11 +293,12 @@ namespace mud
 		m_mouse = &mouse;
 		m_keyboard = &keyboard;
 
-		glfwSetKeyCallback(m_gl_window, [](GLFWwindow* w, int key, int scancode, int action, int mods) { static_cast<GlfwContext*>(glfwGetWindowUserPointer(w))->inject_key(key, scancode, action, mods); });
-		glfwSetCharCallback(m_gl_window, [](GLFWwindow* w, unsigned int c) { static_cast<GlfwContext*>(glfwGetWindowUserPointer(w))->inject_char(c); });
-		glfwSetMouseButtonCallback(m_gl_window, [](GLFWwindow* w, int button, int action, int mods) { static_cast<GlfwContext*>(glfwGetWindowUserPointer(w))->inject_mouse_button(button, action, mods); });
-		glfwSetCursorPosCallback(m_gl_window, [](GLFWwindow* w, double x, double y) { static_cast<GlfwContext*>(glfwGetWindowUserPointer(w))->inject_mouse_move(x, y); });
-		glfwSetScrollCallback(m_gl_window, [](GLFWwindow* w, double x, double y) { static_cast<GlfwContext*>(glfwGetWindowUserPointer(w))->inject_wheel(x, y); });
+		static auto getw = [](GLFWwindow* w) { return static_cast<GlfwContext*>(glfwGetWindowUserPointer(w)); };
+		glfwSetKeyCallback(m_gl_window, [](GLFWwindow* w, int key, int scancode, int action, int mods) { getw(w)->inject_key(key, scancode, action, mods); });
+		glfwSetCharCallback(m_gl_window, [](GLFWwindow* w, unsigned int c) { getw(w)->inject_char(c); });
+		glfwSetMouseButtonCallback(m_gl_window, [](GLFWwindow* w, int button, int action, int mods) { getw(w)->inject_mouse_button(button, action, mods); });
+		glfwSetCursorPosCallback(m_gl_window, [](GLFWwindow* w, double x, double y) { getw(w)->inject_mouse_move(x, y); });
+		glfwSetScrollCallback(m_gl_window, [](GLFWwindow* w, double x, double y) { getw(w)->inject_wheel(x, y); });
 
 		//glfwSetInputMode(m_glWindow, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 	}
@@ -301,11 +306,10 @@ namespace mud
 	void GlfwContext::inject_mouse_move(double x, double y)
 	{
 		//printf("glfw: mouse move %f, %f\n", float(x), float(y));
-		vec2 size = { float(m_width), float(m_height) };
 		if(m_mouse_lock)
 			m_cursor = { float(x), float(y) };
 		else
-			m_cursor = max(vec2(0.f), min(size, vec2{ float(x), float(y) }));
+			m_cursor = max(vec2(0.f), min(vec2(m_fb_size), vec2(float(x), float(y))));
 		m_mouse->moved(m_cursor);
 	}
 

@@ -4,22 +4,24 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <infra/Array.h>
+#ifndef TWO_MODULES
+#include <stl/function.h>
+#include <stl/vector.h>
+#include <stl/span.h>
 #include <geom/Geom.h>
 #endif
 #include <gfx/Forward.h>
+#include <gfx/RenderTarget.h>
+#include <gfx/Texture.h>
 
 #include <bgfx/bgfx.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#include <functional>
-#endif
-
-namespace mud
+namespace two
 {
 #define PICKING_BUFFER_SIZE 8  // Size of the ID buffer
+
+	using PickCallback = function<void(Item*)>;
+	using MultipickCallback = function<void(span<Item*>)>;
 
 	export_ struct PickQuery
 	{
@@ -36,20 +38,20 @@ namespace mud
 
 		uint32_t m_readback_ready = UINT32_MAX;
 
-		std::function<void(Item*)> m_callback;
-		std::function<void(array<Item*>)> m_multi_callback;
+		PickCallback m_callback;
+		MultipickCallback m_multi_callback;
 
 		operator bool() const { return m_rect != uvec4(0U); }
 	};
 
-	export_ class MUD_GFX_EXPORT Picker
+	export_ class TWO_GFX_EXPORT Picker
 	{
 	public:
 		Picker(GfxSystem& system, FrameBuffer& target);
 		~Picker();
 
-		void pick_point(Viewport& viewport, vec2 position, std::function<void(Item*)> callback, uint32_t mask);
-		void pick_rectangle(Viewport& viewport, vec4 rect, std::function<void(array<Item*>)> callback, uint32_t mask);
+		void pick_point(Viewport& viewport, vec2 position, PickCallback callback, uint32_t mask);
+		void pick_rectangle(Viewport& viewport, vec4 rect, MultipickCallback callback, uint32_t mask);
 
 		void process(Render& render, PickQuery& query);
 
@@ -62,11 +64,12 @@ namespace mud
 
 		bgfx::UniformHandle u_picking_id;
 
-		bgfx::FrameBufferHandle m_fbo;
-		bgfx::TextureHandle m_fbo_texture;
+		FrameBuffer m_fbo;
+		Texture m_fbo_texture;
+		Texture m_fbo_depth;
 
-		bgfx::TextureHandle m_readback_texture = BGFX_INVALID_HANDLE;
+		Texture m_readback_texture;
 
-		std::vector<uint32_t> m_data;
+		vector<uint32_t> m_data;
 	};
 }

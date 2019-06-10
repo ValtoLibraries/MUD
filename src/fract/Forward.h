@@ -1,93 +1,33 @@
-
-
 #pragma once
 
 #include <infra/Config.h>
 
 #include <infra/Forward.h>
 #include <type/Forward.h>
-#include <srlz/Forward.h>
 #include <math/Forward.h>
 #include <geom/Forward.h>
 
-#ifndef MUD_FRACT_EXPORT
-#define MUD_FRACT_EXPORT MUD_IMPORT
+#ifndef TWO_FRACT_EXPORT
+#define TWO_FRACT_EXPORT TWO_IMPORT
 #endif
 
-
-    
-    
-
-namespace std {
-
-    
-    
-}
-
-namespace mud {
-namespace ui {
-
-    
-    
-}
-}
-
-namespace glm {
-
-    
-    
-}
-
-namespace mud {
-namespace gfx {
-
-    
-    
-}
-}
-
-namespace json11 {
-
-    
-    
-}
-
-namespace mud {
-
+namespace two
+{
     enum class PatternSampling : unsigned int;
 
-
     class Pixircle;
-    struct Circlifier;
+    class Circlifier;
     struct Pattern;
     struct FractTab;
     class Fract;
     class FractSample;
 }
 
-namespace mud {
-namespace detail {
-
-    
-    
+#ifdef TWO_META_GENERATOR
+#include <stl/vector.h>
+namespace stl
+{
+	export_ extern template class refl_ seque_ vector<two::Circle>;
+	export_ extern template class refl_ seque_ vector<two::Image256>;
 }
-}
-
-namespace bgfx {
-
-    
-    
-}
-
-namespace bimg {
-
-    
-    
-}
-
-namespace bx {
-
-    
-    
-}
-
+#endif

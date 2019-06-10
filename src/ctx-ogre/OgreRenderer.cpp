@@ -1,4 +1,4 @@
-//  Copyright (c) 2016 Hugo Amiard hugo.amiard@laposte.net
+//  Copyright (c) 2019 Hugo Amiard hugo.amiard@laposte.net
 //  This software is provided 'as-is' under the zlib License, see the LICENSE.txt file.
 //  This notice and the license may not be removed or altered from any source distribution.
 
@@ -14,7 +14,7 @@
 #include <Ogre.h>
 #include <Compositor/OgreCompositorManager2.h>
 
-namespace mud
+namespace two
 {
 	OgreRenderTarget::OgreRenderTarget(Renderer& renderer, Layer& masterLayer)
 		: RenderTarget(renderer, masterLayer, true)

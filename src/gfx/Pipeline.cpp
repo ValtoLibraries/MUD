@@ -4,176 +4,172 @@
 
 #include <gfx/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.gfx;
+#ifdef TWO_MODULES
+module two.gfx;
 #else
-#include <infra/Vector.h>
+#include <stl/algorithm.h>
 #include <gfx/Types.h>
 #include <gfx/Pipeline.h>
 #include <gfx/Api.h>
 #endif
 
-namespace mud
+namespace two
 {
-#define MUD_GFX_STATE_DEFAULT 0 | BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_DEPTH_TEST_LEQUAL \
-								| BGFX_STATE_WRITE_Z | BGFX_STATE_CULL_CW | BGFX_STATE_MSAA
-
-#define MUD_GFX_STATE_DEFAULT_ALPHA 0 | BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_DEPTH_TEST_LESS \
-									  | BGFX_STATE_MSAA | BGFX_STATE_BLEND_ALPHA
-
-	void pipeline_minimal(GfxSystem& gfx_system, Pipeline& pipeline)
+	void pipeline_minimal(GfxSystem& gfx, Renderer& pipeline, bool deferred)
 	{
+		UNUSED(deferred);
+
+		BlockMaterial& material = pipeline.add_block<BlockMaterial>(gfx);
+		UNUSED(material);
+
 		// filters
-		BlockFilter& filter = pipeline.add_block<BlockFilter>(gfx_system);
-		BlockCopy& copy = pipeline.add_block<BlockCopy>(gfx_system, filter);
-		
+		BlockFilter& filter = pipeline.add_block<BlockFilter>(gfx);
+		BlockCopy& copy = pipeline.add_block<BlockCopy>(gfx, filter);
+		UNUSED(copy);
+
 		// pipeline
-		BlockDepth& depth = pipeline.add_block<BlockDepth>(gfx_system);
-		BlockSky& sky = pipeline.add_block<BlockSky>(gfx_system, filter);
-		BlockParticles& particles = pipeline.add_block<BlockParticles>(gfx_system);
+		BlockDepth& depth = pipeline.add_block<BlockDepth>(gfx);
+		BlockSky& sky = pipeline.add_block<BlockSky>(gfx, filter);
+		BlockParticles& particles = pipeline.add_block<BlockParticles>(gfx);
+		UNUSED(sky);
 		UNUSED(particles);
 
-		// mrt
-		BlockResolve& resolve = pipeline.add_block<BlockResolve>(gfx_system, copy);
+		vector<ShaderBlock*> depth_blocks =  { &depth };
 
-		// effects
-
-		pipeline.m_pass_blocks[size_t(PassType::Depth)] = { &depth };
-		pipeline.m_pass_blocks[size_t(PassType::Unshaded)] = {};
-		pipeline.m_pass_blocks[size_t(PassType::Background)] = { &sky };
-		pipeline.m_pass_blocks[size_t(PassType::Opaque)] = {};
-		pipeline.m_pass_blocks[size_t(PassType::Alpha)] = {};
-		pipeline.m_pass_blocks[size_t(PassType::Effects)] = { &resolve };
-		pipeline.m_pass_blocks[size_t(PassType::PostProcess)] = {};
-
+		auto create_programs = [&]()
 		{
-			Program& program_unshaded = gfx_system.programs().create("unshaded");
-			program_unshaded.register_blocks(pipeline.pass_blocks(PassType::Unshaded));
+			Program& solid = gfx.programs().create("solid");
+			solid.set_blocks({ MaterialBlock::Alpha, MaterialBlock::Solid });
 
-			Program& program_depth = gfx_system.programs().create("depth");
-			program_depth.register_blocks(pipeline.pass_blocks(PassType::Depth));
+			Program& depth = gfx.programs().create("depth");
+			depth.register_blocks(depth_blocks);
+			depth.set_blocks({ MaterialBlock::Alpha });
 
-			Program& program_pbr = gfx_system.programs().create("pbr/pbr");
-			program_pbr.register_blocks(pipeline.pass_blocks(PassType::Opaque));
+			Program& distance = gfx.programs().create("distance");
+			distance.register_blocks(depth_blocks);
+			distance.set_blocks({ MaterialBlock::Alpha });
 
-			Program& program_fresnel = gfx_system.programs().create("fresnel");
-			UNUSED(program_fresnel);
-		}
+			Program& pbr = gfx.programs().create("pbr/pbr");
+			pbr.set_blocks({ MaterialBlock::Alpha, MaterialBlock::Lit, MaterialBlock::Pbr });
 
-		static MinimalRenderer main_renderer = { gfx_system, pipeline };
-		static MinimalRenderer shadow_renderer = { gfx_system, pipeline };
+			Program& fresnel = gfx.programs().create("fresnel");
+			fresnel.set_blocks({ MaterialBlock::Alpha, MaterialBlock::Fresnel });
+		};
 
-		gfx_system.set_renderer(Shading::Shaded, main_renderer);
-		gfx_system.set_renderer(Shading::Volume, shadow_renderer);
+		create_programs();
+
+		gfx.set_renderer(Shading::Shaded, render_minimal);
+		gfx.set_renderer(Shading::Volume, render_minimal);
+
+		pipeline.m_gather_func = gather_render;
 	}
 
-	Pipeline::Pipeline(GfxSystem& gfx_system)
+	void render_minimal(GfxSystem& gfx, Render& render)
 	{
-		UNUSED(gfx_system);
+		pass_clear(gfx, render);
+		pass_particles(gfx, render);
+		pass_solid(gfx, render);
 	}
 
-	Pipeline::~Pipeline()
-	{}
-
-	array<GfxBlock*> Pipeline::pass_blocks(PassType pass)
+	void render_solid(GfxSystem& gfx, Render& render)
 	{
-		return to_array(m_pass_blocks[size_t(pass)]);
+		pass_clear(gfx, render);
+		pass_solid(gfx, render);
 	}
 
-	MinimalRenderer::MinimalRenderer(GfxSystem& gfx_system, Pipeline& pipeline)
-		: Renderer(gfx_system, pipeline, Shading::Shaded)
+	void render_clear(GfxSystem& gfx, Render& render)
 	{
-		this->add_pass<PassClear>(gfx_system);
-		//this->add_pass<PassOpaque>(gfx_system);
-		this->add_pass<PassParticles>(gfx_system);
-		this->add_pass<PassUnshaded>(gfx_system);
-		this->add_pass<PassFlip>(gfx_system, *pipeline.block<BlockCopy>());
-		this->init();
-	}
-
-	UnshadedRenderer::UnshadedRenderer(GfxSystem& gfx_system, Pipeline& pipeline)
-		: Renderer(gfx_system, pipeline, Shading::Unshaded)
-	{
-		this->add_pass<PassClear>(gfx_system);
-		this->add_pass<PassUnshaded>(gfx_system);
-		this->add_pass<PassFlip>(gfx_system, *pipeline.block<BlockCopy>());
-		this->init();
-	}
-
-	ClearRenderer::ClearRenderer(GfxSystem& gfx_system, Pipeline& pipeline)
-		: Renderer(gfx_system, pipeline, Shading::Clear)
-	{
-		this->add_pass<PassClear>(gfx_system);
-		this->init();
+		pass_clear(gfx, render);
 	}
 
 	static uint8_t s_blank = 0;
 	static uint8_t s_zero = 1;
 
-	PassClear::PassClear(GfxSystem& gfx_system)
-		: RenderPass(gfx_system, "clear", PassType::Clear)
+	struct ClearInit
 	{
-		bgfx::setPaletteColor(s_blank, 0.f, 0.f, 0.f, 1.f);
-		bgfx::setPaletteColor(s_zero, 0.f, 0.f, 0.f, 0.f);
+		ClearInit()
+		{
+			bgfx::setPaletteColor(s_blank, 0.f, 0.f, 0.f, 1.f);
+			bgfx::setPaletteColor(s_zero, 0.f, 0.f, 0.f, 0.f);
+		};
+	};
+
+	void pass_clear_fbo(GfxSystem& gfx, Render& render, FrameBuffer& fbo, const Colour& colour, float depth)
+	{
+		UNUSED(gfx);
+		Pass pass = render.next_pass("clear", PassType::Clear);
+
+		bgfx::setViewRect(pass.m_index, 0, 0, uint16_t(fbo.m_size.x), uint16_t(fbo.m_size.y));
+		bgfx::setViewClear(pass.m_index, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, to_rgba(colour), depth);
+		bgfx::setViewFrameBuffer(pass.m_index, fbo);
+
+		bgfx::touch(pass.m_index);
 	}
 
-	void PassClear::submit_render_pass(Render& render)
+	void pass_clear(GfxSystem& gfx, Render& render)
 	{
-		Pass render_pass = render.next_pass("clear");
+		UNUSED(gfx);
+		static ClearInit init;
 
-		if(render.m_target && render.m_target->m_mrt) //render_pass.m_use_mrt)
-			bgfx::setViewClear(render_pass.m_index, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH | BGFX_CLEAR_STENCIL, 1.f, 0, s_blank, s_blank, s_blank, s_blank);
+		Pass pass = render.next_pass("clear", PassType::Clear);
+
+		if(render.m_target && render.m_target->m_mrt) //pass.m_use_mrt)
+			bgfx::setViewClear(pass.m_index, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH | BGFX_CLEAR_STENCIL, 1.f, 0, s_blank, s_blank, s_blank, s_blank);
 		else
-			bgfx::setViewClear(render_pass.m_index, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH | BGFX_CLEAR_STENCIL, to_rgba(render.m_viewport.m_clear_colour), 1.f, 0);
+			bgfx::setViewClear(pass.m_index, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH | BGFX_CLEAR_STENCIL, to_rgba(render.m_viewport->m_clear_colour), 1.f, 0);
 
+		bgfx::touch(pass.m_index);
+	}
+
+	void pass_gclear(GfxSystem& gfx, Render& render)
+	{
+		UNUSED(gfx);
 		if(render.m_target && render.m_target->m_deferred)
 		{
-			Pass gbuffer_pass = render.next_pass("clear gbuffer");
-			bgfx::setViewClear(gbuffer_pass.m_index, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH | BGFX_CLEAR_STENCIL, 1.f, 0, s_zero, s_zero, s_zero, s_zero);
-			bgfx::setViewFrameBuffer(gbuffer_pass.m_index, render.m_target->m_gbuffer.m_fbo);
+			Pass pass = render.next_pass("clear gbuffer", PassType::Clear);
+			bgfx::setViewClear(pass.m_index, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH | BGFX_CLEAR_STENCIL, 1.f, 0, s_zero, s_zero, s_zero, s_zero);
+			bgfx::setViewFrameBuffer(pass.m_index, render.m_target->m_gbuffer.m_fbo);
+			bgfx::touch(pass.m_index);
 		}
-
-		bgfx::touch(render_pass.m_index);
 	}
 
-	PassUnshaded::PassUnshaded(GfxSystem& gfx_system)
-		: DrawPass(gfx_system, "unshaded", PassType::Unshaded)
-	{}
-
-	void PassUnshaded::next_draw_pass(Render& render, Pass& render_pass)
+	void pass_solid(GfxSystem& gfx, Render& render)
 	{
-		render_pass.m_bgfx_state = 0 | BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A //| BGFX_STATE_DEPTH_TEST_LEQUAL
-									 | BGFX_STATE_MSAA | BGFX_STATE_CULL_CW | BGFX_STATE_BLEND_ALPHA;
+		UNUSED(gfx);
+		Pass pass = render.next_pass("solid", PassType::Solid);
+		
+		pass.m_bgfx_state = 0 | BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_DEPTH_TEST_LEQUAL
+							  | BGFX_STATE_MSAA | BGFX_STATE_CULL_CW;// | BGFX_STATE_BLEND_ALPHA;
 
-		bgfx::Encoder& encoder = *render_pass.m_encoder;
-		for(ImmediateDraw* immediate : render.m_shot->m_immediate)
-			immediate->submit(encoder, render_pass.m_index, render_pass.m_bgfx_state);
+		bgfx::Encoder& encoder = *pass.m_encoder;
+		for(ImmediateDraw* immediate : render.m_shot.m_immediate)
+			immediate->submit(encoder, pass.m_index, pass.m_bgfx_state);
+
+		auto queue_draw_element = [](GfxSystem& gfx, Render& render, Pass& pass, DrawElement& element)
+		{
+			UNUSED(render);
+			const Program& program = *element.m_program.m_program;
+			if(!program.m_blocks[MaterialBlock::Solid] && !program.m_blocks[MaterialBlock::Fresnel])
+				return false;
+
+			blend_state(element.m_material->m_base.m_blend_mode, element.m_bgfx_state);
+			return true;
+		};
+
+		gfx.m_renderer.pass(render, pass, queue_draw_element);
 	}
 
-	void PassUnshaded::queue_draw_element(Render& render, DrawElement& element)
+	void pass_background(GfxSystem& gfx, Render& render)
 	{
-		UNUSED(render);
+		static BlockSky& block_sky = *gfx.m_renderer.block<BlockSky>();
 
-		if(element.m_material->m_unshaded_block.m_enabled || element.m_material->m_fresnel_block.m_enabled)
-			this->add_element(render, element);
+		//Pass pass = render.next_pass("background", PassType::Background);
+		block_sky.submit_pass(render);
 	}
 
-	PassBackground::PassBackground(GfxSystem& gfx_system)
-		: RenderPass(gfx_system, "background", PassType::Background)
-	{}
-
-	void PassBackground::submit_render_pass(Render& render)
+	void pass_flip(GfxSystem& gfx, Render& render)
 	{
-		UNUSED(render);
-	}
-
-	PassFlip::PassFlip(GfxSystem& gfx_system, BlockCopy& copy)
-		: RenderPass(gfx_system, "post process", PassType::Flip)
-		, m_copy(copy)
-	{}
-
-	void PassFlip::submit_render_pass(Render& render)
-	{
-		m_copy.submit_quad(*render.m_target, render.composite_pass(), render.m_target->m_diffuse, render.m_viewport.m_rect);
+		Pass pass = render.next_pass("flip", PassType::Flip);
+		gfx.m_copy->quad(pass, render.m_target->m_backbuffer, render.m_target->m_diffuse);
 	}
 }

@@ -4,19 +4,14 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <infra/NonCopy.h>
-#include <type/Unique.h>
+#ifndef TWO_MODULES
+#include <stl/string.h>
+#include <stl/memory.h>
 #endif
 #include <ui/Forward.h>
 #include <ui/Frame/UiRect.h>
 
-#ifndef MUD_CPP_20
-#include <cmath>
-#include <memory>
-#endif
-
-namespace mud
+namespace two
 {
 	using cstring = const char*;
 
@@ -29,7 +24,7 @@ namespace mud
 		DIRTY_FORCE_LAYOUT	// The frame layout has changed
 	};
 
-	export_ class refl_ MUD_UI_EXPORT Frame : public NonCopy, public UiRect
+	export_ class refl_ TWO_UI_EXPORT Frame : public UiRect
 	{
 	public:
 		Frame(Frame* parent, Widget& widget);
@@ -37,18 +32,20 @@ namespace mud
 
 		bool empty() const;
 
-		inline bool opaque() const { return m_opacity == OPAQUE; }
-		inline bool hollow() const { return m_opacity == HOLLOW; }
+		inline bool opaque() const { return m_opacity == Opacity::Opaque; }
+		inline bool hollow() const { return m_opacity == Opacity::Hollow; }
 
 		void set_caption(cstring text);
 		void set_icon(Image* image);
 		Image* icon() const;
 		cstring caption() const;
 
+		void size_caption();
+
 		Frame& root();
 		Layer& layer();
 
-		FrameSolver& solver(Style& style, Dim length = DIM_NONE, Dim2<size_t> index = { 0, 0 });
+		FrameSolver& solver(Style& style, Axis length = Axis::None, v2<uint> index = { 0, 0 });
 
 		DirtyLayout clearDirty() { DirtyLayout dirty = d_dirty; d_dirty = CLEAN; return dirty; }
 		void set_dirty(DirtyLayout dirty) { if(dirty > d_dirty) d_dirty = dirty; }
@@ -56,14 +53,14 @@ namespace mud
 
 		void update_style(bool reset = false);
 		void update_state(WidgetState state);
-		void update_inkstyle(InkStyle& inkstyle);
+		void update_inkstyle(InkStyle& inkstyle, bool reset = false);
 
-		void set_size(Dim dim, float size);
-		void set_span(Dim dim, float span);
-		void set_position(Dim dim, float position);
+		void set_size(Axis dim, float size);
+		void set_span(Axis dim, float span);
+		void set_position(Axis dim, float position);
 
-		inline void set_position(const vec2& pos) { set_position(DIM_X, pos.x), set_position(DIM_Y, pos.y); }
-		inline void set_size(const vec2& size) { set_size(DIM_X, size.x); set_size(DIM_Y, size.y); }
+		inline void set_position(const vec2& pos) { set_position(Axis::X, pos.x), set_position(Axis::Y, pos.y); }
+		inline void set_size(const vec2& size) { set_size(Axis::X, size.x); set_size(Axis::Y, size.y); }
 
 		// global to local
 		void integrate_position(Frame& root, vec2& global);
@@ -89,7 +86,7 @@ namespace mud
 		bool first(const Frame& frame);
 		bool last(const Frame& frame);
 
-		void transfer_pixel_span(Frame& prev, Frame& next, Dim dim, float pixelSpan);
+		void transfer_pixel_span(Frame& prev, Frame& next, Axis dim, float pixelSpan);
 
 		void relayout();
 
@@ -102,19 +99,22 @@ namespace mud
 		Widget& d_widget;
 		Frame* d_parent;
 		DirtyLayout d_dirty = DIRTY_FORCE_LAYOUT;
-		Dim2<size_t> d_index = { 0, 0 };
+		v2<uint> d_index = { 0, 0 };
 
-		Opacity m_opacity = CLEAR;
+		Opacity m_opacity = Opacity::Clear;
 
 		Style* d_style = nullptr;
+		Layout* d_layout = nullptr;
 		InkStyle* d_inkstyle = nullptr;
 
 	public:
-		struct Content;
-		object_ptr<Content> d_content;
-		object_ptr<FrameSolver> m_solver;
+		string d_caption = "";
+		Image* d_icon = nullptr;
 
-		object_ptr<Layer> m_layer;
+		unique<FrameSolver> m_solver;
+
+		unique<Layer> m_layer;
+		unique<Text> m_text;
 
 		static Vg* s_vg;
 	};

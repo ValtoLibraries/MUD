@@ -3,33 +3,30 @@
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #include <infra/Cpp20.h>
-#ifndef MUD_CPP_20
-#include <map>
-#endif
 
-#ifdef MUD_MODULES
-module mud.wfc;
+#ifdef TWO_MODULES
+module two.wfc;
 #else
-#include <infra/Vector.h>
+#include <stl/map.h>
+#include <stl/algorithm.h>
+#include <stl/algorithm.h>
+#include <math/Math.h>
 #include <wfc/Wfc.h>
-// @kludge : not sure why this fixes a compilation error when using MSVC modules :/
-#ifdef MUD_CPP_20
 #include <srlz/Serial.h>
-#endif
 #endif
 
 #include <json11.hpp>
-using json = json11::Json;
+using Json = json11::Json;
 
 
-namespace mud
+namespace two
 {
 	PatternHash hash_from_pattern(const ColorPattern& pattern, size_t palette_size)
 	{
-		/*CHECK_LT_F(std::pow((double)palette_size, (double)pattern.size()),
-				   std::pow(2.0, sizeof(PatternHash) * 8),
+		/*CHECK_LT_F(pow((double)palette_size, (double)pattern.size()),
+				   pow(2.0, sizeof(PatternHash) * 8),
 				   "Too large palette (it is %lu) or too large pattern size (it's %.0f)",
-				   palette_size, std::sqrt(pattern.size()));*/
+				   palette_size, sqrt(pattern.size()));*/
 		PatternHash result = 0;
 		size_t power = 1;
 		for(size_t i = 0; i < pattern.size(); ++i)
@@ -43,7 +40,7 @@ namespace mud
 	ColorPattern pattern_from_hash(const PatternHash hash, int n, size_t palette_size)
 	{
 		uint64_t residue = hash;
-		size_t power = size_t(std::pow(palette_size, n * n));
+		size_t power = size_t(pow(palette_size, n * n));
 		ColorPattern result(n * n);
 
 		for(size_t i = 0; i < result.size(); ++i)
@@ -63,7 +60,7 @@ namespace mud
 		return result;
 	}
 
-	template<typename Fun>
+	template <class Fun>
 	ColorPattern make_pattern(size_t n, const Fun& fun)
 	{
 		ColorPattern result(n * n);
@@ -106,12 +103,12 @@ namespace mud
 			for(int x = 0; x < 2 * n - 1; ++x)
 				for(int y = 0; y < 2 * n - 1; ++y)
 				{
-					std::vector<PatternIndex>& patterns = m_propagator.at(x, y)[t];
+					vector<PatternIndex>& patterns = m_propagator.at(x, y)[t];
 					for(uint16_t t2 = 0; t2 < hashed_patterns.size(); ++t2)
 						if(agrees(m_patterns[t], m_patterns[t2], x - n + 1, y - n + 1))
 							patterns.push_back(t2);
 
-					patterns.shrink_to_fit();
+					//patterns.shrink_to_fit();
 					longest_propagator = max(longest_propagator, patterns.size());
 					sum_propagator += patterns.size();
 				}
@@ -129,7 +126,7 @@ namespace mud
 	{
 		int n = tileset.m_n;
 
-		uvec3 changed = vector_pop(wave.m_changes);
+		uvec3 changed = pop(wave.m_changes);
 				
 		for(int dx = -n + 1; dx < n; ++dx) for(int dy = -n + 1; dy < n; ++dy) for(int dz = -n + 1; dz < n; ++dz)
 		{
@@ -157,7 +154,7 @@ namespace mud
 
 				bool can_pattern_fit = false;
 
-				const std::vector<PatternIndex>& prop = tileset.m_propagator.at(n - 1 - dx, n - 1 - dy, n - 1 - dz)[t2];
+				const vector<PatternIndex>& prop = tileset.m_propagator.at(n - 1 - dx, n - 1 - dy, n - 1 - dz)[t2];
 				for(const auto& t3 : prop) {
 					if(wave.m_wave.at(changed.x, changed.y, changed.z)[t3]) {
 						can_pattern_fit = true;
@@ -198,13 +195,13 @@ namespace mud
 			}
 		}
 
-		std::vector<RGBA> palette;
-		std::vector<ColorIndex> data;
+		vector<RGBA> palette;
+		vector<ColorIndex> data;
 
 		for(size_t pixel_idx = 0; pixel_idx < num_pixels; ++pixel_idx)
 		{
 			const RGBA color = rgba[pixel_idx];
-			const uint8_t color_idx = uint8_t(std::find(palette.begin(), palette.end(), color) - palette.begin());
+			const uint8_t color_idx = uint8_t(find(palette.begin(), palette.end(), color) - palette.begin());
 			if(color_idx == palette.size())
 			{
 				palette.push_back(color);
@@ -219,7 +216,7 @@ namespace mud
 		};
 	}
 
-	PalettedImage load_paletted_image(const std::string& path)
+	PalettedImage load_paletted_image(const string& path)
 	{
 		UNUSED(path);
 		int width = 0; int height = 0; int comp = 0;
@@ -232,7 +229,6 @@ namespace mud
 	// n = side of the pattern, e.g. 3.
 	PatternPrevalence extract_patterns(const PalettedImage& sample, int n, bool periodic_in, size_t symmetry, PatternHash* out_lowest_pattern)
 	{
-#ifndef MUD_MODULES // @todo clang bug
 		const auto pattern_from_sample = [&](size_t x, size_t y) {
 			return make_pattern(n, [&](size_t dx, size_t dy) { return sample.at_wrapped(x + dx, y + dy); });
 		};
@@ -246,7 +242,7 @@ namespace mud
 		for(size_t y = 0; y < (periodic_in ? sample.height : h); ++y)
 			for(size_t x = 0; y < (periodic_in ? sample.width : w); ++x)
 			{
-				std::array<ColorPattern, 8> ps;
+				ColorPattern ps[8];
 				ps[0] = pattern_from_sample(x, y);
 				ps[1] = reflect(ps[0]);
 				ps[2] = rotate(ps[0]);
@@ -266,26 +262,23 @@ namespace mud
 			}
 
 		return patterns;
-#endif
 	}
 
-	void run_overlapping(const std::string& image, size_t symmetry, int n, uint16_t width, uint16_t height, uint16_t depth, bool periodic)
+	void run_overlapping(const string& image, size_t symmetry, int n, uint16_t width, uint16_t height, uint16_t depth, bool periodic)
 	{
 		const PalettedImage sample_image = load_paletted_image(image);
 		const PatternPrevalence hashed_patterns = extract_patterns(sample_image, n, false, symmetry, nullptr);
 		Patternset tileset = { n, hashed_patterns, sample_image.palette, kInvalidHash };
 
-#ifndef MUD_MODULES // @todo clang bug
 		Wave wave(uint16_t(hashed_patterns.size()), width, height, depth, periodic); // resize each to model._num_patterns
 		wave.m_propagate = [&](Wave& wave) { propagate_overlapping(tileset, wave); };
 		wave.m_valid_coord = [&](int x, int y, int z) { return !on_boundary(n, wave, x, y, z); };
 		//wave.m_states = tileset.m_weights;
 
 		wave.solve(0);
-#endif
 	}
 
-	using WfcImage = array_3d<RGBA>;
+	using WfcImage = vector3d<RGBA>;
 
 	struct ProgressGif
 	{

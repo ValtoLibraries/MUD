@@ -4,35 +4,33 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.ui;
+#ifdef TWO_MODULES
+module two.ui;
 #else
-#include <infra/String.h>
+#include <infra/StringOps.h>
+#include <math/Vec.hpp>
 #include <ui/Frame/Frame.h>
-#include <ui/Structs/Widget.h>
+#include <ui/WidgetStruct.h>
 #include <ui/Frame/Solver.h>
 #include <ui/Frame/Layer.h>
 #include <ui/Style/Style.h>
 #include <ui/Style/Skin.h>
-#include <ui/Render/Renderer.h>
+#include <ui/UiRenderer.h>
 #endif
 
-namespace mud
+#include <cstdio>
+
+namespace two
 {
-	inline TextPaint text_paint(InkStyle& inkstyle)
-	{;
-		return { inkstyle.m_text_font.c_str(), inkstyle.m_text_colour, inkstyle.m_text_size, inkstyle.m_align, inkstyle.m_text_break, inkstyle.m_text_wrap };
-	}
+	template struct v2<bool>;
+	template struct v2<AutoLayout>;
+	template struct v2<Sizing>;
+	template struct v2<Align>;
+	template struct v2<Pivot>;
 
 	template <> string to_string<DirtyLayout>(const DirtyLayout& dirty) { if(dirty == CLEAN) return "CLEAN"; else if(dirty == DIRTY_REDRAW) return "DIRTY_REDRAW"; else if(dirty == DIRTY_PARENT) return "DIRTY_PARENT"; else if(dirty == DIRTY_LAYOUT) return "DIRTY_LAYOUT"; else if(dirty == DIRTY_FORCE_LAYOUT) return "DIRTY_FORCE_LAYOUT"; else /*if(dirty == DIRTY_STRUCTURE)*/ return "DIRTY_STRUCTURE"; }
 
 	Vg* Frame::s_vg = nullptr;
-
-	struct Frame::Content
-	{
-		string d_caption = "";
-		Image* d_icon = nullptr;
-	};
 
 	Frame::Frame(Frame* parent, Widget& widget)
 		: UiRect()
@@ -57,37 +55,38 @@ namespace mud
 
 	bool Frame::empty() const
 	{
-		return d_content == nullptr || (d_content->d_caption == "" && d_content->d_icon == nullptr);
+		return d_caption == "" && d_icon == nullptr && !m_text;
 	}
 
 	Image* Frame::icon() const
 	{
-		return d_content->d_icon;
+		return d_icon;
 	}
 
 	cstring Frame::caption() const
 	{
-		return d_content->d_caption.c_str();
+		return d_caption.c_str();
 	}
 
-	FrameSolver& Frame::solver(Style& style, Dim length, Dim2<size_t> index)
+	FrameSolver& Frame::solver(Style& style, Axis length, v2<uint> index)
 	{
 		d_style = &style;
+		d_layout = &style.m_layout;
 		d_index = index;
 
 		this->update_style();
 
-		LayoutSolver type = d_style->layout().m_solver;
+		Solver type = d_layout->m_solver;
 		FrameSolver* solver = d_parent ? d_parent->m_solver.get() : nullptr;
 
-		if(type == FRAME_SOLVER)
-			m_solver = make_object<FrameSolver>(solver, &d_style->layout(), this);
-		else if(type == ROW_SOLVER)
-			m_solver = make_object<RowSolver>(solver, &d_style->layout(), this);
-		else if(type == GRID_SOLVER)
-			m_solver = make_object<GridSolver>(solver, &d_style->layout(), this);
-		else if(type == TABLE_SOLVER)
-			m_solver = make_object<TableSolver>(solver, &d_style->layout(), this);
+		if(type == Solver::Frame)
+			m_solver = construct<FrameSolver>(solver, d_layout, this);
+		else if(type == Solver::Row)
+			m_solver = construct<RowSolver>(solver, d_layout, this);
+		else if(type == Solver::Grid)
+			m_solver = construct<GridSolver>(solver, d_layout, this);
+		else if(type == Solver::Table)
+			m_solver = construct<TableSolver>(solver, d_layout, this);
 
 		m_solver->applySpace(length);
 		return *m_solver;
@@ -118,10 +117,13 @@ namespace mud
 
 	void Frame::update_style(bool reset)
 	{
-		m_opacity = d_style->layout().m_opacity;
-		m_size = d_style->layout().m_size == Zero2 ? m_size : d_style->layout().m_size;
+		d_layout = &d_style->m_layout;
 
-		this->update_inkstyle(d_style->state_skin(d_widget.m_state));
+		InkStyle& inkstyle = d_style->state_skin(d_widget.m_state);
+		this->update_inkstyle(inkstyle, reset);
+
+		m_opacity = d_layout->m_opacity;
+		m_size = d_layout->m_size == vec2(0.f) ? m_size : d_layout->m_size;
 
 		reset ? this->mark_dirty(DIRTY_FORCE_LAYOUT) : this->mark_dirty(DIRTY_LAYOUT);
 	}
@@ -132,61 +134,63 @@ namespace mud
 		this->update_inkstyle(inkstyle);
 	}
 
-	void Frame::update_inkstyle(InkStyle& inkstyle)
+	void Frame::update_inkstyle(InkStyle& inkstyle, bool reset)
 	{
-		bool skin_image = d_inkstyle && d_inkstyle->m_image;
-		if(d_inkstyle == &inkstyle) return;
-		//printf("INFO: Update inkstyle %s\n", inkstyle.m_name.c_str());
+		if(d_inkstyle == &inkstyle && !reset) return;
+		//printf("[debug] Update inkstyle %s\n", inkstyle.m_name.c_str());
 		d_inkstyle = &inkstyle;
 		this->mark_dirty(DIRTY_REDRAW);
+		this->set_icon(d_inkstyle->m_image);
+		if(d_caption != "")
+			this->size_caption();
+	}
 
-		if(d_inkstyle->m_image || skin_image)
-			this->set_icon(d_inkstyle->m_image);
+	void Frame::size_caption()
+	{
+		if(d_caption != "")
+		{
+			TextPaint paint = text_paint(*d_inkstyle);
+			m_content = s_vg->text_size(d_caption.c_str(), d_caption.size(), paint);
+		}
+		else
+			m_content = vec2(0.f);
 	}
 
 	void Frame::set_caption(cstring text)
 	{
-		if(!d_content)
-			d_content = make_unique<Content>();
-		if(d_content->d_caption == text)
+		if(d_caption == text)
 			return;
-		d_content->d_caption = text;
-		if(d_content->d_caption != "")
-		{
-			TextPaint paint = text_paint(*d_inkstyle);
-			m_content = s_vg->text_size(d_content->d_caption.c_str(), d_content->d_caption.size(), paint);
-		}
-		else
-			m_content = Zero2;
+		d_caption = text;
+		m_size = vec2(0.f);
+		this->size_caption();
 		mark_dirty(DIRTY_LAYOUT);
 	}
 
 	void Frame::set_icon(Image* image)
 	{
-		if(!d_content)
-			d_content = make_unique<Content>();
-		if(d_content->d_icon == image)
+		if(d_icon == image)
 			return;
-		d_content->d_icon = image;
-		m_content = image ? vec2{ image->d_size } : Zero2;
+		d_icon = image;
+		m_size = vec2(0.f);
+		m_content = image ? vec2(image->d_size) : vec2(0.f);
 		mark_dirty(DIRTY_LAYOUT);
 	}
 
-	void Frame::set_size(Dim dim, float size)
+	void Frame::set_size(Axis dim, float size)
 	{
 		if(m_size[dim] == size) return;
 		m_size[dim] = size;
 		this->mark_dirty(DIRTY_FORCE_LAYOUT);
 	}
 
-	void Frame::set_span(Dim dim, float span)
+	void Frame::set_span(Axis dim, float span)
 	{
 		if(m_span[dim] == span) return;
 		m_span[dim] = span;
 		this->mark_dirty(DIRTY_FORCE_LAYOUT);
 	}
 
-	void Frame::set_position(Dim dim, float position)
+	void Frame::set_position(Axis dim, float position)
 	{
 		if(m_position[dim] == position) return;
 		m_position[dim] = position;
@@ -218,7 +222,7 @@ namespace mud
 	Frame* clip_parent(Frame& frame)
 	{
 		Frame* parent = frame.d_parent;
-		while(parent->d_style->layout().m_clipping != CLIP)
+		while(parent->d_layout->m_clipping != Clip::Clip)
 			parent = parent->d_parent;
 		return parent;
 	}
@@ -227,9 +231,9 @@ namespace mud
 	{
 		//Frame* clip = clip_parent(*this);
 		Frame* clip = &this->root();
-		vec2 position = this->derive_position(Zero2, *clip);
+		vec2 position = this->derive_position(vec2(0.f), *clip);
 
-		for(Dim dim : { DIM_X, DIM_Y })
+		for(Axis dim : { Axis::X, Axis::Y })
 		{
 			m_size[dim] = min(clip->m_size[dim], m_size[dim]);
 
@@ -240,7 +244,7 @@ namespace mud
 
 	vec4 Frame::content_rect() const
 	{
-		return { floor(rect_offset(d_inkstyle->m_margin)),
+		return { floor(d_inkstyle->m_margin.pos),
 				 floor(m_size - rect_sum(d_inkstyle->m_margin)) };
 	}
 
@@ -260,7 +264,7 @@ namespace mud
 		return frame.d_widget.m_index == d_widget.m_nodes.size() - 1;
 	}
 
-	void Frame::transfer_pixel_span(Frame& prev, Frame& next, Dim dim, float pixelSpan)
+	void Frame::transfer_pixel_span(Frame& prev, Frame& next, Axis dim, float pixelSpan)
 	{
 		float pixspan = 1.f / this->m_size[dim];
 		float offset = pixelSpan * pixspan;
@@ -272,7 +276,7 @@ namespace mud
 
 	void Frame::relayout()
 	{
-		DirtyLayout dirty = this->clearDirty();
+		const DirtyLayout dirty = this->clearDirty();
 		if(!dirty) return;
 
 		SolverVector solvers;
@@ -282,22 +286,24 @@ namespace mud
 		m_solver->reset();
 		m_solver->m_size = m_size;
 
-		mud::relayout(solvers);
+		two::relayout(solvers);
 	}
 
 	void Frame::sync_solver(FrameSolver& solver)
 	{
-		vec2 content = m_content + rect_sum(d_inkstyle->m_padding);
-		solver.setup(m_position, m_size, m_span, m_content != Zero2 ? &content : nullptr);
+		if(d_style->m_name == "Text")
+			int i = 0;
+		const vec2 content = m_content + rect_sum(d_inkstyle->m_padding);
+		solver.setup(m_position, m_size, m_span, !empty() ? &content : nullptr);
 
 		if(d_dirty == DIRTY_PARENT)
 		{
 			// @bug this causes a bug in the relayout if we want to implement scarce behavior for wrap frames, since here the content is instead just the unpadded size
-			solver.d_content = m_size - rect_sum(solver.d_style->m_padding);
+			solver.d_content = m_size - rect_sum(solver.d_layout->m_padding);
 		}
 	}
 
-	void fix_position(Frame& frame, Dim dim, FrameSolver* solver)
+	void fix_position(Frame& frame, Axis dim, FrameSolver* solver)
 	{
 		// @todo should be while but it causes a bug with nested tables
 		if(solver->m_solvers[dim] && solver->m_solvers[dim]->d_frame != frame.d_parent)
@@ -314,8 +320,8 @@ namespace mud
 		this->set_size(solver.m_size);
 		m_span = solver.m_span;
 
-		fix_position(*this, DIM_X, &solver);
-		fix_position(*this, DIM_Y, &solver);
+		fix_position(*this, Axis::X, &solver);
+		fix_position(*this, Axis::Y, &solver);
 	}
 
 	void Frame::debug_print(bool commit)
@@ -326,7 +332,7 @@ namespace mud
 			printf("  ");
 			parent = parent->d_parent;
 		}
-		printf("FRAME: %s ", d_style->name());
+		printf("FRAME: %s ", d_style->m_name.c_str());
 		if(commit)
 			printf("\n");
 	}

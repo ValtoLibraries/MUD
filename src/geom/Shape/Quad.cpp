@@ -4,18 +4,19 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.geom;
+#ifdef TWO_MODULES
+module two.geom;
 #else
+#include <math/Vec.hpp>
 #include <geom/Shape/Quad.h>
 #include <geom/Shapes.h>
 #include <geom/ShapesComplex.h>
-#include <geom/Primitive.h>
+#include <geom/Primitive.hpp>
 #endif
 
 //#define PK_GLITCH
 
-namespace mud
+namespace two
 {
 	static vec2 quadUVs[4] = { { 1.f, 1.f }, { 1.f, 0.f }, { 0.f, 0.f }, { 0.f, 1.f } };
 
@@ -48,7 +49,7 @@ namespace mud
 		vertex(d, normal, quadUVs[3]);
 	}
 
-	void quad_vertices(const ProcShape& shape, const vec3& center, array<vec3> vertices, bool fill, MeshAdapter& writer)
+	void quad_vertices(const ProcShape& shape, const vec3& center, span<vec3> vertices, bool fill, MeshAdapter& writer)
 	{
 		quad_vertices(shape, center, vertices[0], vertices[1], vertices[2], vertices[3], fill, writer);
 	}
@@ -78,19 +79,19 @@ namespace mud
 		writer.quad(0, 1, 2, 3);
 	}
 
-	size_t num_rects(const Grid3& grid) { return (grid.m_size.x-1) * (grid.m_size.y-1); }
+	uint32_t num_rects(const Grid3& grid) { return (grid.m_size.x-1) * (grid.m_size.y-1); }
 
 	ShapeSize size_shape_lines(const ProcShape& shape, const Grid3& grid)
 	{
 		UNUSED(shape);
-		size_t rects = num_rects(grid);
-		return { int(rects * 4), int(rects * 8) };
+		uint32_t rects = num_rects(grid);
+		return { rects * 4U, rects * 8U };
 	}
 
 	void draw_shape_lines(const ProcShape& shape, const Grid3& grid, MeshAdapter& writer)
 	{
 		// @todo: could draw it like a grid instead of per quads...
-		array_2d<vec3> points = { const_cast<vec3*>(grid.m_points.data()), grid.m_size.x, grid.m_size.y };
+		span2d<vec3> points = { const_cast<vec3*>(grid.m_points.data()), grid.m_size.x, grid.m_size.y };
 
 		uint32_t offset = 0;
 
@@ -106,13 +107,13 @@ namespace mud
 	ShapeSize size_shape_triangles(const ProcShape& shape, const Grid3& grid)
 	{
 		UNUSED(shape);
-		size_t rects = num_rects(grid);
-		return{ int(rects * 4), int(rects * 6) };
+		uint32_t rects = num_rects(grid);
+		return { rects * 4U, rects * 6U };
 	}
 
 	void draw_shape_triangles(const ProcShape& shape, const Grid3& grid, MeshAdapter& writer)
 	{
-		array_2d<vec3> points = { const_cast<vec3*>(grid.m_points.data()), grid.m_size.x, grid.m_size.y };
+		span2d<vec3> points = { const_cast<vec3*>(grid.m_points.data()), grid.m_size.x, grid.m_size.y };
 
 		uint32_t offset = 0;
 

@@ -3,288 +3,46 @@
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #include <infra/Cpp20.h>
-#ifndef MUD_CPP_20
+#ifndef TWO_CPP_20
 #include <cctype>
 #include <locale>
-#include <algorithm>
 #include <chrono>
-#include <string>
 #include <regex>
 #include <cmath>
 #endif
 
-#ifdef MUD_MODULES
-module mud.ui;
+#ifdef TWO_MODULES
+module two.ui;
 #else
-#include <infra/Vector.h>
+#include <stl/string.h>
+#include <stl/algorithm.h>
 #include <math/Math.h>
+#include <math/Vec.hpp>
+#include <tree/Graph.hpp>
 #include <ui/Edit/TypeIn.h>
-#include <ui/Structs/Container.h>
+#include <ui/ContainerStruct.h>
 #include <ui/ScrollSheet.h>
 #include <ui/Edit/Lang.h>
 #include <ui/Frame/Layer.h>
 #include <ui/Frame/Caption.h>
-#include <ui/Structs/RootSheet.h>
+#include <ui/UiRoot.h>
 #include <ui/Cursor.h>
-#include <ui/Render/Renderer.h>
+#include <ui/UiRenderer.h>
 #include <ui/Style/Skin.h>
 #include <ui/UiWindow.h>
 #endif
 
-namespace mud
+namespace two
 {
-	inline TextPaint style_text_paint(InkStyle& inkstyle)
-	{
-		return { inkstyle.m_text_font.c_str(), inkstyle.m_text_colour, inkstyle.m_text_size, inkstyle.m_align, inkstyle.m_text_break, inkstyle.m_text_wrap };
-	}
-
-	bool is_separator(char c)
-	{
-		string separators = " .,:;+-*=~!()[]{}'\"\t\n";
-		return separators.find(c) != string::npos;
-	}
-
-	size_t word_begin(const string& text, size_t index)
-	{
-		size_t begin = SIZE_MAX;
-		for(int pos = int(index); pos >= 0 && !is_separator(text[pos]); --pos)
-			begin = size_t(pos);
-		return begin;
-	}
-
-	size_t word_end(const string& text, size_t index)
-	{
-		size_t end = SIZE_MAX;
-		for(size_t pos = index; pos < text.size() && !is_separator(text[pos]); ++pos)
-			end = pos;
-		return end;
-	}
-
-	string word_at(const string& text, size_t index)
-	{
-		size_t begin = word_begin(text, index);
-		size_t end = word_end(text, index);
-		return (begin != SIZE_MAX && end != SIZE_MAX) ? text.substr(begin, end + 1 - begin) : "";
-	}
-
-	size_t line_begin(const string& text, size_t index)
-	{
-		size_t begin = index;
-		for(; text[begin - 1] != '\n' && begin > 0; --begin)
-			;
-		return begin;
-
-	}
-
-	size_t line_end(const string& text, size_t index)
-	{
-		size_t end = index;
-		for(; text[end] != '\n' && end < text.size() - 1; ++end)
-			;
-		return end;
-	}
-
-	string text_line(const string& text, size_t index)
-	{
-		size_t begin = line_begin(text, index);
-		size_t end = line_end(text, index);
-		return text.substr(begin, end + 1 - begin);
-	}
-
-	size_t text_column(const string& text, size_t index)
-	{
-		return index - line_begin(text, index);
-	}
-
-	void replace_tabs(string& text, size_t tab_size)
-	{
-		for(size_t i = 0; i < text.size(); ++i)
-			if(text[i] == '\t')
-			{
-				size_t num = tab_size - i % tab_size;
-				for(size_t j = num; j > 0; --j)
-					text.push_back(' ');
-				i += num;
-			}
-	}
-
-	Vg* Text::s_vg = nullptr;
-
-	Text::Text(Frame& frame)
-		: m_frame(frame)
-		, m_text()
-		, m_num_lines(0)
-	{}
-
-	void Text::set_lines(size_t lines)
-	{
-		m_num_lines = lines;
-		//d_frame.mark_dirty(DIRTY_LAYOUT);
-	}
-
-	void Text::set_text(const string& text)
-	{
-		if(m_text == text) return;
-		m_text = text;
-		this->break_text_rows();
-	}
-
-	float Text::line_height() const
-	{
-		return s_vg->line_height(m_text_paint);
-	}
-
-	vec2 Text::compute_text_size()
-	{
-		return { compute_width(), compute_height() };
-	}
-	
-	float Text::compute_height() const
-	{
-		if(m_num_lines)
-			return line_height() * m_num_lines;
-		else if(!m_text_rows.empty())
-			return m_text_rows.back().m_rect.y + rect_h(m_text_rows.back().m_rect);
-		else
-			return 0.f;
-	}
-
-	float Text::compute_width() const
-	{
-		float result = 0.f;
-		for(const TextRow& row : m_text_rows)
-			result = max(result, rect_w(row.m_rect));
-		return result;
-	}
-
-	void Text::break_text_rows()
-	{
-		vec2 padded_size = floor(m_frame.m_size - rect_sum(m_frame.d_inkstyle->m_padding));
-
-		if(!m_text.empty())
-			s_vg->break_text(m_text.c_str(), m_text.size(), padded_size, m_text_paint, m_text_rows);
-		else
-			m_text_rows.clear();
-	}
-
-	size_t Text::char_at(const vec2& pos) const
-	{
-		const char* start = m_text.c_str();
-		const char* end = start + m_text.size();// - 1;
-
-		size_t imarker = 0;
-		size_t line = 0;
-		float offset = 0.f;
-		float line_height = s_vg->line_height(m_text_paint);
-
-		for(const TextRow& row : m_text_rows)
-		{
-			if(imarker < m_markers.size() && m_markers[imarker].m_line == line)
-			{
-				offset += line_height;
-				imarker++;
-			}
-
-			if(pos.y < offset + row.m_rect.y + rect_h(row.m_rect)) // pos.y >= row.m_rect.y && 
-			{
-				for(const TextGlyph& glyph : row.m_glyphs)
-					if(pos.x < glyph.m_rect.x + rect_w(glyph.m_rect) * 0.5f) // pos.x >= glyph.m_rect.x &&
-						return glyph.m_position - start;
-
-				return row.m_end - start;
-			}
-
-			line++;
-		}
-
-		return end - start - 1;
-	}
-
-	vec4 Text::interval_rect(const TextRow& row, size_t start, size_t end) const
-	{
-		const TextGlyph& start_glyph = row.m_glyphs[start - row.m_start_index];
-		const TextGlyph& end_glyph = row.m_glyphs[end - row.m_start_index];
-
-		return { start_glyph.m_rect.x, row.m_rect.y, end_glyph.m_rect.x + rect_w(end_glyph.m_rect) - start_glyph.m_rect.x, rect_h(row.m_rect) };
-	}
-
-	vec4 Text::interval_rect(size_t start, size_t end) const
-	{
-		const TextRow& row = this->text_row_at(start);
-		return this->interval_rect(row, start, end);
-	}
-
-	TextCursor Text::cursor_at(const vec2& pos) const
-	{
-		size_t index = this->char_at(pos);
-		return this->to_cursor(index);
-	}
-
-	vec4 Text::cursor_rect(size_t index) const
-	{
-		const TextRow& row = text_row_at(index);
-
-		if(index != row.m_end_index)
-		{
-			size_t offset = row.m_start - m_text.c_str();
-			return row.m_glyphs[index - offset].m_rect;
-		}
-		else
-		{
-			return { vec2{ row.m_rect.x + rect_w(row.m_rect), row.m_rect.y }, vec2{ 1.f, line_height() } };
-		}
-	}
-
-	size_t Text::text_row_index(size_t index) const
-	{
-		for(size_t i = 0; i < m_text_rows.size(); ++i)
-			if(index <= m_text_rows[i].m_end_index)
-				return i;
-		return 0;
-	}
-
-	const TextRow& Text::text_row_at(size_t index) const
-	{
-		return m_text_rows[text_row_index(index)];
-	}
-
-	TextCursor Text::to_cursor(size_t index) const
-	{
-		size_t row = this->text_row_index(index);
-		size_t column = m_text_rows.empty() ? 0U : index - m_text_rows[row].m_start_index;
-		return { index, { uint(column), uint(row) } };
-	}
-
-	TextCursor Text::to_cursor(const uvec2& grid_index) const
-	{
-		size_t index = m_text_rows[grid_index.y].m_start_index + grid_index.x;
-		return { index, grid_index };
-	}
-
-	TextCursor Text::clamp_cursor(int index) const
-	{
-		int clamped = max(0, min(int(m_text.size()) - 1, index));
-		return to_cursor(clamped);
-	}
-
-	TextCursor Text::clamp_cursor(const ivec2& grid_index) const
-	{
-		int line = max(0, min(int(m_text_rows.size()) - 1, grid_index.y));
-		int column = m_text_rows.empty() ? 0 : min(int(m_text_rows[line].m_glyphs.size()), grid_index.x);
-		size_t index = m_text_rows[line].m_start_index + column;
-		return { index, grid_index };
-		//return to_cursor({ uint(column), uint(line) });
-	}
-
 	TextEdit::TextEdit(Widget* parent, void* identity, bool editor, string allowed_chars)
 		: Widget(parent, identity)
 		, m_editor(editor)
 		, m_text(m_frame)
 		, m_string(m_text.m_text)
-		, m_dirty(0, m_string.size())
+		, m_dirty(0, uint(m_string.size()))
 		, m_allowed_chars(allowed_chars)
 	{
-		m_palette = to_array(OkaidaPalette());
+		m_palette = OkaidaPalette();
 	}
 
 	TextEdit::~TextEdit()
@@ -300,15 +58,15 @@ namespace mud
 	vec2 TextEdit::frame_size()
 	{
 		auto count_digits = [](int number) { int digits = 0; do { number /= 10; digits++; } while(number != 0); return digits; };
-		int digits = count_digits(int(m_text.m_text_rows.size()));
-		vec2 offset = { m_text.line_height() * float(digits) * 0.7f, 0.f };
+		const int digits = count_digits(int(m_text.m_text_rows.size()));
+		const vec2 offset = { m_text.line_height() * float(digits) * 0.7f, 0.f };
 
 		return offset + m_text.compute_text_size() + rect_sum(m_frame.d_inkstyle->m_padding);
 	}
 
 	void TextEdit::update_style()
 	{
-		m_text.m_text_paint = style_text_paint(*m_frame.d_inkstyle);
+		m_text.update_style();
 
 		if(m_editor)
 		{
@@ -319,9 +77,9 @@ namespace mud
 		auto count_digits = [](int number) { int digits = 0; do { number /= 10; digits++; } while (number != 0); return digits; };
 		int digits = count_digits(int(m_text.m_text_rows.size()));
 
-		vec2 padding = floor(rect_offset(m_frame.d_inkstyle->m_padding));
+		vec2 padding = floor(m_frame.d_inkstyle->m_padding.pos);
 		if(m_editor)
-			m_text_offset = padding + vec2{ m_text.line_height() * float(digits) * 0.7f, 0.f };
+			m_text_offset = padding + vec2(m_text.line_height() * float(digits) * 0.7f, 0.f);
 		else
 			m_text_offset = padding;
 	}
@@ -336,7 +94,7 @@ namespace mud
 		m_selection.m_start = min(size_t(m_selection.m_start), text.size());
 		m_selection.m_end = min(size_t(m_selection.m_end), text.size());
 
-		printf("WARNING: undo/redo won't work after this\n");
+		printf("[warning] undo/redo won't work after this\n");
 		//mUndoBuffer.clear();
 
 		mark_dirty(0, m_string.size());
@@ -357,7 +115,7 @@ namespace mud
 
 	void TextEdit::clear(size_t start, size_t end)
 	{
-		vector_remove_if(m_text.m_sections, [&](Text::ColorSection& section) { return section.m_end >= start && section.m_start <= end; });
+		remove_if(m_text.m_sections, [&](Text::ColorSection& section) { return section.m_end >= start && section.m_start <= end; });
 	}
 
 	void TextEdit::shift(size_t start, int offset)
@@ -373,7 +131,7 @@ namespace mud
 
 	void TextEdit::insert(size_t index, const string& text)
 	{
-		this->shift(index, int(text.length()));
+		this->shift(index, int(text.size()));
 		m_string.insert(index, text);
 		this->mark_dirty(line_begin(m_string, index), line_end(m_string, index + text.size()));
 		m_follow_cursor = true;
@@ -473,7 +231,8 @@ namespace mud
 			if(has_selection())
 				erase_selected(action);
 
-			insert(m_selection.m_cursor, string(1, c), m_selection.m_cursor + 1, action);
+			char cc = c;
+			insert(m_selection.m_cursor, string(&cc, 1), m_selection.m_cursor + 1, action);
 		});
 	}
 
@@ -586,12 +345,12 @@ namespace mud
 
 	void TextEdit::move_page_up(bool select)
 	{
-		this->move_select(m_text.clamp_cursor(ivec2(m_selection.m_cursor.m_grid_index) - ivec2(0, visible_lines() - 4)), select);
+		this->move_select(m_text.clamp_cursor(ivec2(m_selection.m_cursor.m_grid_index) - ivec2(0, int(visible_lines()) - 4)), select);
 	}
 
 	void TextEdit::move_page_down(bool select)
 	{
-		this->move_select(m_text.clamp_cursor(ivec2(m_selection.m_cursor.m_grid_index) + ivec2(0, visible_lines() - 4)), select);
+		this->move_select(m_text.clamp_cursor(ivec2(m_selection.m_cursor.m_grid_index) + ivec2(0, int(visible_lines()) - 4)), select);
 	}
 
 	void TextEdit::move_left(size_t count, bool select, bool word_mode)
@@ -654,7 +413,7 @@ namespace mud
 		EventType event_focus = m_focus_mode == TextFocusMode::Press ? EventType::Pressed
 																	 : EventType::Stroked;
 		if(!this->focused())
-			if(MouseEvent mouse_event = this->mouse_event(DeviceType::MouseLeft, event_focus, InputMod::None, false))
+			if(MouseEvent event = this->mouse_event(DeviceType::MouseLeft, event_focus, InputMod::None, false))
 			{
 				take_focus();
 				this->cursor(0);
@@ -664,14 +423,14 @@ namespace mud
 		bool ctrl = this->ui().m_keyboard.m_ctrl;
 		bool alt = this->ui().m_keyboard.m_alt;
 		
-		if(MouseEvent mouse_event = this->mouse_event(DeviceType::Mouse, EventType::Heartbeat))
+		if(MouseEvent event = this->mouse_event(DeviceType::Mouse, EventType::Heartbeat))
 		{
-			size_t index = m_text.char_at(mouse_event.m_relative - m_text_offset);
+			size_t index = m_text.char_at(event.m_relative - m_text_offset);
 			m_hovered_word = word_at(m_string, index);
 			if(m_hovered_word != "")
 			{
 				m_hovered_word_rect = m_text.interval_rect(word_begin(m_string, index), word_end(m_string, index));
-				m_hovered_word_rect = { rect_offset(m_hovered_word_rect) + m_text_offset, rect_size(m_hovered_word_rect) };
+				m_hovered_word_rect = { m_hovered_word_rect.pos + m_text_offset, m_hovered_word_rect.size };
 			}
 
 			this->ui().m_cursor_style = &ui::cursor_styles().caret;
@@ -736,37 +495,37 @@ namespace mud
 		Clipboard& clipboard = this->ui_window().m_clipboard;
 		if(clipboard.m_pasted.size() > 0)
 		{
-			clipboard.m_text = vector_pop(clipboard.m_pasted);
+			clipboard.m_text = pop(clipboard.m_pasted);
 			clipboard.m_line_mode = false;
 			this->paste();
 		}
 
 		if(this->focused() && !shift && !alt)
 		{
-			if(MouseEvent mouse_event = this->mouse_event(DeviceType::MouseLeft, EventType::Pressed))
+			if(MouseEvent event = this->mouse_event(DeviceType::MouseLeft, EventType::Pressed))
 			{
-				m_select_from = m_text.cursor_at(mouse_event.m_relative - m_text_offset);
+				m_select_from = m_text.cursor_at(event.m_relative - m_text_offset);
 				this->cursor(m_select_from, ctrl);
 			}
-			if(MouseEvent mouse_event = this->mouse_event(DeviceType::MouseLeft, EventType::Pressed, InputMod::Ctrl))
+			if(MouseEvent event = this->mouse_event(DeviceType::MouseLeft, EventType::Pressed, InputMod::Ctrl))
 			{
-				m_select_from = m_text.cursor_at(mouse_event.m_relative - m_text_offset);
+				m_select_from = m_text.cursor_at(event.m_relative - m_text_offset);
 				m_word_selection_mode = true;
 				this->cursor(m_select_from, true);
 			}
-			if(MouseEvent mouse_event = this->mouse_event(DeviceType::MouseLeft, EventType::Released))
+			if(MouseEvent event = this->mouse_event(DeviceType::MouseLeft, EventType::Released))
 			{
 				if(!focused())
 					this->select_all();
 			}
-			if(MouseEvent mouse_event = this->mouse_event(DeviceType::MouseLeft, EventType::DoubleStroked))
+			if(MouseEvent event = this->mouse_event(DeviceType::MouseLeft, EventType::DoubleStroked))
 			{
-				TextCursor cursor = m_text.cursor_at(mouse_event.m_relative - m_text_offset);
+				TextCursor cursor = m_text.cursor_at(event.m_relative - m_text_offset);
 				this->cursor(cursor, true);
 			}
-			if(MouseEvent mouse_event = this->mouse_event(DeviceType::MouseLeft, EventType::Dragged))
+			if(MouseEvent event = this->mouse_event(DeviceType::MouseLeft, EventType::Dragged))
 			{
-				TextCursor cursor = m_text.cursor_at(mouse_event.m_relative - m_text_offset);
+				TextCursor cursor = m_text.cursor_at(event.m_relative - m_text_offset);
 				this->select(m_select_from, cursor, m_word_selection_mode);
 				m_selection.m_cursor = cursor;
 			}
@@ -780,10 +539,10 @@ namespace mud
 
 	void TextEdit::update_scroll(Frame& frame, Frame& content)
 	{
-		if(MouseEvent mouse_event = this->mouse_event(DeviceType::MouseMiddle, EventType::Moved))
+		if(MouseEvent event = this->mouse_event(DeviceType::MouseMiddle, EventType::Moved))
 		{
 			float overflow = content.m_size.y - frame.m_size.y;
-			content.m_position.y += mouse_event.m_deltaZ * 22.f * 3.f;
+			content.m_position.y += event.m_deltaZ * 22.f * 3.f;
 			content.m_position.y = min(0.f, max(content.m_position.y, -overflow));
 		}
 
@@ -793,142 +552,6 @@ namespace mud
 			m_follow_cursor = false;
 		}
 	}
-	
-	Colour palette_colour(const ColourPalette& palette, PaletteIndex color_index)
-	{
-		return from_rgba(palette[color_index]);
-	}
-
-	Paint palette_paint(const ColourPalette& palette, PaletteIndex color_index)
-	{
-		return { from_rgba(palette[color_index]) };
-	}
-
-	TextPaint palette_text_paint(const Text& text, const ColourPalette& palette, PaletteIndex color_index)
-	{
-		TextPaint paint = text.m_text_paint;
-		paint.m_colour = from_rgba(palette[color_index]);
-		return paint;
-	}
-
-	void draw_text(Vg& vg, const vec2& padding, const Text& text)
-	{
-		for(const TextRow& row : text.m_text_rows)
-			vg.draw_text(padding + rect_offset(row.m_rect), row.m_start, row.m_end, text.m_text_paint);
-	}
-
-	void draw_editor_text(Vg& vg, const Frame& frame, const vec2& padding, const vec2& text_offset, const Text& text, const ColourPalette& palette)
-	{
-		char line_number[16];
-
-		size_t line = 0;
-		size_t isection = 0;
-		size_t imarker = 0;
-
-		vec2 offset = vec2(0.f);
-		float line_height = vg.line_height(text.m_text_paint);
-
-		for(const TextRow& row : text.m_text_rows)
-		{
-			while(isection < text.m_sections.size() && text.m_sections[isection].m_start < row.m_start_index)
-				isection++;
-
-			snprintf(line_number, 16, "%6d", int(++line));
-			vg.draw_text(padding + offset + rect_offset(row.m_rect), line_number, nullptr, palette_text_paint(text, palette, Text::LineNumber));
-
-			while(isection < text.m_sections.size() && text.m_sections[isection].m_start < row.m_end_index)
-			{
-				const Text::ColorSection& section = text.m_sections[isection];
-
-				vec2 position = offset + text_offset + rect_offset(row.m_glyphs[section.m_start - row.m_start_index].m_rect);
-				const char* front = &text.m_text.front();
-				vg.draw_text(floor(position) + vec2(0.f, 0.5f), front + section.m_start, front + section.m_end, palette_text_paint(text, palette, section.m_colour));
-
-				isection++;
-			}
-
-			if(imarker < text.m_markers.size() && text.m_markers[imarker].m_line == line)
-			{
-				vec4 rect = { offset + padding + vec2{ 0.f, row.m_rect.y + line_height }, vec2{ frame.m_size.x, text.line_height() } };
-				vec2 position = offset + text_offset + rect_offset(row.m_rect) + line_height;
-
-				vg.draw_rect(rect, palette_paint(palette, text.m_markers[imarker].m_highlight));
-				vg.draw_text(floor(position) + vec2(0.f, 2.5f), text.m_markers[imarker].m_message.c_str(), nullptr, palette_text_paint(text, palette, text.m_markers[imarker].m_colour));
-				
-				offset += vec2(0.f, line_height);
-
-				imarker++;
-			}
-		}
-	}
-
-	void draw_text_selection(Vg& vg, const Frame& frame, const vec2& padding, const vec2& text_offset, const Text& text, const TextSelection& selection, const ColourPalette& palette, bool current_line)
-	{
-		if(text.m_text_rows.empty())
-			return;
-
-		size_t line = 0;
-		size_t imarker = 0;
-
-		vec2 offset = vec2(0.f);
-		float line_height = vg.line_height(text.m_text_paint);
-
-		for(const TextRow& row : text.m_text_rows)
-		{
-			line++;
-
-			if(selection.m_start != selection.m_end && row.m_end_index > selection.m_start && row.m_start_index < selection.m_end)
-			{
-				if(row.m_glyphs.empty())
-				{
-					vg.draw_rect({ offset + text_offset + rect_offset(row.m_rect), vec2{ 5.f, rect_h(row.m_rect) } }, palette_paint(palette, Text::Selection));
-					continue;
-				}
-
-				size_t select_start = max(row.m_start_index, size_t(selection.m_start));
-				size_t select_end = min(row.m_end_index, size_t(selection.m_end));
-
-				vec4 row_rect = text.interval_rect(row, select_start, select_end - 1);
-				vg.draw_rect({ offset + text_offset + rect_offset(row_rect), rect_size(row_rect) }, palette_paint(palette, Text::Selection));
-			}
-
-			if(selection.m_cursor >= row.m_start_index && selection.m_cursor <= row.m_end_index)
-			{
-				if(current_line && selection.m_start == selection.m_end)
-				{
-					bool focused = false;
-					vec4 rect = { offset + padding + vec2{ 0.f, row.m_rect.y }, vec2{ frame.m_size.x, text.line_height() } };
-					vg.draw_rect(rect, { palette_colour(palette, focused ? Text::CurrentLineFill : Text::CurrentLineFillInactive),
-										 palette_colour(palette, Text::CurrentLineEdge), 1.0f });
-				}
-
-				static Clock blink_clock;
-				static bool caret_visible = true;
-				if(blink_clock.read() > 0.4f)
-				{
-					caret_visible = !caret_visible;
-					blink_clock.step();
-				}
-
-				if(caret_visible)
-				{
-					vec4 cursor_rect = text.cursor_rect(selection.m_cursor);
-					if(!selection.m_insert_mode)
-					{
-						cursor_rect.x -= 1.f;
-						cursor_rect.z = 1.f;
-					}
-					vg.draw_rect({ offset + text_offset + rect_offset(cursor_rect), rect_size(cursor_rect) }, palette_paint(palette, Text::Cursor));
-				}
-			}
-
-			if(imarker < text.m_markers.size() && text.m_markers[imarker].m_line == line)
-			{	
-				offset += vec2(0.f, line_height);
-				imarker++;
-			}
-		}
-	}
 
 	void TextEdit::render(Vg& vg)
 	{
@@ -936,11 +559,11 @@ namespace mud
 			recolorize();
 
 		if(m_editor)
-			vg.draw_rect({ m_frame.m_position, m_frame.m_size }, { palette_paint(m_palette, Text::Background) });
+			vg.draw_rect(vec4(vec2(0.f), m_frame.m_size), palette_paint(m_palette, Text::Background));
 		//else
 		//	vg.draw_background(m_frame, { m_frame.m_position, m_frame.m_size }, {}, {});
 
-		vec2 padding = floor(rect_offset(m_frame.d_inkstyle->m_padding));
+		const vec2 padding = floor(m_frame.d_inkstyle->m_padding.pos);
 
 		if(this->focused())
 			draw_text_selection(vg, m_frame, padding, m_text_offset, m_text, m_selection, m_palette, m_editor);
@@ -972,13 +595,20 @@ namespace mud
 
 	void TextEdit::colorize(size_t from, size_t to)
 	{
-		if(m_string.empty() || m_language == nullptr)
+		if(m_string.empty())
 			return;
+
+		if(m_language == nullptr)
+		{
+			m_text.m_sections.clear();
+			m_text.m_sections.push_back({ 0, m_string.size(), Text::Default });
+			return;
+		}
 
 		std::match_results<const char*> results;
 
-		size_t begin = line_begin(m_string, from);
-		size_t end = line_end(m_string, to);
+		const size_t begin = line_begin(m_string, from);
+		const size_t end = line_end(m_string, to);
 
 		bool preproc = false;
 
@@ -987,18 +617,18 @@ namespace mud
 		const char* last = first + end;
 
 		// remove all sections that overlap range to colorize, and get iterator to insert the new ones
-		vector_remove_if(m_text.m_sections, [=](Text::ColorSection& section) { return section.m_start >= begin && section.m_end <= end; });
-		auto start_section = vector_find_if(m_text.m_sections, [=](const Text::ColorSection& section) { return section.m_start >= begin; });
+		remove_if(m_text.m_sections, [=](Text::ColorSection& section) { return section.m_start >= begin && section.m_end <= end; });
+		auto start_section = find_if(m_text.m_sections, [=](const Text::ColorSection& section) { return section.m_start >= begin; });
 
 		for(const char* current = start; current != last; ++current)
 		{
 			for(auto& token_color : m_language->m_regex_tokens)
 			{
-				if(std::regex_search<const char*>(current, last, results, token_color.first, std::regex_constants::match_continuous))
+				if(std::regex_search<const char*>(current, last, results, token_color.token, std::regex_constants::match_continuous))
 				{
 					auto match = *results.begin();
 					string name = m_string.substr(match.first - first, match.second - match.first);
-					PaletteIndex color = token_color.second;
+					PaletteIndex color = token_color.color;
 
 					//if(color == uint16_t(CodePalette::Word))
 					{
@@ -1028,9 +658,9 @@ namespace mud
 						preproc = true;
 					}
 
-					Text::ColorSection section = { size_t(match.first - first), size_t(match.second - first), color };
-					start_section = m_text.m_sections.insert(start_section, section) + 1;
-					//m_text.m_sections.push_back(section);
+					const Text::ColorSection section = { size_t(match.first - first), size_t(match.second - first), color };
+					start_section = m_text.m_sections.insert(start_section, section);
+					start_section++;
 
 					current += name.size() - 1;
 					break;
@@ -1044,17 +674,17 @@ namespace mud
 
 	void TextEdit::scroll_to_cursor(Frame& frame, Frame& content)
 	{
-		vec2 margin = vec2(0.f);
+		const vec2 margin = vec2(0.f);
 
-		vec4 cursor_rect = m_text.cursor_rect(m_selection.m_cursor);
-		vec2 cursor_min = rect_offset(cursor_rect) - margin;
-		vec2 cursor_max = cursor_min + rect_size(cursor_rect) + margin;
+		const vec4 cursor_rect = m_text.cursor_rect(m_selection.m_cursor);
+		const vec2 cursor_min = cursor_rect.pos - margin;
+		const vec2 cursor_max = cursor_min + cursor_rect.size + margin;
 
-		vec2 frame_min = -content.m_position;
-		vec2 frame_max = -content.m_position + frame.m_size;
+		const vec2 frame_min = -content.m_position;
+		const vec2 frame_max = -content.m_position + frame.m_size;
 
-		vec2 delta_neg = max(vec2(0.f), frame_min - cursor_min);
-		vec2 delta_pos = min(vec2(0.f), frame_max - cursor_max);
+		const vec2 delta_neg = max(vec2(0.f), frame_min - cursor_min);
+		const vec2 delta_pos = min(vec2(0.f), frame_max - cursor_max);
 
 		content.set_position(content.m_position + delta_neg);
 		content.set_position(content.m_position + delta_pos);
@@ -1110,7 +740,7 @@ namespace ui
 		self.update();
 		text = self.m_string;
 
-		vec2 size = self.frame_size();
+		const vec2 size = self.frame_size();
 		ui::dummy(self, size);
 
 		self.m_custom_draw = [&](const Frame& frame, const vec4& rect, Vg& vg) { UNUSED(frame); UNUSED(rect); self.render(vg); };
@@ -1125,14 +755,14 @@ namespace ui
 		return edit;
 	}
 
-	void autocomplete_popup(TextEdit& edit, string& text, const string& current_word, size_t cursor, size_t word_start, array<cstring> completions)
+	void autocomplete_popup(TextEdit& edit, string& text, const string& current_word, size_t cursor, size_t word_start, span<cstring> completions)
 	{
-		vec4 word_rect = edit.m_text.interval_rect(word_start, cursor - 1);
-		vec2 popup_position = edit.m_text_offset + rect_offset(word_rect) + vec2(0.f, rect_h(word_rect));
+		const vec4 word_rect = edit.m_text.interval_rect(word_start, cursor - 1);
+		const vec2 popup_position = edit.m_text_offset + word_rect.pos + vec2(0.f, word_rect.height);
 
 		static uint32_t current = 0;
 
-		bool selected = ui::popdown(edit, completions, current, popup_position, PopupFlags::None); //auto_complete_style
+		const bool selected = ui::popdown(edit, completions, current, popup_position, PopupFlags::None); //auto_complete_style
 
 		if(edit.key_stroke(Key::Up))
 			current = max(current - 1, uint32_t(0));
@@ -1149,7 +779,7 @@ namespace ui
 		}
 	}
 
-	TextEdit& text_edit(Widget& parent, string& text, size_t lines, std::vector<string>* vocabulary)
+	TextEdit& text_edit(Widget& parent, string& text, size_t lines, vector<string>* vocabulary)
 	{
 		Widget& self = widget(parent, styles().text_edit);
 		ScrollSheet& scroll_sheet = ui::scroll_sheet(self);
@@ -1159,30 +789,32 @@ namespace ui
 
 		if(vocabulary && edit.m_completing && !edit.has_selection())
 		{
-			size_t cursor = edit.m_selection.m_cursor;
-			size_t begin = word_begin(edit.m_string, cursor - 1);
+			const size_t cursor = edit.m_selection.m_cursor;
+			const size_t begin = word_begin(edit.m_string, cursor - 1);
 
-			string current_word = begin == SIZE_MAX ? "" : edit.m_string.substr(begin, cursor - begin);
+			const string current_word = begin == SIZE_MAX ? "" : edit.m_string.substr(begin, cursor - begin);
 			if(current_word != "")
 			{
-				std::vector<cstring> completions;
+				vector<cstring> completions;
 				for(const string& word : *vocabulary)
 				{
 					//if(word.find(current_word) != string::npos)
 					// if current word is fits the beginning of word
-					if(word.compare(0, current_word.size(), current_word) == 0)
+					if(word.substr(0, current_word.size()).compare(current_word) == 0)
 						completions.push_back(word.c_str());
+					//if(word.compare(0, current_word.size(), current_word) == 0)
+					//	completions.push_back(word.c_str());
 				}
 
 				if(!completions.empty())
-					autocomplete_popup(edit, text, current_word, cursor, begin, to_array(completions));
+					autocomplete_popup(edit, text, current_word, cursor, begin, completions);
 			}
 		}
 
 		return edit;
 	}
 
-	TextEdit& code_edit(Widget& parent, string& text, size_t lines, std::vector<string>* vocabulary)
+	TextEdit& code_edit(Widget& parent, string& text, size_t lines, vector<string>* vocabulary)
 	{
 		return text_edit(parent, text, lines, vocabulary);
 	}

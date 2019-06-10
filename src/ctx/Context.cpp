@@ -4,26 +4,27 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.ctx;
+#ifdef TWO_MODULES
+module two.ctx;
 #else
 #include <ctx/Context.h>
 #endif
 
-namespace mud
+namespace two
 {
-	RenderSystem::RenderSystem(cstring resource_path, bool manual_render)
+	RenderSystem::RenderSystem(const string& resource_path, bool manual_render)
 		: m_resource_path(resource_path)
 		, m_manual_render(manual_render)
 	{}
 
-	Context::Context(RenderSystem& render_system, cstring title, int width, int height, bool full_screen)
+	Context::Context(RenderSystem& render_system, const string& title, const uvec2& size, bool fullscreen, bool main)
 		: m_render_system(render_system)
 		, m_resource_path(render_system.m_resource_path)
 		, m_title(title)
-		, m_width(width)
-		, m_height(height)
-		, m_full_screen(full_screen)
+		, m_size(size)
+		, m_fb_size(size)
+		, m_fullscreen(fullscreen)
+		, m_is_main(main)
 	{}
 
 	Context::~Context()

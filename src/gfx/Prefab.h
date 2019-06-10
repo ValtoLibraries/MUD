@@ -4,7 +4,8 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
+#include <stl/vector.h>
 //#include <refl/Method.h>
 #include <geom/Aabb.h>
 #endif
@@ -13,24 +14,20 @@
 #include <gfx/Item.h>
 #include <gfx/Importer.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#endif
-
-namespace mud
+namespace two
 {
-#ifdef MUD_PREFABNODE
+#ifdef TWO_PREFABNODE
 	export_ enum class refl_ PrefabType : unsigned int
 	{
 		None,
 		Item,
 		Model,
 		Shape,
-		Particles,
+		Flare,
 		Light
 	};
 
-	export_ struct refl_ MUD_GFX_EXPORT PrefabNode
+	export_ struct refl_ TWO_GFX_EXPORT PrefabNode
 	{
 		PrefabNode();
 
@@ -38,28 +35,33 @@ namespace mud
 		attr_ Ref m_object = {};
 		attr_ PrefabType m_prefab_type = PrefabType::None;
 		attr_ Call m_call = {};
-		attr_ std::vector<PrefabNode> m_nodes;
+		attr_ vector<PrefabNode> m_nodes;
 
 		void draw(Gnode& parent);
 	};
 #endif
 
-	export_ class refl_ MUD_GFX_EXPORT Prefab
+	export_ class refl_ TWO_GFX_EXPORT Prefab
 	{
 	public:
-		Prefab(cstring name);
+		Prefab(const string& name);
 
 		attr_ string m_name;
-#ifdef MUD_PREFABNODE
+#ifdef TWO_PREFABNODE
 		attr_ PrefabNode m_node;
 #endif
 
-		std::vector<Node3> m_nodes;
-		std::vector<Item> m_items;
+		meth_ void add(Scene& scene, Mime* mime = nullptr);
+
+		vector<Node3> m_nodes;
+		struct Elem { uint32_t node; Item item; };
+		vector<Elem> m_items;
 
 		Aabb m_aabb;
+
+		vector<Animation*> m_anims;
 	};
 
-	export_ MUD_GFX_EXPORT Prefab& import_prefab(GfxSystem& gfx_system, ModelFormat format, const string& name, const ImportConfig& config);
-	export_ MUD_GFX_EXPORT void destroy_prefab(GfxSystem& gfx_system, Prefab& prefab);
+	export_ TWO_GFX_EXPORT Prefab& import_prefab(GfxSystem& gfx, ModelFormat format, const string& name, const ImportConfig& config);
+	export_ TWO_GFX_EXPORT void destroy_prefab(GfxSystem& gfx, Prefab& prefab);
 }

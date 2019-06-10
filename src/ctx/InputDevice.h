@@ -4,21 +4,18 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
+#include <stl/vector.h>
 #include <math/Vec.h>
 #endif
 #include <ctx/Forward.h>
 #include <ctx/KeyCode.h>
 #include <ctx/InputDispatcher.h>
+#include <ctx/ControlNode.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#include <array>
-#endif
-
-namespace mud
+namespace two
 {
-	export_ class MUD_CTX_EXPORT InputDevice
+	export_ class TWO_CTX_EXPORT InputDevice
 	{
 	public:
 		InputDevice(EventDispatcher& dispatcher);
@@ -26,7 +23,7 @@ namespace mud
 		EventDispatcher& m_dispatcher;
 	};
 
-	export_ class MUD_CTX_EXPORT Keyboard : public InputDevice
+	export_ class refl_ TWO_CTX_EXPORT Keyboard : public InputDevice
 	{
 	public:
 		Keyboard(EventDispatcher& dispatcher);
@@ -48,10 +45,10 @@ namespace mud
 		bool m_ctrl = false;
 		bool m_alt = false;
 
-		std::vector<KeyEvent> m_events;
+		vector<KeyEvent> m_events;
 	};
 
-	export_ class MUD_CTX_EXPORT MouseButton : public InputDevice
+	export_ class TWO_CTX_EXPORT MouseButton : public InputDevice
 	{
 	public:
 		MouseButton(Mouse& mouse, DeviceType deviceType);
@@ -74,7 +71,7 @@ namespace mud
 		MouseEvent m_pressed_event = {};
 	};
 
-	export_ class MUD_CTX_EXPORT Mouse : public InputDevice
+	export_ class refl_ TWO_CTX_EXPORT Mouse : public InputDevice
 	{
 	public:
 		Mouse(EventDispatcher& dispatcher, Keyboard& keyboard);
@@ -92,8 +89,25 @@ namespace mud
 		Keyboard& m_keyboard;
 		vec2 m_pos;
 		vec2 m_last_pos;
-		std::array<MouseButton, 3> m_buttons;
+		MouseButton m_buttons[3];
 
-		std::vector<MouseEvent> m_events;
+		vector<MouseEvent> m_events;
+	};
+
+	export_ class TWO_CTX_EXPORT InputContext : public ControlNode, public EventDispatcher
+	{
+	public:
+		InputContext();
+
+		void init(Context& context);
+
+		void begin_frame();
+		void end_frame();
+
+		virtual ControlNode* control_event(InputEvent& event) override;
+		virtual void receive_event(InputEvent& inputEvent) override;
+
+		Keyboard m_keyboard;
+		Mouse m_mouse;
 	};
 }

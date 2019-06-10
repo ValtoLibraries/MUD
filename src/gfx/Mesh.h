@@ -4,9 +4,10 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <infra/Array.h>
-#include <infra/Strung.h>
+#ifndef TWO_MODULES
+#include <stl/vector.h>
+#include <stl/string.h>
+#include <stl/span.h>
 #include <math/Vec.h>
 #include <geom/Primitive.h>
 #include <geom/Aabb.h>
@@ -15,61 +16,40 @@
 
 #include <bgfx/bgfx.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#endif
-
-namespace mud
+namespace two
 {
-	export_ struct MUD_GFX_EXPORT GpuMesh
+	export_ struct refl_ TWO_GFX_EXPORT GpuMesh
 	{
-		GpuMesh() {}
-		GpuMesh(uint32_t vertex_count, uint32_t index_count)
-			: m_vertex_count(vertex_count), m_index_count(index_count)
-		{}
+		GpuMesh();
+		GpuMesh(PrimitiveType primitive, uint32_t vertex_count, uint32_t index_count);
 
+		PrimitiveType m_primitive = PrimitiveType::Triangles;
 		uint32_t m_vertex_format = 0;
 		
 		uint32_t m_vertex_count = 0;
 		uint32_t m_index_count = 0;
 		bool m_index32 = false;
+		bool m_dynamic = false;
 
 		const bgfx::Memory* m_vertex_memory = nullptr;
 		const bgfx::Memory* m_index_memory = nullptr;
 
-		void* m_vertices = nullptr;
-		void* m_indices = nullptr;
+		span<void> m_vertices = {};
+		span<void> m_indices = {};
 
 		MeshAdapter m_writer = {};
 	};
 	
-	inline GpuMesh alloc_mesh(uint32_t vertex_format, uint32_t vertex_count, uint32_t index_count, bool index32)
-	{
-		GpuMesh gpu_mesh = { vertex_count, index_count };
+	export_ TWO_GFX_EXPORT const bgfx::VertexDecl& vertex_decl(uint32_t vertex_format);
 
-		gpu_mesh.m_vertex_memory = bgfx::alloc(vertex_size(vertex_format) * vertex_count);
-		gpu_mesh.m_index_memory = index32 ? bgfx::alloc(sizeof(uint32_t) * index_count)
-										  : bgfx::alloc(sizeof(uint16_t) * index_count);
-		gpu_mesh.m_index32 = index32;
+	export_ TWO_GFX_EXPORT GpuMesh alloc_mesh(PrimitiveType primitive, uint32_t vertex_format, uint32_t vertex_count, uint32_t index_count, bool index32);
+	export_ TWO_GFX_EXPORT GpuMesh alloc_mesh(PrimitiveType primitive, uint32_t vertex_format, uint32_t vertex_count, uint32_t index_count);
+	export_ TWO_GFX_EXPORT GpuMesh alloc_mesh(uint32_t vertex_format, uint32_t vertex_count, uint32_t index_count);
 
-		gpu_mesh.m_vertices = gpu_mesh.m_vertex_memory->data;
-		gpu_mesh.m_indices = gpu_mesh.m_index_memory->data;
-
-		gpu_mesh.m_vertex_format = vertex_format;
-		gpu_mesh.m_writer = MeshAdapter(vertex_format, gpu_mesh.m_vertices, vertex_count, gpu_mesh.m_indices, index_count, index32);
-
-		return gpu_mesh;
-	}
-
-	inline GpuMesh alloc_mesh(uint32_t vertex_format, uint32_t vertex_count, uint32_t index_count)
-	{
-		return alloc_mesh(vertex_format, vertex_count, index_count, vertex_count > UINT16_MAX);
-	}
-
-	export_ class refl_ MUD_GFX_EXPORT Mesh
+	export_ class refl_ TWO_GFX_EXPORT Mesh
 	{
 	public:
-		Mesh(cstring name, bool readback = false);
+		Mesh(const string& name, bool readback = false);
 		~Mesh();
 
 		Mesh(Mesh&& other) = default;
@@ -77,10 +57,10 @@ namespace mud
 
 		attr_ string m_name;
 		attr_ uint16_t m_index;
-		attr_ DrawMode m_draw_mode = PLAIN;
+		attr_ PrimitiveType m_primitive = PrimitiveType::Triangles;
 		attr_ Aabb m_aabb = {};
 		attr_ float m_radius = 0.f;
-		attr_ vec3 m_origin = Zero3;
+		attr_ vec3 m_origin = vec3(0.f);
 		attr_ bool m_readback = false;
 
 		attr_ uint32_t m_vertex_format = 0;
@@ -92,26 +72,60 @@ namespace mud
 
 		attr_ Material* m_material = nullptr;
 
-		bgfx::VertexBufferHandle m_vertex_buffer = BGFX_INVALID_HANDLE;
-		bgfx::IndexBufferHandle m_index_buffer = BGFX_INVALID_HANDLE;
+		bgfx::VertexBufferHandle m_vertices = BGFX_INVALID_HANDLE;
+		bgfx::IndexBufferHandle m_indices = BGFX_INVALID_HANDLE;
+
+		struct Morph
+		{
+			bgfx::VertexBufferHandle m_vertices = BGFX_INVALID_HANDLE;
+		};
+
+		vector<Morph> m_morphs;
+
+		attr_ bool m_is_dynamic = false;
+		attr_ bool m_is_direct = false;
+
+		struct Range { uint32_t m_start = 0U; uint32_t m_count = 0U; };
+		Range m_range;
+
+		struct Dynamic
+		{
+			bgfx::DynamicVertexBufferHandle m_vertices = BGFX_INVALID_HANDLE;
+			bgfx::DynamicIndexBufferHandle m_indices = BGFX_INVALID_HANDLE;
+
+		} m_dynamic;
+
+		struct Direct
+		{
+			bgfx::TransientVertexBuffer m_vertices;
+			bgfx::TransientIndexBuffer m_indices;
+			MeshAdapter m_adapter;
+
+		} m_direct;
 
 		struct UvBounds { vec2 min; vec2 max; };
 		UvBounds m_uv0_rect = {};
 		UvBounds m_uv1_rect = {};
 
-		std::vector<uint8_t> m_cached_vertices;
-		std::vector<uint8_t> m_cached_indices;
+		vector<uint8_t> m_cached_vertices;
+		vector<uint8_t> m_cached_indices;
 
-		MeshAdapter m_cache;
+		attr_ MeshAdapter m_cache;
 
-		void clear();
-		void read(MeshAdapter& writer, const mat4& transform) const;
-		void read(MeshPacker& packer, const mat4& transform) const;
-		void write(DrawMode draw_mode, MeshPacker& packer, bool optimize = false);
-		void upload(DrawMode draw_mode, const GpuMesh& gpu_mesh);
-		void upload_opt(DrawMode draw_mode, const GpuMesh& gpu_mesh);
-		void cache(const GpuMesh& gpu_mesh);
-		
+		meth_ void clear();
+		meth_ void write(const MeshPacker& packer, bool optimize = false, bool dynamic = false);
+		meth_ void xwrite(const MeshPacker& packer, const mat4& transform, bool optimize = false, bool dynamic = false);
+		meth_ void morph(const MeshPacker& packer);
+		meth_ void upload(const GpuMesh& gpu_mesh, bool optimize = false);
+		meth_ void cache(const GpuMesh& gpu_mesh);
+
+		GpuMesh begin();
+		void update(const GpuMesh& gpu_mesh);
+
+		meth_ MeshAdapter& direct(uint32_t vertex_format, uint32_t vertex_count, uint32_t index_count = 0);
+
 		uint64_t submit(bgfx::Encoder& encoder) const;
+
+		void submit_morph(bgfx::Encoder& encoder, size_t index, size_t morph) const;
 	};
 }

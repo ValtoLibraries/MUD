@@ -4,21 +4,25 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.ui;
+#ifdef TWO_MODULES
+module two.ui;
 #else
+#include <stl/string.h>
+#include <tree/Graph.hpp>
 #include <ui/Widget.h>
-#include <ui/Structs/Widget.h>
+#include <ui/WidgetStruct.h>
 #include <ui/Style/Styles.h>
 #endif
 
-namespace mud
+#include <cassert>
+
+namespace two
 {
 namespace ui
 {
 	void widget_logic(Widget& self)
 	{
-		if(MouseEvent mouse_event = self.mouse_event(DeviceType::Mouse, EventType::Heartbeat))
+		if(MouseEvent event = self.mouse_event(DeviceType::Mouse, EventType::Heartbeat))
 			self.enable_state(HOVERED);
 		else
 			self.disable_state(HOVERED);
@@ -32,7 +36,7 @@ namespace ui
 		return self;
 	}
 
-	Widget& widget(Widget& parent, Style& style, bool open, Dim length, Dim2<size_t> index)
+	Widget& widget(Widget& parent, Style& style, bool open, Axis length, v2<uint> index)
 	{
 		Widget& self = parent.subi(&style).init(style, open, length, index);
 		assert(self.m_frame.d_style);
@@ -48,7 +52,12 @@ namespace ui
 		return self;
 	}
 
-	Widget& multi_item(Widget& parent, Style& style, array<cstring> elements, Style* element_style)
+	Widget& item(Widget& parent, Style& style, const string& content)
+	{
+		return item(parent, style, content.c_str());
+	}
+
+	Widget& multi_item(Widget& parent, Style& style, span<cstring> elements, Style* element_style)
 	{
 		Widget& self = widget(parent, style);
 		for(cstring value : elements)
@@ -56,12 +65,12 @@ namespace ui
 		return self;
 	}
 
-	Widget& multi_item(Widget& parent, array<cstring> elements, Style* element_style)
+	Widget& multi_item(Widget& parent, span<cstring> elements, Style* element_style)
 	{
 		return multi_item(parent, styles().row, elements, element_style);
 	}
 
-	Widget& spanner(Widget& parent, Style& style, Dim dim, float span)
+	Widget& spanner(Widget& parent, Style& style, Axis dim, float span)
 	{
 		Widget& self = widget(parent, style);
 		self.m_frame.set_span(dim, span);

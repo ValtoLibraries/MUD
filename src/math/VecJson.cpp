@@ -4,49 +4,52 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.math;
+#ifdef TWO_MODULES
+module two.math;
 #else
+#include <stl/vector.h>
+#include <math/Vec.hpp>
 #include <math/VecJson.h>
 #endif
 
 #include <json11.hpp>
 
-namespace mud
+namespace two
 {
-	void from_json(const json& j, vec3& vec)
+	inline float jfloat(const Json& j) { return float(j.number_value()); }
+
+	void from_json(const Json& j, vec3& vec)
 	{
-		vec = vec3(j[0].number_value(), j[1].number_value(), j[2].number_value());
+		vec = vec3(jfloat(j[0]), jfloat(j[1]), jfloat(j[2]));
 	}
 
-	void from_json(const json& j, quat& q)
+	void from_json(const Json& j, quat& q)
 	{
-		// glm is w, x, y, z whereas gltf is x, y, z, w
-		q = quat(float(j[3].number_value()), float(j[0].number_value()), float(j[1].number_value()), float(j[2].number_value()));
+		q = quat(jfloat(j[0]), jfloat(j[1]), jfloat(j[2]), jfloat(j[3]));
 	}
 
-	void from_json(const json& j, mat4& mat)
+	void from_json(const Json& j, mat4& mat)
 	{
 		mat = mat4(
-			vec4(j[0].number_value(),  j[1].number_value(),  j[2].number_value(),  j[3].number_value()),
-			vec4(j[4].number_value(),  j[5].number_value(),  j[6].number_value(),  j[7].number_value()),
-			vec4(j[8].number_value(),  j[9].number_value(),  j[10].number_value(), j[11].number_value()),
-			vec4(j[12].number_value(), j[13].number_value(), j[14].number_value(), j[15].number_value())
+			vec4(jfloat(j[0]),  jfloat(j[1]),  jfloat(j[2]),  jfloat(j[3])),
+			vec4(jfloat(j[4]),  jfloat(j[5]),  jfloat(j[6]),  jfloat(j[7])),
+			vec4(jfloat(j[8]),  jfloat(j[9]),  jfloat(j[10]), jfloat(j[11])),
+			vec4(jfloat(j[12]), jfloat(j[13]), jfloat(j[14]), jfloat(j[15]))
 		);
 	}
 }
 
-namespace mud
+namespace two
 {
-	void from_json(const json& j, Colour& col)
+	void from_json(const Json& j, Colour& col)
 	{
 		col = Colour(float(j[0].number_value()), float(j[1].number_value()), float(j[2].number_value()), float(j[3].number_value()));
 	}
 
-	void to_json(const Colour& col, json& j)
+	void to_json(const Colour& col, Json& j)
 	{
-		std::vector<json> values;
-		values = { col.m_r, col.m_g, col.m_b, col.m_a };
+		std::vector<Json> values;
+		values = { col.r, col.g, col.b, col.a };
 		j = values;
 	}
 }

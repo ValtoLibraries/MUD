@@ -4,16 +4,13 @@
 
 #pragma once
 
+#include <stl/vector.h>
 #include <gfx/Forward.h>
 #include <gfx/Frustum.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#endif
-
-namespace mud
+namespace two
 {
-	export_ struct refl_ MUD_GFX_EXPORT ClusteredFrustum : public Frustum
+	export_ struct refl_ TWO_GFX_EXPORT ClusteredFrustum : public Frustum
 	{
 		uint16_t m_subdiv_x = 0;
 		uint16_t m_subdiv_y = 0;
@@ -27,24 +24,22 @@ namespace mud
 		float m_far_log2 = 0.f;
 		vec2 m_clip_to_cluster = vec2(0.f);
 
-		std::vector<float> m_distances_z;                // max 2.1 MiB (actual: resolution dependant)
-		std::vector<vec4> m_planes_x;
-		std::vector<vec4> m_planes_y;
-		std::vector<vec4> m_bounding_spheres;
+		vector<float> m_distances_z;                // max 2.1 MiB (actual: resolution dependant)
+		vector<vec4> m_planes_x;
+		vector<vec4> m_planes_y;
+		vector<vec4> m_bounding_spheres;
 
-		uint16_t index(size_t ix, size_t iy, size_t iz) const { return uint16_t(ix + (iy * m_subdiv_x) + (iz * m_subdiv_x * m_subdiv_y)); }
+		uint16_t index(uint ix, uint iy, uint iz) const { return uint16_t(ix + (iy * m_subdiv_x) + (iz * m_subdiv_x * m_subdiv_y)); }
 
-		struct TileIndex { size_t x; size_t y; };
+		uvec2 tile_index(const vec2& clip) const;
+		uint slice(float z) const;
 
-		TileIndex tile_index(const vec2& clip) const;
-		size_t slice(float z) const;
-
-		Frustum cluster_frustum(size_t x, size_t y, size_t z) const;
+		Frustum cluster_frustum(uint x, uint y, uint z) const;
 
 		void resize(const vec2& clip_size);
 		void recompute(const mat4& projection, const vec2& clip_size);
 	};
 
-	export_ MUD_GFX_EXPORT void compute_frustum_subdiv(ClusteredFrustum& frustum, vec2 clip_size, size_t slices = 16);
-	export_ MUD_GFX_EXPORT void compute_frustum_subdiv_square(ClusteredFrustum& frustum, vec2 clip_size, size_t slices = 16, size_t max_clusters = 8192);
+	export_ TWO_GFX_EXPORT void compute_frustum_subdiv(ClusteredFrustum& frustum, vec2 clip_size, size_t slices = 16);
+	export_ TWO_GFX_EXPORT void compute_frustum_subdiv_square(ClusteredFrustum& frustum, vec2 clip_size, size_t slices = 16, size_t max_clusters = 8192);
 }

@@ -3,35 +3,34 @@
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #include <infra/Cpp20.h>
-#ifndef MUD_CPP_20
-#include <fstream>
-#endif
 
-#ifdef MUD_MODULES
-module mud.gfx-edit;
+#ifdef TWO_MODULES
+module two.gfx-edit;
 #else
-#include <refl/Method.h>
+#include <infra/File.h>
+#include <type/Var.h>
+#include <tree/Graph.hpp>
 #include <srlz/Serial.h>
-#include <refl/System.h>
 #include <geom/Shapes.h>
 #include <geom/Symbol.h>
 #include <gfx/Gfx.h>
 #include <gfx/GfxSystem.h>
-#include <uio/Unode.h>
-#include <uio/Edit/Inspector.h>
-#include <uio/Edit/Section.h>
-#include <uio/Edit/Value.h>
+#include <ui/Section.h>
+#include <ui/Ui.h>
+#include <uio/Inspector.h>
+#include <uio/ValueEdit.h>
+#include <gfx/Particles.h>
 #include <gfx-ui/Types.h>
 #include <gfx-ui/Viewer.h>
 #include <gfx-edit/ParticleEdit.h>
 #endif
 
-namespace mud
+namespace two
 {
 	struct ParticleEditorState : public NodeState
 	{
-		ParticleEditorState() : m_particles(function(gfx::particles)) {}
-		Call m_particles;
+		ParticleEditorState() {}
+		Flow m_particles;
 	};
 
 	void cube_test(Gnode& parent)
@@ -40,20 +39,18 @@ namespace mud
 		gfx::shape(self, Cube(1.f), Symbol());
 	}
 
-	void particle_editor_viewer(Widget& parent, Call& particles)
+	void particle_editor_viewer(Widget& parent, Flow& particles)
 	{
-		SceneViewer& viewer = ui::scene_viewer(parent, vec2{ 500.f });
+		SceneViewer& viewer = ui::scene_viewer(parent, vec2(500.f));
 		ui::orbit_controller(viewer);
 
 		//viewer.m_clear_colour = Colour::DarkGrey;
-		//viewer.m_camera.set_isometric(SOUTH, Zero3);
+		//viewer.m_camera.set_isometric(SOUTH, vec3(0.f));
 
-		Gnode& scene = viewer.m_scene->begin();
-		particles.m_arguments[0] = Ref(&parent);
-		particles.m_arguments[1] = var(string("particle.ktx"));
-		particles();
-		
-		Shape* shape = val<ParticleGenerator>(particles.m_arguments[2]).m_shape.m_shape.get();
+		Gnode& scene = viewer.m_scene.begin();
+		gfx::flows(scene, particles);
+
+		Shape* shape = particles.m_shape.m_shape.get();
 		if(shape)
 			gfx::shape(scene, *shape, Symbol());
 
@@ -66,44 +63,38 @@ namespace mud
 		SAVE_PARTICLES = 1 << 1
 	};
 
-	void open_particles(Widget& parent, GfxSystem& system, ParticleGenerator& generator)
+	void open_particles(Widget& parent, GfxSystem& system, Flow& generator)
 	{
 		static string location = "";
 		if(select_value(parent, OPEN_PARTICLES, location, true))
 		{
-			if(std::fstream(string(system.m_resource_path) + location).good())
+			if(file_exists(system.m_resource_path + "/" + location))
 			{
-				unpack_json_file(Ref(&generator), string(system.m_resource_path) + location);
+				unpack_json_file(Ref(&generator), system.m_resource_path + "/" + location);
 			}
 		}
 	}
 
-	void save_particles(Widget& parent, GfxSystem& system, ParticleGenerator& generator)
+	void save_particles(Widget& parent, GfxSystem& system, Flow& generator)
 	{
 		static string destination = "";
 		if(select_value(parent, SAVE_PARTICLES, destination, true))
 		{
-			pack_json_file(Ref(&generator), string(system.m_resource_path) + destination);
+			pack_json_file(Ref(&generator), system.m_resource_path + "/" + destination);
 		}
 	}
 
-	void particle_edit(Widget& parent, GfxSystem& system, ParticleGenerator& generator)
+	void particle_edit(Widget& parent, GfxSystem& system, Flow& generator)
 	{
 		Section& self = section(parent, "Particle Editor");
 
-		//call_edit(self, generator);
 		object_edit(*self.m_body, Ref(&generator));
-		//particle_editor_viewer(self, particles);
+		particle_editor_viewer(self, generator);
 
 		if(ui::modal_button(self, *self.m_toolbar, "Open", OPEN_PARTICLES))
 			open_particles(self, system, generator);
 		if(ui::modal_button(self, *self.m_toolbar, "Save", SAVE_PARTICLES))
 			save_particles(self, system, generator);
-	}
-
-	void particle_edit(Widget& parent, GfxSystem& system, Call& particles_call)
-	{
-		particle_edit(parent, system, val<ParticleGenerator>(particles_call.m_arguments[1]));
 	}
 
 	void particle_editor(Widget& parent, GfxSystem& system)

@@ -4,28 +4,29 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.ui;
+#ifdef TWO_MODULES
+module two.ui;
 #else
+#include <stl/algorithm.h>
 #include <infra/Vector.h>
+#include <tree/Graph.hpp>
+#include <math/Vec.hpp>
+//#include <ui/Extern.h>
 #include <ui/Node.h>
-#include <ui/Structs/Node.h>
-#include <ui/Structs/Container.h>
+#include <ui/NodeStruct.h>
+#include <ui/ContainerStruct.h>
 #include <ui/ScrollSheet.h>
 #include <ui/Cursor.h>
 #include <ui/Style/Paint.h>
-#include <ui/Render/Renderer.h>
+#include <ui/UiRenderer.h>
 #include <ui/Frame/Solver.h>
 #include <ui/Style/Layout.h>
 #endif
 
-namespace mud
+namespace two
 {
 namespace ui
 {
-	template <class T, class U>
-	array<T> to_array(std::vector<U>& vector) { return{ (T*)&vector[0], vector.size() }; }
-
 	void draw_knob(const Frame& frame, const Colour& colour, bool connected, Vg& vg)
 	{
 		float radius = connected ? 5.f : 4.f;
@@ -51,10 +52,10 @@ namespace ui
 
 		int shift = -min(0, min_index);
 		
-		static Layout layout_overlay = [](Layout& l) { l.m_space = BOARD; };
-		static Layout layout_line = [](Layout& l) { l.m_space = ITEM; l.m_align = { CENTER, CENTER }; l.m_padding = vec4(20.f); l.m_spacing = vec2(100.f); };
-		static Layout layout_column = [](Layout& l) { l.m_space = UNIT; l.m_align = { Left, CENTER }; l.m_padding = vec4(20.f); l.m_spacing = vec2(20.f); };
-		static Layout layout_node = [](Layout& l) { l.m_space = BLOCK; };
+		static Layout layout_overlay = [](Layout& l) { l.m_space = Preset::Board; };
+		static Layout layout_line = [](Layout& l) { l.m_space = Preset::Item; l.m_align = { Align::Center, Align::Center }; l.m_padding = vec4(20.f); l.m_spacing = vec2(100.f); };
+		static Layout layout_column = [](Layout& l) { l.m_space = Preset::Unit; l.m_align = { Align::Left, Align::Center }; l.m_padding = vec4(20.f); l.m_spacing = vec2(20.f); };
+		static Layout layout_node = [](Layout& l) { l.m_space = Preset::Block; };
 
 		SolverVector solvers;
 		
@@ -66,18 +67,18 @@ namespace ui
 		//RowSolver line(plan.m_solver.get(), &layout_line);
 		solvers.push_back(&line);
 
-		std::vector<RowSolver> columns; columns.reserve(canvas.m_nodes.size());
-		std::vector<FrameSolver> elements; elements.reserve(canvas.m_nodes.size());
+		vector<RowSolver> columns; columns.reserve(canvas.m_nodes.size());
+		vector<FrameSolver> elements; elements.reserve(canvas.m_nodes.size());
 
 		for(int i = 0; i < max_index + shift + 1; ++i)
 		{
-			columns.emplace_back(&line, &layout_column);
+			columns.push_back({ &line, &layout_column });
 			solvers.push_back(&columns.back());
 		}
 
 		for(size_t i = 0; i < canvas.m_nodes.size(); ++i)
 		{
-			elements.emplace_back(&columns[canvas.m_nodes[i]->m_order + shift], &layout_node, &canvas.m_nodes[i]->m_frame);
+			elements.push_back({ &columns[canvas.m_nodes[i]->m_order + shift], &layout_node, &canvas.m_nodes[i]->m_frame });
 			elements.back().sync();
 			solvers.push_back(&elements.back());
 		}
@@ -89,7 +90,7 @@ namespace ui
 	{
 		float distance = straight ? 20.f : 100.f;
 		Gradient paint = { colour_out, colour_in };
-		vg.path_bezier(pos_out, pos_out + vec2{ distance, 0.f }, pos_in - vec2{ distance, 0.f }, pos_in, straight);
+		vg.path_bezier(pos_out, pos_out + vec2(distance, 0.f), pos_in - vec2(distance, 0.f), pos_in, straight);
 		vg.stroke_gradient(paint, 1.f, pos_out, pos_in);
 	}
 
@@ -97,16 +98,22 @@ namespace ui
 	{
 		Widget& self = widget(parent, style);
 		static Colour disabled_colour = Colour::DarkGrey;
-		self.m_custom_draw = [=](const Frame& frame, const vec4& rect, Vg& vg) {  UNUSED(rect); draw_knob(frame, active ? colour : disabled_colour, connected, vg); };
+		self.m_custom_draw = [=](const Frame& frame, const vec4& rect, Vg& vg)
+		{
+			UNUSED(rect); draw_knob(frame, active ? colour : disabled_colour, connected, vg);
+		};
 		return self;
 	}
 
-	Widget& canvas_cable(Widget& parent, vec2 out, vec2 in, const Colour& colour_out, const Colour& colour_in, bool straight = false)
+	Widget& canvas_cable(Widget& parent, NodeKnob& out, NodeKnob& in, bool straight = false)
 	{
 		Widget& self = widget(parent, node_styles().cable);
-		self.m_frame.m_position = min(out, in);
-		self.m_frame.m_size = max(out, in) - self.m_frame.m_position;
-		self.m_custom_draw = [=](const Frame& frame, const vec4& rect, Vg& vg) {  UNUSED(rect); draw_node_cable(out - frame.m_position, in - frame.m_position, colour_out, colour_in, straight, vg); };
+		self.m_frame.m_position = min(out.m_end, in.m_end);
+		self.m_frame.m_size = max(out.m_end, in.m_end) - self.m_frame.m_position;
+		self.m_custom_draw = [&, straight](const Frame& frame, const vec4& rect, Vg& vg)
+		{
+			UNUSED(rect); draw_node_cable(out.m_end - frame.m_position, in.m_end - frame.m_position, out.m_colour, in.m_colour, straight, vg);
+		};
 		return self;
 	}
 
@@ -122,9 +129,9 @@ namespace ui
 		return knob.derive_position({ 0.f, knob.m_size.y / 2 }, canvas.m_plan->m_frame);
 	}
 
-	Widget& node_cable(Canvas& canvas, NodePlug& plug_out, NodePlug& plug_in)
+	Widget& node_cable(Canvas& canvas, NodePlug& out, NodePlug& in)
 	{
-		return canvas_cable(*canvas.m_plan, plug_at_out(canvas, plug_out), plug_at_in(canvas, plug_in), plug_out.m_colour, plug_in.m_colour, !canvas.m_rounded_links);
+		return canvas_cable(*canvas.m_plan, out, in, !canvas.m_rounded_links);
 	}
 
 	NodePlug& node_plug(Node& node, cstring name, cstring icon, const Colour& colour, bool input, bool active, bool connected)
@@ -146,20 +153,34 @@ namespace ui
 
 		Canvas& canvas = *node.m_canvas;
 
-		if(MouseEvent mouse_event = self.mouse_event(DeviceType::MouseLeft, EventType::Dragged))
+		self.m_end = input ? plug_at_in(canvas, self) : plug_at_out(canvas, self);
+
+		CanvasConnect& connect = canvas.m_connect;
+
+		if(MouseEvent event = self.mouse_event(DeviceType::MouseLeft, EventType::Dragged))
 		{
-			Widget* target = static_cast<Widget*>(mouse_event.m_target);
+			Widget* target = static_cast<Widget*>(event.m_target);
 			NodePlug* target_plug = nullptr;
 			if(target && target->m_frame.d_style == &node_styles().plug && target != &self)
 				target_plug = static_cast<NodePlug*>(target);
 
-			canvas.m_connect.m_origin = &self;
-			canvas.m_connect.m_in = input ? &self : target_plug;
-			canvas.m_connect.m_out = input ? target_plug : &self;
-			canvas.m_connect.m_position = mouse_event.m_pos;
+			connect.m_origin = &self;
+			connect.m_in = input ? &self : target_plug;
+			connect.m_out = input ? target_plug : &self;
+			connect.m_position = event.m_pos;
+
+			if(target_plug)
+			{
+				connect.m_end = *target_plug;
+			}
+			else
+			{
+				connect.m_end.m_end = canvas.m_plan->m_frame.local_position(connect.m_position);
+				connect.m_end.m_colour = self.m_colour;
+			}
 		}
 
-		if(MouseEvent mouse_event = self.mouse_event(DeviceType::MouseLeft, EventType::DragEnded))
+		if(MouseEvent event = self.mouse_event(DeviceType::MouseLeft, EventType::DragEnded))
 		{
 			canvas.m_connect.m_done = true;
 		}
@@ -167,7 +188,7 @@ namespace ui
 		return self;
 	}
 
-	Widget& node_header(Widget& parent, array<cstring> title)
+	Widget& node_header(Widget& parent, span<cstring> title)
 	{
 		Widget& self = multi_item(parent, node_styles().header, title);
 		spacer(self);
@@ -184,13 +205,13 @@ namespace ui
 	void canvas_select(Canvas& canvas, Node& node)
 	{
 		canvas_clear_select(canvas);
-		vector_select(canvas.m_selection, &node);
+		select(canvas.m_selection, &node);
 		node.enable_state(SELECTED);
 	}
 
 	void canvas_swap_select(Canvas& canvas, Node& node)
 	{
-		bool selected = vector_swap(canvas.m_selection, &node);
+		bool selected = select_swap(canvas.m_selection, &node);
 		node.set_state(SELECTED, selected);
 	}
 
@@ -200,7 +221,7 @@ namespace ui
 		T& self = parent.subi<T>(identity); self.init(style); return self;
 	}
 
-	Node& node(Canvas& parent, array<cstring> title, int order, Ref identity)
+	Node& node(Canvas& parent, span<cstring> title, int order, Ref identity)
 	{
 		Node& self = ttwidget<Node>(*parent.m_plan, node_styles().node, identity.m_value);
 		self.layer();
@@ -214,32 +235,32 @@ namespace ui
 
 		self.m_body = &self;
 
-		if(MouseEvent mouse_event = self.mouse_event(DeviceType::MouseLeft, EventType::Stroked, InputMod::Shift))
+		if(MouseEvent event = self.mouse_event(DeviceType::MouseLeft, EventType::Stroked, InputMod::Shift))
 			canvas_swap_select(parent, self);
-		if(MouseEvent mouse_event = self.mouse_event(DeviceType::MouseLeft, EventType::Stroked))
+		if(MouseEvent event = self.mouse_event(DeviceType::MouseLeft, EventType::Stroked))
 			canvas_select(parent, self);
-		if(MouseEvent mouse_event = self.mouse_event(DeviceType::MouseRight, EventType::Stroked))
+		if(MouseEvent event = self.mouse_event(DeviceType::MouseRight, EventType::Stroked))
 			canvas_select(parent, self);
 
-		if(MouseEvent mouse_event = self.mouse_event(DeviceType::MouseLeft, EventType::Dragged))
+		if(MouseEvent event = self.mouse_event(DeviceType::MouseLeft, EventType::Dragged))
 		{
-			if(!vector_has(parent.m_selection, &self))
+			if(!has(parent.m_selection, &self))
 				canvas_select(parent, self);
 
 			for(Node* node : parent.m_selection)
-				node->m_frame.set_position(node->m_frame.m_position + mouse_event.m_delta / node->m_frame.absolute_scale());
+				node->m_frame.set_position(node->m_frame.m_position + event.m_delta / node->m_frame.absolute_scale());
 		}
 
-		self.m_index = parent.m_nodes.size();
+		self.m_index = uint32_t(parent.m_nodes.size());
 		parent.m_nodes.push_back(&self);
 
 		return self;
 	}
 
-	Node& node(Canvas& parent, array<cstring> title, float* position, int order, Ref identity)
+	Node& node(Canvas& parent, span<cstring> title, float* position, int order, Ref identity)
 	{
 		Node& self = node(parent, title, order, identity);
-		if(self.once())// && position != Zero2)
+		if(self.once())// && position != vec2(0.f))
 			self.m_frame.set_position({ position[0], position[1] });
 		else
 		{
@@ -249,14 +270,14 @@ namespace ui
 		return self;
 	}
 
-	Node& node(Canvas& parent, array<cstring> title, vec2& position, int order, Ref identity)
+	Node& node(Canvas& parent, span<cstring> title, vec2& position, int order, Ref identity)
 	{
 		return node(parent, title, &position[0], order, identity);
 	}
 
 	Node& node(Canvas& parent, cstring title, vec2& position, int order, Ref identity)
 	{
-		return node(parent, carray<cstring, 1>{ title }, &position[0], order, identity);
+		return node(parent, { title }, &position[0], order, identity);
 	}
 
 	Canvas& canvas(Widget& parent, size_t num_nodes) // , const Callback& context_trigger
@@ -267,21 +288,21 @@ namespace ui
 		self.m_scroll_plan = &scroll_plan(self);
 		self.m_plan = self.m_scroll_plan->m_body;
 
-		autofit_scroll_plan(*self.m_scroll_plan, to_array<Widget*>(self.m_nodes));
+		autofit_scroll_plan(*self.m_scroll_plan, to_array_cast<Widget*>(self.m_nodes));
 
 		//if(mouse_click_right(self) && context_trigger)
 		//	context_trigger(self);
 
-		if(MouseEvent mouse_event = self.m_scroll_plan->mouse_event(DeviceType::MouseLeft, EventType::Dragged))
+		if(MouseEvent event = self.m_scroll_plan->mouse_event(DeviceType::MouseLeft, EventType::Dragged))
 		{
 			for(Node* node : self.m_selection)
-				node->m_frame.set_position(node->m_frame.m_position + mouse_event.m_delta / node->m_frame.absolute_scale());
+				node->m_frame.set_position(node->m_frame.m_position + event.m_delta / node->m_frame.absolute_scale());
 		}
 
-		if(MouseEvent mouse_event = self.m_scroll_plan->mouse_event(DeviceType::MouseLeft, EventType::Stroked))
+		if(MouseEvent event = self.m_scroll_plan->mouse_event(DeviceType::MouseLeft, EventType::Stroked))
 			canvas_clear_select(self);
 
-		if(MouseEvent mouse_event = self.m_scroll_plan->mouse_event(DeviceType::MouseMiddle, EventType::Stroked))
+		if(MouseEvent event = self.m_scroll_plan->mouse_event(DeviceType::MouseMiddle, EventType::Stroked))
 			canvas_autolayout(self);
 
 		self.m_nodes.reserve(num_nodes);
@@ -297,14 +318,7 @@ namespace ui
 		CanvasConnect& connect = canvas.m_connect;
 		if(connect.m_origin)
 		{
-			vec2 target = canvas.m_plan->m_frame.local_position(connect.m_position);
-			Colour out_colour = connect.m_out ? connect.m_out->m_colour : connect.m_in->m_colour;
-			Colour in_colour = connect.m_in ? connect.m_in->m_colour : connect.m_out->m_colour;
-
-			vec2 out = connect.m_out ? plug_at_out(canvas, *connect.m_out) : target;
-			vec2 in = connect.m_in ? plug_at_in(canvas, *connect.m_in) : target;
-
-			canvas_cable(*canvas.m_plan, out, in, out_colour, in_colour);
+			canvas_cable(*canvas.m_plan, connect.m_out ? *connect.m_out : connect.m_end, connect.m_in ?  *connect.m_in : connect.m_end);
 
 			if(connect.m_done)
 			{
@@ -317,7 +331,8 @@ namespace ui
 		}
 		else
 		{
-			canvas_cable(*canvas.m_plan, Zero2, Zero2, Colour::None, Colour::None);
+			static NodeKnob dum = { vec2(0.f), Colour(0.f, 0.f) };
+			canvas_cable(*canvas.m_plan, dum, dum);
 			connect = {};
 		}
 

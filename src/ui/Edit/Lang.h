@@ -4,18 +4,18 @@
 
 #pragma once
 
+#include <stl/string.h>
+#include <stl/vector.h>
+#include <stl/unordered_map.h>
+#include <stl/unordered_set.h>
+#include <stl/map.h>
+#include <math/Vec.h>
 #include <ui/Forward.h>
 #include <ui/Edit/TypeIn.h>
 
-#ifndef MUD_CPP_20
-#include <unordered_set>
-#include <unordered_map>
-
-#include <map>
 #include <regex>
-#endif
 
-namespace mud
+namespace two
 {
 	struct Identifier
 	{
@@ -26,17 +26,19 @@ namespace mud
 	struct LanguageDefinition
 	{
 		string m_name;
-		std::vector<string> m_punctuation;
-		std::vector<string> m_operators;
-		std::unordered_set<string> m_keywords;
-		std::unordered_map<string, Identifier> m_identifiers;
-		std::unordered_map<string, Identifier> m_functions;
-		std::unordered_map<string, Identifier> m_preproc_identifiers;
+		vector<string> m_punctuation;
+		vector<string> m_operators;
+		unordered_set<string> m_keywords;
+		unordered_map<string, Identifier> m_identifiers;
+		unordered_map<string, Identifier> m_functions;
+		unordered_map<string, Identifier> m_preproc_identifiers;
 		string m_comment_start;
 		string m_comment_end;
 
-		std::vector<std::pair<string, PaletteIndex>> m_regex_string_tokens;
-		std::vector<std::pair<std::regex, PaletteIndex>> m_regex_tokens;
+		struct StringToken { string token; PaletteIndex color; };
+		struct RegexToken { std::regex token; PaletteIndex color; };
+		vector<StringToken> m_regex_string_tokens;
+		vector<RegexToken> m_regex_tokens;
 
 		bool m_case_sensitive;
 	};

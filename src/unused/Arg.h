@@ -8,13 +8,13 @@
 #include <obj/Any.h>
 #include <obj/Reflect/Class.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
+#ifndef TWO_CPP_20
+#include <stl/vector.h>
 #endif
 
-namespace mud
+namespace two
 {
-	struct MUD_TYPE_EXPORT Arg
+	struct TWO_TYPE_EXPORT Arg
 	{
 		template <class T_Value, class T_Object, class T_Arg>
 		Arg(T_Value T_Object::* mem, T_Arg val) : object_type(&type<T_Object>()), member(member_address(mem)), value(make_var<T_Value>(T_Value(val))) {}
@@ -26,11 +26,11 @@ namespace mud
 		Var value;
 	};
 
-	struct MUD_TYPE_EXPORT Args
+	struct TWO_TYPE_EXPORT Args
 	{
 		Args() : m_args() {}
-		Args(std::vector<Arg> args) : m_args(args) {}
-		std::vector<Arg> m_args;
+		Args(vector<Arg> args) : m_args(args) {}
+		vector<Arg> m_args;
 	};
 
 	inline void set_args(Ref object, const Args& args)

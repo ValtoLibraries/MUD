@@ -6,13 +6,11 @@
 
 #include <snd/Sound.h>
 #include <snd/Forward.h>
-#include <string>
+#include <stl/string.h>
 
-namespace mud
+namespace two
 {
-	using string = std::string;
-
-	class MUD_SND_EXPORT SoundFileBuffer
+	class TWO_SND_EXPORT SoundFileBuffer
 	{
 	public:
 		virtual ~SoundFileBuffer() {}
@@ -23,7 +21,7 @@ namespace mud
 		bool m_mono = false;
 		ALfloat m_duration = 0.f;
 
-		virtual void open(cstring filename) = 0;
+		virtual void open(const string& filename) = 0;
 		virtual void close() = 0;
 		virtual void reopen() = 0;
 

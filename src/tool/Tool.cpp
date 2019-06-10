@@ -4,15 +4,17 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.tool;
+#ifdef TWO_MODULES
+module two.tool;
 #else
+#include <stl/algorithm.h>
 #include <infra/Vector.h>
 #include <type/Any.h>
-#include <type/DispatchDecl.h>
+#include <tree/Graph.hpp>
 #include <refl/Class.h>
 #include <refl/Convert.h>
 #include <math/Axes.h>
+#include <geom/Geom.hpp>
 #include <geom/Intersect.h>
 #include <ctx/InputDevice.h>
 #include <ui/Sheet.h>
@@ -24,7 +26,7 @@ module mud.tool;
 #include <gfx-ui/Viewer.h>
 #endif
 
-namespace mud
+namespace two
 {
 	Tool::Tool(ToolContext& context, cstring name, Type& type)
 		: m_type(type)
@@ -33,15 +35,15 @@ namespace mud
 		, m_state(ToolState::Inactive)
 	{}
 
-	void Tool::add_option(object_ptr<ToolOption> option)
+	void Tool::add_option(object<ToolOption> option)
 	{
 		UNUSED(option);
 	}
 
-	void Tool::commit(object_ptr<EditorAction> action)
+	void Tool::commit(object<EditorAction> action)
 	{
 		action->apply();
-		m_context.m_action_stack->push(std::move(action));
+		m_context.m_action_stack->push(move(action));
 	}
 
 	void Tool::activate()
@@ -58,9 +60,9 @@ namespace mud
 		: Tool(context, name, type)
 	{}
 
-	std::vector<Transform*> ViewportTool::gather_transforms(const std::vector<Ref>& objects)
+	vector<Transform*> ViewportTool::gather_transforms(span<Ref> objects)
 	{
-		std::vector<Transform*> transforms;
+		vector<Transform*> transforms;
 		for(Ref object : objects)
 		{
 			Var transform;
@@ -82,7 +84,7 @@ namespace mud
 	vec3 gizmo_grab_linear(Viewer& viewer, const Transform& space, Axis axis)
 	{
 		vec3 direction = space.m_rotation * to_vec3(axis);
-		vec3 normal = space.m_rotation * c_tangents[uint(axis)];
+		vec3 normal = space.m_rotation * c_tangents[axis];
 		vec3 projected = plane_segment_intersection(Plane(space.m_position, space.m_position + direction, space.m_position + normal), to_segment(viewer.mouse_ray()));
 		return nearest_point_on_line(space.m_position, direction, projected);
 	}
@@ -93,7 +95,7 @@ namespace mud
 		return plane_segment_intersection(plane, to_segment(viewer.mouse_ray()));
 	}
 
-	TransformAction::TransformAction(array<Transform*> targets)
+	TransformAction::TransformAction(span<Transform*> targets)
 		: m_targets(to_vector(targets))
 	{}
 
@@ -116,7 +118,7 @@ namespace mud
 	TransformTool::~TransformTool()
 	{}
 
-	bool TransformTool::enabled(const std::vector<Ref>& selection)
+	bool TransformTool::enabled(span<Ref> selection)
 	{
 		for(Ref object : selection)
 			if(this->test_target(object))
@@ -126,19 +128,19 @@ namespace mud
 
 	void TransformTool::paint(Gnode& parent)
 	{
-		Gnode& self = gfx::node(parent, {}, m_transform);
+		Gnode& self = gfx::node(parent, m_transform);
 
-		for(Gizmo& gizmo : m_gizmos)
+		for(auto& gizmo : m_gizmos)
 		{
-			gizmo.m_handle = gizmo.m_draw_handle(self);
-			gizmo.m_draw_gizmo(self, &gizmo == m_current);
+			gizmo->m_handle = gizmo->draw_handle(self);
+			gizmo->draw_gizmo(self, &*gizmo == m_current);
 		}
 
-#ifdef MUD_DEBUG_TRANSFORM_POINTS
-		Gnode& start = gfx::node(parent, {}, m_grab_start);
+#ifdef TWO_DEBUG_TRANSFORM_POINTS
+		Gnode& start = gfx::node(parent, m_grab_start);
 		gfx::shape(start, Sphere(0.1f), Symbol(Colour::Pink, Colour::None, true));
 
-		Gnode& end = gfx::node(parent, {}, m_grab_end);
+		Gnode& end = gfx::node(parent, m_grab_end);
 		gfx::shape(end, Sphere(0.1f), Symbol(Colour::Pink, Colour::None, true));
 #endif
 	}
@@ -146,49 +148,49 @@ namespace mud
 	void TransformTool::refresh()
 	{}
 
-	void TransformTool::process(Viewer& viewer, const std::vector<Ref>& targets)
+	void TransformTool::process(Viewer& viewer, span<Ref> targets)
 	{
 		Widget& screen = viewer;//= ui::overlay(viewer);
 
 		this->refresh();
 
-		std::vector<Transform*> transforms = gather_transforms(targets);
+		vector<Transform*> transforms = gather_transforms(targets);
 		m_transform = average_transforms(transforms);
 
-		if(MouseEvent mouse_event = screen.mouse_event(DeviceType::Mouse, EventType::Moved))
+		if(MouseEvent event = screen.mouse_event(DeviceType::Mouse, EventType::Moved))
 		{
 			if(!m_dragging)
 			{
 				auto callback = [&](Item* item) { m_current = &this->gizmo(*item); };
-				viewer.picker(1).pick_point(viewer.m_viewport, mouse_event.m_relative, callback, ItemFlag::Ui);
+				viewer.picker(1).pick_point(viewer.m_viewport, event.m_relative, callback, ItemFlag::Ui);
 			}
 		}
 
-		if(MouseEvent mouse_event = screen.mouse_event(DeviceType::MouseLeft, EventType::DragStarted))
+		if(MouseEvent event = screen.mouse_event(DeviceType::MouseLeft, EventType::DragStarted))
 		{
 			m_dragging = m_current;
-			m_drag_start = mouse_event.m_relative;
-			m_grab_start = m_current->m_grab_point(viewer, mouse_event.m_relative);
+			m_drag_start = event.m_relative;
+			m_grab_start = m_current->grab_point(viewer, event.m_relative);
 			m_action = this->create_action(transforms);
-			mouse_event.consume(screen);
+			event.consume(screen);
 		}
 
-		if(MouseEvent mouse_event = screen.mouse_event(DeviceType::MouseLeft, EventType::Dragged))
+		if(MouseEvent event = screen.mouse_event(DeviceType::MouseLeft, EventType::Dragged))
 		{
-			m_grab_end = m_current->m_grab_point(viewer, mouse_event.m_relative);
+			m_grab_end = m_current->grab_point(viewer, event.m_relative);
 
 			m_action->undo();
 			m_action->update(m_grab_start, m_grab_end);
 			m_action->apply();
-			mouse_event.consume(screen);
+			event.consume(screen);
 		}
 
-		if(MouseEvent mouse_event = screen.mouse_event(DeviceType::MouseLeft, EventType::DragEnded))
+		if(MouseEvent event = screen.mouse_event(DeviceType::MouseLeft, EventType::DragEnded))
 		{
 			m_dragging = nullptr;
 			m_action->undo();
-			this->commit(std::move(m_action));
-			mouse_event.consume(screen);
+			this->commit(move(m_action));
+			event.consume(screen);
 		}
 
 		viewer.m_controller->process(static_cast<Viewer&>(screen)); // @HACK @UGLY it's not a viewer !!
@@ -199,10 +201,10 @@ namespace mud
 
 	Gizmo& TransformTool::gizmo(Item& item)
 	{
-		for(Gizmo& gizmo : m_gizmos)
-			if(gizmo.m_handle == &item)
-				return gizmo;
+		for(auto& gizmo : m_gizmos)
+			if(gizmo->m_handle == &item)
+				return *gizmo;
 
-		return m_gizmos.front();
+		return *m_gizmos.front();
 	}
 }

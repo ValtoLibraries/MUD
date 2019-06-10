@@ -4,8 +4,8 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.gfx.ui;
+#ifdef TWO_MODULES
+module two.gfx.ui;
 #else
 #include <ctx/InputDevice.h>
 #include <gfx/Camera.h>
@@ -14,7 +14,7 @@ module mud.gfx.ui;
 #include <gfx-ui/SpaceSheet.h>
 #endif
 
-namespace mud
+namespace two
 {
 	SpaceViewport::SpaceViewport(Widget* parent, void* identity, Scene& scene)
 		: Viewer(parent, identity, scene)
@@ -25,8 +25,8 @@ namespace mud
 		if(inputEvent.m_deviceType < DeviceType::Mouse)
 			return this;
 
-		//MouseEvent& mouse_event = static_cast<MouseEvent&>(inputEvent);
-		//Item* item = this->pick_point(mouse_event.m_relative, ItemFlag::Ui);
+		//MouseEvent& event = static_cast<MouseEvent&>(inputEvent);
+		//Item* item = this->pick_point(event.m_relative, ItemFlag::Ui);
 		//return item ? &val<SpaceSheet>(item->m_node->m_object) : m_parent;
 		return nullptr;
 	}

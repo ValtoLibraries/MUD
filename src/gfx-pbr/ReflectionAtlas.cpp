@@ -6,19 +6,17 @@
 
 #include <bgfx/bgfx.h>
 
-#ifdef MUD_MODULES
-module mud.gfx.pbr;
+#ifdef TWO_MODULES
+module two.gfx.pbr;
 #else
-#include <infra/Vector.h>
+#include <stl/algorithm.h>
 #include <gfx/Renderer.h>
 #include <gfx/Node3.h>
 #include <gfx-pbr/ReflectionAtlas.h>
-#include <gfx-pbr/Reflection.h>
+#include <gfx-pbr/ReflectionProbe.h>
 #endif
 
-#include <bx/math.h>
-
-namespace mud
+namespace two
 {
 	ReflectionAtlas::ReflectionAtlas(uint16_t size, uint16_t subdiv)
 		: m_size(size)
@@ -27,10 +25,10 @@ namespace mud
 #if 0 // @todo: crashes in D3D11
 		bgfx::TextureFormat::Enum color_format = bgfx::TextureFormat::RGBA16F;
 
-		if(!bgfx::isTextureValid(0, true, 1, color_format, GFX_TEXTURE_CLAMP))
+		if(!bgfx::isTextureValid(0, true, 1, color_format, TEXTURE_CLAMP))
 			color_format = bgfx::TextureFormat::RGB10A2;
 
-		m_color = bgfx::createTextureCube(size, true, 1, color_format, GFX_TEXTURE_CLAMP);
+		m_color = bgfx::createTextureCube(size, true, 1, color_format, TEXTURE_CLAMP);
 
 		for(int i = 0; i < 6; i++)
 		{
@@ -71,7 +69,7 @@ namespace mud
 		if(probe.m_atlas_index)
 			return m_slots[probe.m_atlas_index].m_urect;
 
-		Slot& slot = *vector_pop(m_free_slots);
+		Slot& slot = *pop(m_free_slots);
 		slot.m_probe = &probe;
 		probe.m_atlas_index = int(slot.m_index);
 		return slot.m_urect;

@@ -8,19 +8,19 @@
 #include <ui/Button.h>
 #include <ui/Slider.h>
 
-namespace mud
+namespace two
 {
 namespace ui
 {
 	export_ struct ScrollbarStyles
 	{
-		ScrollbarStyles();
+		void reset();
 		Style scrollbar; Style scroll_up; Style scroll_down; Style scroll_left; Style scroll_right; Style scroller; Style scroller_knob;
 	};
 
-	export_ MUD_UI_EXPORT ScrollbarStyles& scrollbar_styles();
+	export_ TWO_UI_EXPORT ScrollbarStyles& scrollbar_styles();
 
-	export_ MUD_UI_EXPORT bool overflow(Frame& frame, Frame& content, Dim dim);
-	export_ MUD_UI_EXPORT Widget& scrollbar(Widget& parent, Frame& frame, Frame& content, Dim dim, Dim2<size_t> grid_index = { 0, 0 });
+	export_ TWO_UI_EXPORT bool overflow(Frame& frame, Frame& content, Axis dim);
+	export_ TWO_UI_EXPORT Widget& scrollbar(Widget& parent, Frame& frame, Frame& content, Axis dim, v2<uint> grid_index = { 0, 0 });
 }
 }

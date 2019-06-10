@@ -4,17 +4,21 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.ui;
+#ifdef TWO_MODULES
+module two.ui;
 #else
+#include <math/Vec.hpp>
+#include <math/Timer.h>
 #include <ui/Cursor.h>
-#include <ui/Structs/Widget.h>
-#include <ui/Structs/RootSheet.h>
+#include <ui/WidgetStruct.h>
+#include <ui/UiRoot.h>
 #include <ui/Frame/Caption.h>
 #include <ui/Style/Skin.h>
 #endif
 
-namespace mud
+#include <cstdio>
+
+namespace two
 {
 namespace ui
 {
@@ -34,30 +38,37 @@ namespace ui
 
 	Widget* hoverbox(Widget& parent, float delay)
 	{
-		return hoverbox(parent, parent.ui().m_mouse.m_pos + vec2(4.f) - parent.m_frame.absolute_position(), delay);
+		const vec2 position = parent.ui().m_mouse.m_pos + vec2(4.f) - parent.m_frame.absolute_position();
+		return hoverbox(parent, position, delay);
 	}
 
-	Widget* tooltip(Widget& parent, const vec2& position, array<cstring> elements)
+	Widget* tooltip(Widget& parent, const vec2& position, span<cstring> elements)
 	{
 		Widget* self = hoverbox(parent, position);
 		if(self)
-			multi_item(parent, styles().tooltip, elements).layer();
+			multi_item(*self, styles().tooltip, elements);
 		return self;
 	}
 
-	Widget* tooltip(Widget& parent, const vec2& position, cstring content)
+	Widget* tooltip(Widget& parent, span<cstring> elements)
 	{
-		return tooltip(parent, position, { &content, 1 });
+		const vec2 position = parent.ui().m_mouse.m_pos + vec2(4.f) - parent.m_frame.absolute_position();
+		return tooltip(parent, position, elements);
+	}
+
+	Widget* tooltip(Widget& parent, cstring element)
+	{
+		return tooltip(parent, { &element, 1 });
 	}
 
 	Widget* tooltip(Widget& parent, const Frame& parent_frame)
 	{
-		return hoverbox(parent, vec2{ 0.f, 0.f + parent_frame.m_size.y });
+		return hoverbox(parent, vec2(0.f, 0.f + parent_frame.m_size.y));
 	}
 
-	Widget* tooltip(Widget& parent, const Frame& parent_frame, array<cstring> elements)
+	Widget* tooltip(Widget& parent, const Frame& parent_frame, span<cstring> elements)
 	{
-		return tooltip(parent, vec2{ parent_frame.m_position.x, parent_frame.m_position.y + parent_frame.m_size.y }, elements);
+		return tooltip(parent, vec2(parent_frame.m_position.x, parent_frame.m_position.y + parent_frame.m_size.y), elements);
 	}
 
 	Widget* tooltip(Widget& parent, const Frame& parent_frame, cstring element)
@@ -68,8 +79,16 @@ namespace ui
 	Widget& rectangle(Widget& parent, const vec4& rect)
 	{
 		Widget& self = widget(parent, styles().rectangle).layer();
-		self.m_frame.set_position(rect_offset(rect));
-		self.m_frame.set_size(rect_size(rect));
+		self.m_frame.set_position(rect.pos);
+		self.m_frame.set_size(rect.size);
+		return self;
+	}
+
+	Widget& viewport(Widget& parent, const vec4& rect)
+	{
+		Widget& self = widget(parent, styles().viewport).layer();
+		self.m_frame.set_position(rect.pos);
+		self.m_frame.set_size(rect.size);
 		return self;
 	}
 
@@ -83,7 +102,7 @@ namespace ui
 
 	Widget& cursor(Widget& parent, const vec2& position, Widget& hovered, bool locked)
 	{
-		Style* style = hovered.m_frame.d_style->skin().m_hover_cursor ? hovered.m_frame.d_style->skin().m_hover_cursor : &cursor_styles().cursor;
+		Style* style = hovered.m_frame.d_style->m_skin.m_hover_cursor ? hovered.m_frame.d_style->m_skin.m_hover_cursor : &cursor_styles().cursor;
 		return cursor(parent, position, *style, locked);
 	}
 }

@@ -4,13 +4,15 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.tool;
+#ifdef TWO_MODULES
+module two.tool;
 #else
 #include <type/Any.h>
+#include <tree/Graph.hpp>
 #include <refl/Method.h>
 #include <refl/Meta.h>
 #include <lang/VisualScript.h>
+#include <geom/Geom.hpp>
 #include <geom/Intersect.h>
 #include <geom/Shapes.h>
 #include <ui/Ui.h>
@@ -19,53 +21,54 @@ module mud.tool;
 #include <tool/Brush.h>
 #endif
 
-namespace mud
+namespace two
 {
 	Brush::Brush(ToolContext& context, cstring name, Type& type)
 		: SpatialTool(context, name, type)
 		, m_world_snap(false)
-		, m_work_plane(Y3, 0.f)
+		, m_work_plane(y3, 0.f)
 	{
-		this->add_option(make_object<PlaneSnapOption>(*this));
-		this->add_option(make_object<WorldSnapOption>(*this));
+		this->add_option(oconstruct<PlaneSnapOption>(*this));
+		this->add_option(oconstruct<WorldSnapOption>(*this));
 	}
 
-	void Brush::process(Viewer& viewer, const std::vector<Ref>& selection)
+	void Brush::process(Viewer& viewer, span<Ref> selection)
 	{
 		UNUSED(selection);
 		Widget& screen = ui::overlay(viewer);
 
-		if(MouseEvent mouse_event = screen.mouse_event(DeviceType::Mouse, EventType::Moved))
+		if(MouseEvent event = screen.mouse_event(DeviceType::Mouse, EventType::Moved))
 		{
-			m_position = this->raycast_target(viewer, mouse_event);
+			m_position = this->raycast_target(viewer, event);
 			m_symbol_position = m_position;
 		}
 
-		if(MouseEvent mouse_event = screen.mouse_event(DeviceType::MouseLeft, EventType::Stroked))
+		if(MouseEvent event = screen.mouse_event(DeviceType::MouseLeft, EventType::Stroked))
 		{
 			this->begin(m_position);
 			this->update(m_position);
 			this->end();
-			mouse_event.consume(screen);
+			event.consume(screen);
 		}
 
-		if(MouseEvent mouse_event = screen.mouse_event(DeviceType::MouseLeft, EventType::DragStarted))
+		if(MouseEvent event = screen.mouse_event(DeviceType::MouseLeft, EventType::DragStarted))
 		{
 			this->begin(m_position);
-			mouse_event.consume(screen);
+			event.consume(screen);
 		}
 
-		if(MouseEvent mouse_event = screen.mouse_event(DeviceType::MouseLeft, EventType::Dragged))
+		if(MouseEvent event = screen.mouse_event(DeviceType::MouseLeft, EventType::Dragged))
 		{
 			this->update(m_position);
-			static_cast<MouseEvent*>(screen.m_events->event(DeviceType::MouseLeft, EventType::Dragged))->consume(screen); // @todo this works, and not the next one
-			mouse_event.consume(screen);
+			// @todo this works, and not the next one
+			//static_cast<MouseEvent*>(screen.m_events->m_events[DeviceType::MouseLeft][EventType::Dragged])->consume(screen);
+			event.consume(screen);
 		}
 
-		if(MouseEvent mouse_event = screen.mouse_event(DeviceType::MouseLeft, EventType::DragEnded))
+		if(MouseEvent event = screen.mouse_event(DeviceType::MouseLeft, EventType::DragEnded))
 		{
 			this->end();
-			mouse_event.consume(screen);
+			event.consume(screen);
 		}
 
 		viewer.m_controller->process(static_cast<Viewer&>(screen)); // @HACK @UGLY it's not a viewer !!
@@ -73,19 +76,19 @@ namespace mud
 		this->paint(viewer.m_scene->m_graph.subi(this));
 	}
 
-	vec3 Brush::raycast_target(Viewer& viewer, MouseEvent& mouse_event)
+	vec3 Brush::raycast_target(Viewer& viewer, MouseEvent& event)
 	{
 		if(m_world_snap)
 		{
 #if 0
-			Ray ray = viewer.ray(mouse_event.m_relative);
+			Ray ray = viewer.ray(event.m_relative);
 			return as<PhysicWorld>(m_origin.m_world).ground_point(ray);
 #endif
 			return vec3();
 		}
 		else
 		{
-			Ray ray = viewer.m_viewport.ray(mouse_event.m_relative);
+			Ray ray = viewer.m_viewport.ray(event.m_relative);
 			return plane_segment_intersection(m_work_plane, { ray.m_start, ray.m_end });
 		}
 	}
@@ -129,8 +132,8 @@ namespace mud
 
 	void PlaceBrush::activate()
 	{
-		m_creator.injector().m_arguments[0] = var(size_t(0));
-		//m_creator.injector().m_arguments[1] = Ref(m_context.m_origin);
+		m_creator.injector().m_args[0] = var(size_t(0));
+		//m_creator.injector().m_args[1] = Ref(m_origin);
 		m_state = ToolState::Active;
 	}
 
@@ -165,8 +168,8 @@ namespace mud
 
 	void CircleBrush::activate()
 	{
-		m_creator.injector().m_arguments[0] = var(size_t(0));
-		//m_creator.injector().m_arguments[1] = Ref(m_context.m_origin);
+		m_creator.injector().m_args[0] = var(size_t(0));
+		//m_creator.injector().m_args[1] = Ref(m_origin);
 		m_state = ToolState::Active;
 	}
 
@@ -176,7 +179,7 @@ namespace mud
 			this->clearStroke(position);
 
 		float side = m_radius * 2.f;
-		m_distribution = make_object<Poisson>(vec2{ side }, m_maxSpotRadius);
+		m_distribution = oconstruct<Poisson>(vec2(side), m_maxSpotRadius);
 
 		vec3 point;
 		while(m_distribution->addPoint(m_maxSpotRadius, point))
@@ -225,7 +228,7 @@ namespace mud
 
 	void ScriptedBrush::update(const vec3& position)
 	{
-		m_call.m_arguments[0] = var(position);
+		m_call.m_args[0] = var(position);
 		m_call();
 	}
 

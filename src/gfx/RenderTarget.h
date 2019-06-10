@@ -4,118 +4,149 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <infra/Array.h>
+#ifndef TWO_MODULES
+#include <stl/span.h>
+#include <math/Vec.hpp>
 #include <type/Unique.h>
 #endif
 #include <gfx/Forward.h>
 #include <gfx/Viewport.h>
+#include <gfx/Texture.h>
 
-#ifdef MUD_UNIFORM_BLOCKS
+#ifdef TWO_UNIFORM_BLOCKS
 #include <gfx/Uniform.h>
 #endif
 
 #include <bgfx/bgfx.h>
 
-namespace mud
+namespace two
 {
-	export_ MUD_GFX_EXPORT vec4 fbo_dest_quad(const uvec2& size, const vec4& rect, bool origin_fbo = false);
-	export_ MUD_GFX_EXPORT vec4 fbo_source_quad(const uvec2& size, const vec4& rect, bool origin_fbo = false);
-
-#ifdef MUD_UNIFORM_BLOCKS
-	export_ struct refl_ MUD_GFX_EXPORT RenderBlock
+	export_ struct refl_ TWO_GFX_EXPORT RenderQuad
 	{
-		attr_ vec2 m_render_size;
-		attr_ vec2 m_pixel_size;
-
-		static TypedUniformBlock<RenderBlock> s_block;
+		attr_ vec4 m_source = vec4(vec2(0.f), vec2(1.f));
+		attr_ vec4 m_dest = vec4(vec2(0.f), vec2(1.f));
+		attr_ bool m_fbo_flip = false;
+		attr_ bool m_relative = false;
+		bool m_blit = false;
+		constr_ RenderQuad() {}
+		constr_ RenderQuad(const vec4& crop, const vec4& dest, bool fbo_flip = false, bool relative = false)
+			: m_source(crop), m_dest(dest), m_fbo_flip(fbo_flip), m_relative(relative)
+		{}
+		constr_ RenderQuad(const vec4& rect, bool fbo_flip = false, bool relative = false)
+			: m_source(rect), m_dest(rect), m_fbo_flip(fbo_flip), m_relative(relative), m_blit(true)
+		{}
 	};
-#endif
 
-	export_ class refl_ MUD_GFX_EXPORT FrameBuffer
+	export_ class refl_ TWO_GFX_EXPORT FrameBuffer
 	{
 	public:
-		FrameBuffer(uvec2 size);
-		FrameBuffer(uvec2 size, bgfx::TextureFormat::Enum format, uint32_t textureFlags);
-		FrameBuffer(uvec2 size, bgfx::FrameBufferHandle fbo);
+		constr_ FrameBuffer();
+		constr_ FrameBuffer(const uvec2& size, TextureFormat format, uint64_t flags = 0U);
+		constr_ FrameBuffer(const uvec2& size, span<Texture*> textures);
+		FrameBuffer(const uvec2& size, void* window = nullptr);
+		FrameBuffer(const uvec2& size, Texture& texture, span<bgfx::Attachment> attach);
+		FrameBuffer(Texture& texture);
 		~FrameBuffer();
 
-		uvec2 m_size;
-		bgfx::FrameBufferHandle m_fbo;
+		FrameBuffer(FrameBuffer&& other);
+		FrameBuffer& operator=(FrameBuffer&& other);
 
-		mat4 m_screen_view;
-		mat4 m_screen_proj;
+		attr_ uvec2 m_size;
+		attr_ Texture m_tex;
 
-		vec4 dest_quad(const vec4& rect, bool origin_fbo = false) const { return fbo_dest_quad(m_size, rect, origin_fbo); }
-		vec4 source_quad(const vec4& rect, bool origin_fbo = false) const { return fbo_source_quad(m_size, rect, origin_fbo); }
+		Texture* m_attach[6] = {};
+		bgfx::FrameBufferHandle m_fbo = BGFX_INVALID_HANDLE;
+		
+		meth_ bool valid() const;
 
-		vec4 dest_quad(bool origin_fbo = false) const { return dest_quad(vec4(vec2(0.f), vec2(m_size)), origin_fbo); }
-		vec4 source_quad(bool origin_fbo = false) const { return source_quad(vec4(vec2(0.f), vec2(m_size)), origin_fbo); }
+		//Texture& tex(size_t i) { return *m_attach[i]; }
 
-		vec4 dest_quad_mip(const vec4& rect, int level, bool origin_fbo = false) const { return fbo_dest_quad({ m_size.x >> level, m_size.y >> level }, rect, origin_fbo); }
-		vec4 source_quad_mip(const vec4& rect, int level, bool origin_fbo = false) const { return fbo_source_quad({ m_size.x >> level, m_size.y >> level }, rect, origin_fbo); }
+		operator bgfx::FrameBufferHandle() const { return m_fbo; }
 
-#ifdef MUD_UNIFORM_BLOCKS
-		RenderBlock m_render_block;
-#endif
+	private:
+		FrameBuffer(const FrameBuffer& other) = default;
+		FrameBuffer& operator=(const FrameBuffer& other) = default;
 	};
 
-	export_ struct SwapBuffer
+	export_ class refl_ SwapBuffer
 	{
-		void create(uvec2 size, bgfx::TextureFormat::Enum color_format);
+	public:
+		constr_ SwapBuffer() {}
+		meth_ void create(const uvec2& size, TextureFormat color_format);
 		~SwapBuffer();
-		bgfx::FrameBufferHandle swap() { m_state = !m_state; return m_state ? m_one : m_two; }
-		bgfx::TextureHandle last() { return m_state ? bgfx::getTexture(m_one) : bgfx::getTexture(m_two); }
-		bgfx::FrameBufferHandle m_one;
-		bgfx::FrameBufferHandle m_two;
+		meth_ FrameBuffer& swap() { m_state = !m_state; return m_state ? m_one : m_two; }
+		meth_ FrameBuffer& current() { return m_state ? m_one : m_two; }
+		meth_ Texture& last() { return m_state ? m_one.m_tex : m_two.m_tex; }
+		attr_ FrameBuffer m_one;
+		attr_ FrameBuffer m_two;
 		bool m_state = false;
 	};
 
-	export_ struct Cascade
-	{
-		void create(uvec2 size, bgfx::TextureFormat::Enum color_format);
-		~Cascade();
-		bgfx::FrameBufferHandle m_fbo;
-		bgfx::TextureHandle m_texture;
-		size_t m_num_mips;
-		unique_ptr<FrameBuffer> m_mips[9] = {};
-	};
-
-	export_ class refl_ MUD_GFX_EXPORT RenderTarget : public FrameBuffer
+	export_ class refl_ Cascade
 	{
 	public:
-		RenderTarget(uvec2 size);
+		constr_ Cascade() {}
+		meth_ void create(const uvec2& size, TextureFormat color_format);
+		~Cascade();
+		attr_ Texture m_texture;
+		attr_ size_t m_num_mips;
+		unique<FrameBuffer> m_fbos[9] = {};
+
+		// @todo expose array members to reflection and get rid of this
+		meth_ FrameBuffer& level(uint8_t index) { return *m_fbos[index]; }
+	};
+
+	export_ class refl_ SwapCascade
+	{
+	public:
+		constr_ SwapCascade() {}
+		meth_ void create(const uvec2& size, TextureFormat color_format);
+		~SwapCascade();
+		meth_ Cascade& swap() { m_state = !m_state; return m_state ? m_one : m_two; }
+		meth_ Cascade& last() { return m_state ? m_one : m_two; }
+		attr_ Cascade m_one;
+		attr_ Cascade m_two;
+		bool m_state = false;
+	};
+
+	export_ struct TWO_GFX_EXPORT GBuffer : public FrameBuffer
+	{
+		void create(const uvec2& size, TextureFormat color_format, uint64_t flags);
+
+		Texture m_depth;
+		Texture m_position;
+		Texture m_normal;
+		Texture m_albedo;
+		Texture m_surface;
+	};
+
+	export_ class refl_ TWO_GFX_EXPORT RenderTarget : public FrameBuffer
+	{
+	public:
+		RenderTarget(const uvec2& size, void* window = nullptr);
 		~RenderTarget();
 
-		MSAA m_msaa = MSAA::Disabled;
+		attr_ FrameBuffer m_backbuffer;
 
-		bool m_mrt = true;
-		bgfx::FrameBufferHandle m_fbo;
+		attr_ MSAA m_msaa = MSAA::Disabled;
 
-		bgfx::TextureHandle m_depth;
-		bgfx::TextureHandle m_diffuse;
+		attr_ bool m_mrt = true;
 
-		bgfx::TextureHandle m_specular;
-		bgfx::TextureHandle m_normal_rough;
-		bgfx::TextureHandle m_sss;
+		attr_ Texture m_depth;
+		attr_ Texture m_diffuse;
 
-		SwapBuffer m_ping_pong;
-		SwapBuffer m_post_process;
+		attr_ Texture m_specular;
+		attr_ Texture m_normal_rough;
+		attr_ Texture m_sss;
 
-		Cascade m_cascade;
+		attr_ SwapBuffer m_ping_pong;
+		attr_ SwapBuffer m_post;
 
-		bool m_deferred = false;
+		attr_ Cascade m_cascade;
+		attr_ SwapCascade m_swap_cascade;
 
-		struct
-		{
-			bgfx::FrameBufferHandle m_fbo;
+		attr_ bool m_deferred = false;
 
-			bgfx::TextureHandle m_depth;
-			bgfx::TextureHandle m_position;
-			bgfx::TextureHandle m_normal;
-			bgfx::TextureHandle m_albedo;
-			bgfx::TextureHandle m_surface;
-
-		} m_gbuffer;
+		GBuffer m_gbuffer;
 	};
 }

@@ -4,29 +4,22 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <infra/Array.h>
+#ifndef TWO_MODULES
+#include <stl/vector.h>
+#include <stl/string.h>
+#include <stl/span.h>
+#include <stl/table.h>
 #include <math/Colour.h>
 #include <math/Vec.h>
+#include <geom/Primitive.h>
 #include <geom/Aabb.h>
 #endif
 #include <gfx/Forward.h>
 #include <gfx/Node3.h>
 
-#ifndef MUD_GENERATOR_SKIP_INCLUDES
-#include <bgfx/bgfx.h>
-#endif
-
-#ifndef MUD_CPP_20
-#include <vector>
-#include <string>
-#endif
-
-namespace mud
+namespace two
 {
-	using string = std::string;
-
-	export_ struct refl_ ModelItem
+	export_ struct refl_ ModelElem
 	{
 		attr_ size_t m_index;
 		attr_ Mesh* m_mesh;
@@ -37,31 +30,36 @@ namespace mud
 		attr_ Material* m_material;
 	};
 
-	export_ class refl_ MUD_GFX_EXPORT Model
+	export_ class refl_ TWO_GFX_EXPORT Model
 	{
 	public:
-		Model(cstring id);
+		Model(const string& name);
 		~Model();
 
 		attr_ string m_name;
 		attr_ uint16_t m_index;
 
+		vector<ModelElem> m_items;
+		bool m_no_transform = true;
+
+		attr_ Aabb m_aabb = { vec3(0.f), vec3(0.f) };
+		attr_ float m_radius = 0.f;
+		attr_ vec3 m_origin = vec3(0.f);
+
+		table<PrimitiveType, bool> m_geometry = { { 0 } };
+
 		Rig* m_rig = nullptr;
 
-		std::vector<ModelItem> m_items;
+		vector<Animation*> m_anims;
 
-		/*attr_*/ bool m_geometry[2] = { false, false };
-		attr_ Aabb m_aabb = { Zero3, Zero3 };
-		attr_ float m_radius = 0.f;
-		attr_ vec3 m_origin = Zero3;
+		meth_ Mesh& get_mesh(size_t index);
+		meth_ Mesh& add_mesh(const string& name, bool readback = false);
+		meth_ Rig& add_rig(const string& name);
+		meth_ ModelElem& add_item(Mesh& mesh, const mat4& transform, int skin = -1, const Colour& colour = Colour::White, Material* material = nullptr);
+		meth_ void prepare();
 
-		Mesh& add_mesh(cstring name, bool readback = false);
-		Rig& add_rig(cstring name);
-		ModelItem& add_item(Mesh& mesh, mat4 transform, int skin = -1, Colour colour = Colour::White, Material* material = nullptr);
-		void prepare();
-
-		static GfxSystem* ms_gfx_system;
+		static GfxSystem* ms_gfx;
 	};
 
-	export_ MUD_GFX_EXPORT Model& model_variant(GfxSystem& gfx_system, Model& original, cstring name, array<cstring> materials, array<Material*> substitutes);
+	export_ TWO_GFX_EXPORT Model& model_variant(GfxSystem& gfx, Model& original, const string& name, span<string> materials, span<Material*> substitutes);
 }

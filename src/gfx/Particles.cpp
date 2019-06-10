@@ -3,21 +3,20 @@
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #include <gfx/Cpp20.h>
-#ifndef MUD_CPP_20
-#include <string>
-#endif
 
-#include <bx/math.h>
 #include <bx/allocator.h>
 #include <bimg/bimg.h>
 #include <bgfx/bgfx.h>
 
-#ifdef MUD_MODULES
-module mud.gfx;
+#ifdef TWO_MODULES
+module two.gfx;
 #else
-#include <pool/Pool.h>
+#include <stl/string.h>
+#include <stl/algorithm.h>
+#include <pool/Pool.hpp>
 #include <math/Math.h>
 #include <math/Random.h>
+#include <math/ImageAtlas.h>
 #include <geom/ShapeDistrib.h>
 #include <gfx/Types.h>
 #include <gfx/Particles.h>
@@ -35,35 +34,32 @@ module mud.gfx;
 
 #define SPRITE_TEXTURE_SIZE 2048U
 
-namespace mud
+namespace two
 {
-	using string = std::string;
-
-	void ParticleVertex::init()
+	bgfx::VertexDecl particle_vertex_decl()
 	{
 		bgfx::VertexDecl decl;
 
 		decl.begin();
 			decl.add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float);
 			decl.add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true);
-			decl.add(bgfx::Attrib::TexCoord0, 4, bgfx::AttribType::Float);
+			decl.add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float);
+			decl.add(bgfx::Attrib::TexCoord1, 2, bgfx::AttribType::Float);
 		decl.end();
 
-		ms_decl = decl;
+		return decl;
 
 		//ms_decl = vertex_decl(VertexAttribute::Position | VertexAttribute::Colour | VertexAttribute::TexCoord0);
 	}
 
-	bgfx::VertexDecl ParticleVertex::ms_decl;
-
-	ParticleGenerator::ParticleGenerator()
+	Flow::Flow()
 	{}
 
-	ParticleGenerator::ParticleGenerator(cstring name)
+	Flow::Flow(const string& name)
 		: m_name(name)
 	{}
 
-	Particles::Particles(Node3* node, ShapeVar shape, uint32_t max_particles)
+	Flare::Flare(Node3* node, ShapeVar shape, uint32_t max_particles)
 		: m_node(node)
 		, m_max(max_particles)
 	{
@@ -71,17 +67,17 @@ namespace mud
 		m_particles.reserve(m_max);
 	}
 
-	void Particles::upload()
+	void Flare::upload()
 	{}
 
-	void Particles::update(float delta)
+	void Flare::update(float delta)
 	{
 		m_time += delta;
 
 		for(Particle& particle : m_particles)
 			particle.life += delta / particle.lifetime;
 
-		vector_remove_if(m_particles, [&](Particle& particle) { return particle.life > m_duration; });
+		remove_if(m_particles, [&](Particle& particle) { return particle.life > m_duration; });
 
 		m_ended = m_time > m_duration && !m_loop;
 		if(!m_ended && m_rate.sample(m_time) > 0)
@@ -89,13 +85,13 @@ namespace mud
 	}
 
 
-	void Particles::spawn(float dt)
+	void Flare::spawn(float dt)
 	{
 		mat4 transform = m_node ? m_node->m_transform : bxidentity();
 
-		//quat rotation = m_rotation.sample(m_time, random_scalar(0.f, 1.f));
-		//vec3 position = m_position.sample(m_time, random_scalar(0.f, 1.f));
-		//transform = bxSRT(Unit3, rotation, position) * transform;
+		//quat rotation = m_rotation.sample(m_time, randf(0.f, 1.f));
+		//vec3 position = m_position.sample(m_time, randf(0.f, 1.f));
+		//transform = bxSRT(vec3(1.f), rotation, position) * transform;
 
 		m_dt += dt;
 
@@ -104,31 +100,31 @@ namespace mud
 		m_dt -= num_particles * particle_period;
 
 		size_t count = min(num_particles, m_max - uint32_t(m_particles.size()));
-		std::vector<vec3> points = distribute_shape(*m_shape, count);
+		vector<vec3> points = distribute_shape(*m_shape, count);
 
 		float time = 0.0f;
 		for(size_t ii = 0; ii < count; ++ii)
 		{
 			Particle particle;
 
-			float volume = m_volume.sample(m_time, random_scalar(0.f, 1.f));
+			float volume = m_volume.sample(m_time, randf(0.f, 1.f));
 
 			vec3 pos = points[ii] * volume;
 			vec3 dir = m_flow == EmitterFlow::Outward ? normalize(points[ii]) : m_direction;
 
 			particle.life = time;
-			particle.lifetime = m_lifetime.sample(m_time, random_scalar(0.f, 1.f));
+			particle.lifetime = m_lifetime.sample(m_time, randf(0.f, 1.f));
 
-			particle.start = vec3(transform * vec4{ pos, 1.f });
-			particle.dir = vec3(transform * vec4{ dir, 0.f });
+			particle.start = mulp(transform, pos);
+			particle.dir = muln(transform, dir);
 			particle.rot = ZeroQuat; // m_node->m_rotation; // @todo
 
-			particle.speed_seed = random_scalar(0.f, 1.f);
-			particle.angle_seed = random_scalar(0.f, 1.f);
-			particle.blend_seed = random_scalar(0.f, 1.f);
-			particle.colour_seed = random_scalar(0.f, 1.f);
-			particle.scale_seed = random_scalar(0.f, 1.f);
-			particle.sprite_seed = random_scalar(0.f, 1.f);
+			particle.speed_seed = randf(0.f, 1.f);
+			particle.angle_seed = randf(0.f, 1.f);
+			particle.blend_seed = randf(0.f, 1.f);
+			particle.colour_seed = randf(0.f, 1.f);
+			particle.scale_seed = randf(0.f, 1.f);
+			particle.sprite_seed = randf(0.f, 1.f);
 
 			time += particle_period;
 
@@ -136,12 +132,12 @@ namespace mud
 		}
 	}
 
-	uint32_t Particles::render(const SpriteAtlas& atlas, const mat4& view, const vec3& eye, uint32_t first, uint32_t max, ParticleSort* outSort, ParticleVertex* outVertices)
+	uint32_t Flare::render(const SpriteAtlas& atlas, const mat4& view, const vec3& eye, uint32_t first, uint32_t max, ParticleSort* outSort, ParticleVertex* outVertices)
 	{
 		m_aabb =
 		{
-			{ bx::kInfinity,  bx::kInfinity,  bx::kInfinity },
-			{ -bx::kInfinity, -bx::kInfinity, -bx::kInfinity },
+			vec3(FLT_MAX),
+			vec3(-FLT_MAX),
 		};
 
 		if(m_sprite == nullptr)
@@ -153,7 +149,7 @@ namespace mud
 			if(index + 1 >= max)
 				break;
 
-			vec3 gravity = { 0.0f, -9.81f * m_gravity.sample(particle.life) * bx::square(particle.life), 0.0f };
+			vec3 gravity = { 0.0f, -9.81f * m_gravity.sample(particle.life) * sq(particle.life), 0.0f };
 			UNUSED(gravity);
 
 			float advance = particle.life * particle.lifetime * m_speed.sample(particle.life, particle.speed_seed);
@@ -161,7 +157,7 @@ namespace mud
 
 			ParticleSort& sort = outSort[index];
 			vec3 tmp = eye - pos;
-			sort.dist = bx::sqrt(dot(tmp, tmp));
+			sort.dist = sqrt(dot(tmp, tmp));
 			sort.idx = index;
 
 			float blend = m_blend.sample(particle.life, particle.blend_seed);
@@ -175,13 +171,13 @@ namespace mud
 
 			if(m_billboard)
 			{
-				udir = scale * vec3{ view[0][0], view[1][0], view[2][0] };
-				vdir = scale * vec3{ view[0][1], view[1][1], view[2][1] };
+				udir = scale * vec3(view[0][0], view[1][0], view[2][0]);
+				vdir = scale * vec3(view[0][1], view[1][1], view[2][1]);
 			}
 			else
 			{
-				udir = scale * rotate(particle.rot, X3);
-				vdir = scale * rotate(particle.rot, Y3);
+				udir = scale * rotate(particle.rot, x3);
+				vdir = scale * rotate(particle.rot, y3);
 			}
 
 			float frame = m_sprite_frame.sample(particle.life, particle.sprite_seed);
@@ -200,7 +196,7 @@ namespace mud
 		return uint32_t(m_particles.size());
 	}
 
-	inline void Particles::write_vertex(ParticleVertex*& dest, ParticleVertex vertex)
+	inline void Flare::write_vertex(ParticleVertex*& dest, ParticleVertex vertex)
 	{
 		m_aabb.merge(vertex.m_pos);
 		*dest = vertex;
@@ -214,11 +210,11 @@ namespace mud
 		return lhs.dist > rhs.dist ? -1 : 1;
 	}
 
-	ParticleSystem::ParticleSystem(GfxSystem& gfx_system, TPool<Particles>& emitters)
-		: m_gfx_system(gfx_system)
-		, m_block(*gfx_system.m_pipeline->block<BlockParticles>())
+	ParticleSystem::ParticleSystem(GfxSystem& gfx, TPool<Flare>& emitters)
+		: m_gfx(gfx)
+		, m_block(*gfx.m_renderer.block<BlockParticles>())
 		, m_emitters(emitters)
-		, m_program(gfx_system.programs().fetch("particle").default_version())
+		, m_program(gfx.programs().fetch("particle").default_version())
 	{}
 
 	ParticleSystem::~ParticleSystem()
@@ -232,7 +228,7 @@ namespace mud
 	void ParticleSystem::update(float _dt)
 	{
 		uint32_t num_particles = 0;
-		for(Particles* emitter : m_emitters.m_vec_pool->m_objects)
+		for(Flare* emitter : m_emitters.m_vec_pool->m_objects)
 		{
 			emitter->update(_dt);
 			num_particles += uint32_t(emitter->m_particles.size());
@@ -245,9 +241,11 @@ namespace mud
 		if(0 == m_num)
 			return;
 
-		const uint32_t numVertices = min(bgfx::getAvailTransientVertexBuffer(m_num * 4, ParticleVertex::ms_decl), uint32_t(UINT16_MAX));
+		static bgfx::VertexDecl decl = particle_vertex_decl();
+
+		const uint32_t numVertices = min(bgfx::getAvailTransientVertexBuffer(m_num * 4, decl), uint32_t(UINT16_MAX));
 		const uint32_t numIndices = bgfx::getAvailTransientIndexBuffer(m_num * 6);
-		const uint32_t max = bx::uint32_min(numVertices / 4, numIndices / 6);
+		const uint32_t max = min(numVertices / 4, numIndices / 6);
 		BX_WARN(m_num == max, "Truncating transient buffer for particles to maximum available (requested %d, available %d).", m_num, max);
 
 		if(0 < max)
@@ -255,15 +253,15 @@ namespace mud
 			bgfx::TransientVertexBuffer vertex_buffer;
 			bgfx::TransientIndexBuffer index_buffer;
 
-			bgfx::allocTransientBuffers(&vertex_buffer, ParticleVertex::ms_decl, max * 4, &index_buffer, max * 6);
+			bgfx::allocTransientBuffers(&vertex_buffer, decl, max * 4, &index_buffer, max * 6);
 
-			std::vector<ParticleSort> particleSort{ max };
+			vector<ParticleSort> particleSort{ max };
 
 			uint32_t pos = 0;
 			ParticleVertex* vertices = (ParticleVertex*)vertex_buffer.data;
 
-			for(Particles* emitter : m_emitters.m_vec_pool->m_objects)
-				pos += emitter->render(m_block.m_sprites, view, eye, pos, max, particleSort.data(), vertices);
+			for(Flare* emitter : m_emitters.m_vec_pool->m_objects)
+				pos += emitter->render(*m_block.m_sprites, view, eye, pos, max, particleSort.data(), vertices);
 
 			qsort(particleSort.data(), max, sizeof(ParticleSort), particleSortFn);
 
@@ -288,9 +286,9 @@ namespace mud
 		}
 	}
 
-	BlockParticles::BlockParticles(GfxSystem& gfx_system)
-		: GfxBlock(gfx_system, type<BlockParticles>())
-		, m_sprites(uvec2(SPRITE_TEXTURE_SIZE))
+	BlockParticles::BlockParticles(GfxSystem& gfx)
+		: GfxBlock(gfx, type<BlockParticles>())
+		, m_sprites(construct<SpriteAtlas>(uvec2(SPRITE_TEXTURE_SIZE)))
 	{}
 
 	BlockParticles::~BlockParticles()
@@ -301,10 +299,8 @@ namespace mud
 
 	void BlockParticles::init_block()
 	{
-		ParticleVertex::init();
-
-		s_color = bgfx::createUniform("s_texColor", bgfx::UniformType::Int1);
-		m_texture = bgfx::createTexture2D(SPRITE_TEXTURE_SIZE, SPRITE_TEXTURE_SIZE, false, 1, bgfx::TextureFormat::BGRA8);
+		s_color = bgfx::createUniform("s_texColor", bgfx::UniformType::Sampler);
+		m_texture = { uvec2(SPRITE_TEXTURE_SIZE), false, TextureFormat::BGRA8 };
 
 		this->create_sprite("particle.ktx", "particle.ktx");
 		//this->create_sprite("flames.png", "flames_b.png", { 2, 2 });
@@ -318,26 +314,18 @@ namespace mud
 		UNUSED(render);
 	}
 
-	void BlockParticles::begin_pass(Render& render)
-	{
-		UNUSED(render);
-	}
-
 	Sprite* BlockParticles::create_sprite(cstring name, cstring pathname, uvec2 frames)
 	{
-		string filename = "textures/particles/" + string(pathname);
-		LocatedFile location = m_gfx_system.locate_file(filename.c_str());
-		string path = string(location.m_location) + filename;
-
-		bimg::ImageContainer* image = load_bgfx_image(m_gfx_system.m_allocator, m_gfx_system.file_reader(), path.c_str(), bgfx::TextureFormat::BGRA8);
+		LocatedFile location = m_gfx.locate_file("textures/particles/" + string(pathname));
+		bimg::ImageContainer* image = load_bgfx_image(m_gfx, location.path(true), bgfx::TextureFormat::BGRA8);
 		Sprite* sprite = this->create_sprite(name, uvec2(image->m_width, image->m_height), frames, image->m_data);
 		bimg::imageFree(image);
 		return sprite;
 	}
 
-	Sprite* BlockParticles::create_sprite(cstring name, uvec2 size, uvec2 frames, const void* data)
+	Sprite* BlockParticles::create_sprite(cstring name, const uvec2& size, uvec2 frames, const void* data)
 	{
-		Sprite* sprite = m_sprites.add_sprite(name, size, frames);
+		Sprite* sprite = m_sprites->add_sprite(name, size, frames);
 		if(sprite)
 		{
 			bgfx::updateTexture2D(m_texture, 0, 0, uint16_t(sprite->d_coord.x), uint16_t(sprite->d_coord.y),
@@ -352,18 +340,13 @@ namespace mud
 		UNUSED(sprite);
 	}
 
-	PassParticles::PassParticles(GfxSystem& gfx_system)
-		: RenderPass(gfx_system, "particles", {})
+	void pass_particles(GfxSystem& gfx, Render& render)
 	{
-		UNUSED(gfx_system);
-	}
-
-	void PassParticles::submit_render_pass(Render& render)
-	{
-		Pass particle_pass = render.next_pass("particles");
+		UNUSED(gfx);
+		Pass particle_pass = render.next_pass("particles", PassType::Particles);
 		bgfx::Encoder& encoder = *particle_pass.m_encoder;
 
-		render.m_scene.m_particle_system->update(render.m_frame.m_delta_time); // * timeScale
-		render.m_scene.m_particle_system->render(encoder, particle_pass.m_index, render.m_camera.m_transform, render.m_camera.m_eye);
+		render.m_scene->m_particle_system->update(render.m_frame->m_delta_time); // * timeScale
+		render.m_scene->m_particle_system->render(encoder, particle_pass.m_index, render.m_camera->m_view, render.m_camera->m_eye);
 	}
 }

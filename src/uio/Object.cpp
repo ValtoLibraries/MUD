@@ -4,25 +4,23 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.uio;
+#ifdef TWO_MODULES
+module two.uio;
 #else
-#ifdef MUD_ECS
-#include <ecs/Entity.h>
-#endif
 #include <refl/Class.h>
 #include <refl/Convert.h>
 #include <ecs/Entity.h>
-#include <ui/Structs/Window.h>
-#include <ui/Structs/Container.h>
+#include <ui/WindowStruct.h>
+#include <ui/ContainerStruct.h>
 #include <ui/Sequence.h>
+#include <ui/Section.h>
+#include <ui/Ui.h>
 #include <uio/Types.h>
 #include <uio/Unode.h>
-#include <uio/Edit/Section.h>
-#include <uio/Edit/Method.h>
+#include <uio/MethodEdit.h>
 #endif
 
-namespace mud
+namespace two
 {
 	string object_name(Ref object)
 	{
@@ -54,13 +52,16 @@ namespace mud
 		}
 	}
 
-	Widget& generic_object_item(Widget& parent, Ref object)
+	Widget& object_item(Widget& parent, Ref object)
 	{
+		if(DispatchItem::me().check(object))
+			return DispatchItem::me().dispatch(object, parent);
+
 		enum Modes { Context = (1 << 0) };
 
 		Widget& self = ui::element(parent, object);
-		ui::multi_item(self, carray<cstring, 2>{ object_icon(object).c_str(), object_name(object).c_str() });
-		
+		ui::multi_item(self, { object_icon(object).c_str(), object_name(object).c_str() });
+
 		if(MouseEvent event = self.mouse_event(DeviceType::MouseRight, EventType::Stroked))
 			self.m_switch |= Context;
 		if((self.m_switch & Context) != 0)
@@ -71,15 +72,7 @@ namespace mud
 
 	Widget& object_button(Widget& parent, Ref object)
 	{
-		return generic_object_item(parent, object);
-	}
-
-	Widget& object_item(Widget& parent, Ref object)
-	{
-		if(DispatchItem::me().check(object))
-			return DispatchItem::me().dispatch(object, parent);
-		else
-			return generic_object_item(parent, object);
+		return object_item(parent, object);
 	}
 
 	bool object_item(Widget& parent, Ref object, Ref& selection)
@@ -88,7 +81,7 @@ namespace mud
 		return ui::select_logic(self, object, selection);
 	}
 
-	bool object_item(Widget& parent, Ref object, std::vector<Ref>& selection)
+	bool object_item(Widget& parent, Ref object, vector<Ref>& selection)
 	{
 		Widget& self = object_item(parent, object);
 		return ui::multiselect_logic(self, object, selection);

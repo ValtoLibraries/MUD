@@ -4,17 +4,20 @@
 
 #include <infra/Cpp20.h>
 
-#ifdef MUD_MODULES
-module mud.ui;
+#ifdef TWO_MODULES
+module two.ui;
 #else
-#include <infra/Vector.h>
+#include <stl/algorithm.h>
 #include <infra/Reverse.h>
+#include <infra/Sort.h>
 #include <ui/Frame/Layer.h>
 #include <ui/Sheet.h>
 #include <ui/Style/Layout.h>
 #endif
 
-namespace mud
+#include <algorithm>
+
+namespace two
 {
 	Layer::Layer(Frame& frame)
 		: m_frame(frame)
@@ -32,7 +35,7 @@ namespace mud
 
 	size_t Layer::z() const
 	{
-		return m_frame.d_style->layout().m_zorder ? m_frame.d_style->layout().m_zorder : d_z;
+		return m_frame.d_layout->m_zorder ? m_frame.d_layout->m_zorder : d_z;
 	}
 
 	void Layer::reindex()
@@ -43,7 +46,16 @@ namespace mud
 
 	void Layer::reorder()
 	{
-		std::sort(d_sublayers.begin(), d_sublayers.end(), [](Layer* first, Layer* second) { if(first->z() < second->z()) return true; else if(first->z() > second->z()) return false; return first->d_index < second->d_index; });
+		auto lower = [](Layer* first, Layer* second)
+		{
+			if(first->z() == second->z())
+				return first->d_index < second->d_index;
+			else
+				return first->z() < second->z();
+		};
+
+		std::sort(d_sublayers.begin(), d_sublayers.end(), lower);
+		//quicksort<Layer*>(d_sublayers, lower);
 		this->reindex();
 	}
 	
@@ -56,7 +68,7 @@ namespace mud
 
 	void Layer::removeLayer(Layer& layer)
 	{
-		vector_remove(d_sublayers, &layer);
+		remove(d_sublayers, &layer);
 		this->reindex();
 		this->reorder();
 	}
@@ -65,13 +77,5 @@ namespace mud
 	{
 		d_parentLayer->removeLayer(*this);
 		d_parentLayer->addLayer(*this);
-	}
-
-	void Layer::visit(const Visitor& visitor)
-	{
-		visitor(*this);
-
-		for(Layer* layer : d_sublayers)
-			layer->visit(visitor);
 	}
 }

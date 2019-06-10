@@ -4,19 +4,27 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <tree/Node.h>
+#ifndef TWO_MODULES
+#include <pool/Pool.h>
+#include <tree/Graph.h>
+#ifdef _MSC_VER
+#include <tree/Graph.hpp>
+#endif
 #endif
 #include <gfx/Forward.h>
 #include <gfx/Node3.h>
 #include <gfx/Light.h>
 
-namespace mud
+namespace two
 {
 	class SoundManager;
 	class Sound;
 
-	export_ class refl_ MUD_GFX_EXPORT Gnode : public Graph<Gnode>
+#ifndef _MSC_VER
+	export_ extern template class Graph<Gnode>;
+#endif
+
+	export_ class refl_ TWO_GFX_EXPORT Gnode : public Graph<Gnode>
 	{
 	public:
 		Gnode();
@@ -31,8 +39,10 @@ namespace mud
 		Node3* m_attach = nullptr;
 		Node3* m_node = nullptr;
 		Item* m_item = nullptr;
-		Animated* m_animated = nullptr;
-		Particles* m_particles = nullptr;
+		Batch* m_batch = nullptr;
+		Direct* m_direct = nullptr;
+		Mime* m_animated = nullptr;
+		Flare* m_particles = nullptr;
 		Light* m_light = nullptr;
 		GIProbe* m_gi_probe = nullptr;
 		LightmapAtlas* m_lightmap_atlas = nullptr;
@@ -40,5 +50,13 @@ namespace mud
 		Sound* m_sound = nullptr;
 	};
 
-	export_ MUD_GFX_EXPORT void debug_tree(Gnode& node, size_t index = 0, size_t depth = 0);
+	export_ extern template class refl_ TPool<Node3>;
+	export_ extern template class refl_ TPool<Item>;
+	export_ extern template class refl_ TPool<Batch>;
+	export_ extern template class refl_ TPool<Direct>;
+	export_ extern template class refl_ TPool<Mime>;
+	export_ extern template class refl_ TPool<Light>;
+	export_ extern template class refl_ TPool<Flare>;
+
+	export_ TWO_GFX_EXPORT void debug_tree(Gnode& node, size_t index = 0, size_t depth = 0);
 }

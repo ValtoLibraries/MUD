@@ -1,8 +1,11 @@
+#include <math/Image256.h>
 #include <geom/Aabb.h>
-#include <geom/Forward.h>
+#include <geom/Curve.h>
 #include <geom/Geom.h>
+#include <geom/Geom.hpp>
 #include <geom/Intersect.h>
-#include <geom/Mesh.h>
+#include <geom/Geometry.h>
+#include <geom/Hilbert.h>
 #include <geom/Poisson.h>
 #include <geom/Primitive.h>
 #include <geom/Shape.h>
@@ -11,6 +14,7 @@
 #include <geom/ShapesComplex.h>
 #include <geom/Symbol.h>
 #include <geom/Types.h>
+#include <geom/Voxel.h>
 #include <geom/Shape/Circle.h>
 #include <geom/Shape/CompoundShape.h>
 #include <geom/Shape/Cube.h>

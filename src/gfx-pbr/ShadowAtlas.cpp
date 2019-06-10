@@ -6,167 +6,262 @@
 
 #include <bgfx/bgfx.h>
 
-#ifdef MUD_MODULES
-module mud.gfx.pbr;
+#ifdef TWO_MODULES
+module two.gfx.pbr;
 #else
+#include <stl/algorithm.h>
+#include <geom/Geom.hpp>
 #include <geom/Intersect.h>
 #include <gfx/Light.h>
 #include <gfx/Camera.h>
 #include <gfx/Frustum.h>
 #include <gfx/Renderer.h>
 #include <gfx-pbr/ShadowAtlas.h>
+#include <gfx-pbr/Shadow.h>
 #endif
 
-namespace mud
+#include <cstdio>
+
+namespace two
 {
-	ShadowCubemap::ShadowCubemap(uint16_t size)
-		: m_size(size)
+	ShadowAtlas::ShadowAtlas(uint16_t size, uint8_t num_slices)
+		: m_side(size)
+		, m_size(size * num_slices, size)
 	{
-		if(!bgfx::isTextureValid(0, false, 1, bgfx::TextureFormat::D24S8, BGFX_TEXTURE_RT | GFX_TEXTURE_CLAMP_UVW | GFX_TEXTURE_POINT))
-			return;
+		m_depth = { m_size, false, TextureFormat::D24S8, BGFX_TEXTURE_RT | TEXTURE_CLAMP | TEXTURE_DEPTH };
+		m_color = { m_size, false, TextureFormat::RGBA8, BGFX_TEXTURE_RT | TEXTURE_CLAMP };
+		m_fbo = { m_size, { &m_depth, &m_color } };
 
-		m_cubemap = bgfx::createTextureCube(m_size, false, 1, bgfx::TextureFormat::D24S8, BGFX_TEXTURE_RT | GFX_TEXTURE_CLAMP_UVW | GFX_TEXTURE_POINT);
-
-		for(int i = 0; i < 6; i++)
+		const float fraction = 1.f / float(num_slices);
+		for(uint8_t i = 0; i < num_slices; ++i)
 		{
-			bgfx::Attachment attachment = { m_cubemap, 0, uint16_t(i), BGFX_RESOLVE_AUTO_GEN_MIPS };
-			m_fbos[i] = bgfx::createFrameBuffer(1, &attachment, true);
+			m_slices.push_back({ i, uvec2(uint(m_side)), vec4(float(i) * fraction, 0.f, fraction, 1.f) });
 		}
 	}
 
-	ShadowAtlas::ShadowAtlas(uint16_t size, std::vector<uint16_t> slices_subdiv)
-		: m_size(size)
+	ShadowAtlas::Slot& ShadowAtlas::light_slot(Light& light)
 	{
-		m_depth = bgfx::createTexture2D(m_size, m_size * uint16_t(slices_subdiv.size()), false, 1, bgfx::TextureFormat::D24S8, BGFX_TEXTURE_RT | GFX_TEXTURE_CLAMP);
-		m_fbo = bgfx::createFrameBuffer(1, &m_depth);
-
-		uint16_t index = 0;
-		for(uint16_t subdiv : slices_subdiv)
-		{
-			m_slices.emplace_back(m_size, subdiv, uvec4(0, index * m_size, m_size, m_size));
-		}
-
-		uint16_t max_cubemap_size = 512;
-		uint16_t cubemap_size = max_cubemap_size;
-		while(cubemap_size >= 32)
-		{
-			m_cubemaps.emplace_back(cubemap_size);
-			cubemap_size >>= 1;
-		}
+		Slice& slice = m_slices[light.m_shadow_index.slice];
+		return slice.m_slots[light.m_shadow_index.slot];
 	}
 
-	ShadowCubemap& ShadowAtlas::light_cubemap(Light& light, uint16_t shadow_size)
+	ShadowAtlas::Slice& ShadowAtlas::light_slice(Light& light)
 	{
-		UNUSED(light);
-		for(int i = int(m_cubemaps.size()) - 1; i >= 0; i--)
-			if(m_cubemaps[i].m_size > shadow_size * 2)
-			{
-				return m_cubemaps[i];
-			}
-
-		return m_cubemaps.back();
+		return m_slices[light.m_shadow_index.slice];
 	}
 
-	uvec4 ShadowAtlas::light_rect(Light& light)
-	{
-		UNUSED(light);
-		Index index = {};// = m_light_indices[light.m_light_index];
-		Slice& slice = m_slices[index.m_slice];
-		Slice::Slot& slot = slice.m_slots[index.m_slot];
-		return slot.m_rect;
-	}
-
-	ShadowAtlas::Slice::Slice(uint32_t size, uint16_t subdiv, uvec4 rect)
-		: m_size(size)
-		, m_subdiv(subdiv)
+	ShadowAtlas::Slice::Slice(uint8_t index, const uvec2& size, const vec4& rect)
+		: m_index(index)
+		, m_size(size)
 		, m_rect(rect)
-	{
-		uint32_t subdiv_size = size / subdiv;
+	{}
 
+	void ShadowAtlas::begin_frame(const RenderFrame& frame)
+	{
+		for(Slice& slice : m_slices)
+			for(uint32_t i = 0; i < slice.m_slots.size(); ++i)
+			{
+				Slot& slot = slice.m_slots[i];
+				if(slot.m_light && slot.m_frame < frame.m_frame-1)
+					this->yield(slice, i);
+			}
+	}
+
+	void ShadowAtlas::subdiv(Slice& slice, uint16_t subdiv)
+	{
+		slice.m_subdiv = subdiv;
+		slice.m_slot_size = m_size / uvec2(uint(subdiv));
+
+		const vec2 slot_size = vec2(slice.m_rect.size) / float(subdiv);
+		const vec2 coord = slice.m_rect.pos;
+
+		slice.m_slots.clear();
+		slice.m_free_slots.clear();
+		slice.m_free_blocks.clear();
+
+		auto at = [&](uint x, uint y) -> uint32_t { return x + y*subdiv; };
+
+		uint16_t i = 0;
 		for(uint16_t y = 0; y < subdiv; ++y)
 			for(uint16_t x = 0; x < subdiv; ++x)
 			{
-				uvec4 slot_rect = { rect.x + x * subdiv_size, rect.y + y * subdiv_size,
-									subdiv_size, subdiv_size };
+				vec4 slot_rect = { coord + vec2(x, y) * slot_size, slot_size };
+				uvec4 slot_trect = uvec4(slot_rect * vec2(m_size));
 
-				m_slots.push_back({ nullptr, slot_rect });
+				slice.m_slots.push_back({ i++, nullptr, slot_rect, slot_trect });
+
+				bool at_block = x % 4 == 0 && y % 2 == 0;
+				bool has_space = subdiv - x >= 4 && subdiv - y >= 2;
+				if(at_block && has_space)
+				{
+					Block block = { { at(x+0, y+0), at(x+1, y+0), at(x+2, y+0), at(x+3, y+0),
+									  at(x+0, y+1), at(x+1, y+1), at(x+2, y+1), at(x+3, y+1) } };
+					slice.m_slots.back().m_block = slice.m_blocks.size();
+					slice.m_blocks.push_back(block);
+				}
 			}
+
+		// @todo change to high water mark + free list under water mark
+		for(uint32_t i = 0; i < slice.m_slots.size(); ++i)
+		{
+			slice.m_free_slots.push_back(i);
+		}
+
+		for(uint32_t i = 0; i < slice.m_blocks.size(); ++i)
+		{
+			slice.m_free_blocks.push_back(i);
+		}
 	}
 
-	void ShadowAtlas::Slice::remove_light(Light& light)
+	ShadowAtlas::Slot& ShadowAtlas::alloc(Slice& slice, bool block6)
 	{
-		UNUSED(light);
+		assert((block6 && !slice.m_free_blocks.empty()) || (!block6 && !slice.m_free_slots.empty()));
+		uint32_t index = block6 ? pop(slice.m_free_blocks) : pop(slice.m_free_slots);
+		if(block6)
+		{
+			Block& block = slice.m_blocks[index];
+			remove_if(slice.m_free_slots, [&](uint32_t slot) { for(size_t i = 0; i < 6; ++i) if(block.m_slots[i] == slot) return true; return false; });
+			index = block.m_slots[0];
+		}
+		return slice.m_slots[index];
 	}
 
-	void ShadowAtlas::Slice::add_light(Light& light)
+	void ShadowAtlas::yield(Slice& slice, uint32_t index)
 	{
-		UNUSED(light);
+		Slot& slot = slice.m_slots[index];
+		slot.m_light = nullptr;
+		if(slot.m_block != UINT16_MAX)
+		{
+			Block& block = slice.m_blocks[slot.m_block];
+			slice.m_free_blocks.push_back(slot.m_block);
+			for(size_t i = 0; i < 6; ++i)
+				slice.m_free_slots.push_back(block.m_slots[i]);
+		}
+		else
+		{
+			slice.m_free_slots.push_back(index);
+		}
+
+	}
+	void ShadowAtlas::remove_light(Light& light, bool block)
+	{
+		Slice& slice = m_slices[light.m_shadow_index.slice];
+		this->yield(slice, light.m_shadow_index.slot);
 	}
 
-	void ShadowAtlas::remove_light(Light& light)
+	bool ShadowAtlas::update_light(Light& light, uint32_t frame, float coverage, uint32_t light_version)
 	{
-		UNUSED(light);
-		Index index = {}; // = m_light_indices[light.m_light_index];
-		Slice& slice = m_slices[index.m_slice];
-		slice.m_slots[index.m_slot].m_light = nullptr;
-	}
+		UNUSED(light_version);
 
-	bool ShadowAtlas::update_light(Light& light, uint64_t render, float coverage, uint64_t light_version)
-	{
-		UNUSED(render); UNUSED(light_version);
-		uint16_t target_size = min<uint16_t>(m_size / m_slices[0].m_subdiv, uint16_t(pow2_round_up(uint(m_size * coverage))));
+		if(light.m_type == LightType::Point)
+			coverage /= 4.f;
+			//coverage /= 6.f;
 
-		// @todo check if we need to allocate a new slot
+		if(light.m_shadow_index.slice != UINT8_MAX)
+		{
+			Slice& slice = m_slices[light.m_shadow_index.slice];
+			Slot& slot = slice.m_slots[light.m_shadow_index.slot];
+			slot.m_frame = frame;
+			const float space = 1.f / float(slice.m_subdiv);
+			if(space >= coverage) return false;
+			this->remove_light(light, true);
+		}
 
-		for(Slice& slice : m_slices)
-			if(slice.m_size > target_size)
+		//printf("looking for a shadow atlas slot of size %i\n", int(target_size));
+
+		auto find_slice = [&]() -> Slice*
+		{
+			for(Slice& slice : m_slices)
 			{
-				if(!slice.m_free_slots.empty())
-					slice.add_light(light);
+				const float space = 1.f / float(slice.m_subdiv);
+				if(space < coverage)
+				{
+					printf("atlas slice %i subdiv %i can't hold light with coverage %.2f space %.2f\n", slice.m_index, slice.m_subdiv, coverage, space);
+					continue;
+				}
+				if(light.m_type == LightType::Point && !slice.m_free_blocks.empty())
+					return &slice;
+				else if(light.m_type != LightType::Point && !slice.m_free_slots.empty())
+					return &slice;
 			}
+			return nullptr;
+		};
 
-		return true;
+		auto setup_slice = [&]() -> Slice*
+		{
+			for(Slice& slice : m_slices)
+				if(slice.m_subdiv == 0)
+				{
+					// slice isn't used yet, so we can subdivide it to whatever size we need
+					uint16_t subdiv = next_pow2(uint16_t(1.f / coverage));
+					this->subdiv(slice, subdiv);
+					return &slice;
+				}
+			return nullptr;
+		};
+
+		Slice* slice = find_slice();
+		if(slice == nullptr)
+			slice = setup_slice();
+
+		if(slice != nullptr)
+		{
+			Slot& slot = this->alloc(*slice, light.m_type == LightType::Point);
+			slot.m_light = &light;
+			slot.m_frame = frame;
+			light.m_shadow_index = { slice->m_index, slot.m_index };
+			return true;
+		}
+
+		return false;
 	}
 
-	uvec4 ShadowAtlas::render_update(Render& render, Light& light)
+	vec4 ShadowAtlas::render_update(Render& render, Light& light)
 	{
-		float coverage;
+		if(light.m_type == LightType::Direct)
+		{
+			// direct light has full coverage (1.0)
+			const bool redraw = this->update_light(light, render.m_frame->m_frame, 1.f, light.m_last_update);
+			UNUSED(redraw);
+			return this->light_slot(light).m_rect;
+		}
 
-		Plane camera_near_plane = render.m_camera.near_plane();
+		const Plane camera_near_plane = render.m_camera->near_plane();
 
 		vec3 points[2];
 
+		const Node3& node = *light.m_node;
 		if(light.m_type == LightType::Point)
 		{
-			points[0] = light.m_node.position();
-			points[1] = light.m_node.position() + light.m_node.axis(X3) * light.m_range;
+			points[0] = node.position();
+			points[1] = node.position() + node.axis(x3) * light.m_range;
 		}
 		else if(light.m_type == LightType::Spot)
 		{
-			float w = light.m_range * std::sin(light.m_spot_angle);
-			float d = light.m_range * std::cos(light.m_spot_angle);
+			const float w = light.m_range * sin(light.m_spot_angle);
+			const float d = light.m_range * cos(light.m_spot_angle);
 
-			vec3 base = light.m_node.position() + light.m_node.direction() * d;
+			const vec3 base = light.m_node->position() + node.direction() * d;
 
 			points[0] = base;
-			points[1] = base + light.m_node.axis(X3) * w;
+			points[1] = base + node.axis(x3) * w;
 		}
 
-		if(!render.m_camera.m_orthographic)
+		if(!render.m_camera->m_orthographic)
 		{
 			for(int j = 0; j < 2; j++)
 			{
 				if(distance(camera_near_plane, points[j]) < 0.f)
-					points[j].z = -render.m_camera.m_near; //small hack to keep size constant when hitting the screen
+					points[j].z = -render.m_camera->m_near; //small hack to keep size constant when hitting the screen
 
-				points[j] = plane_segment_intersection(camera_near_plane, { light.m_node.position(), points[j] });
+				points[j] = plane_segment_intersection(camera_near_plane, { node.position(), points[j] });
 			}
 		}
 
-		vec2 size = frustum_viewport_size(render.m_camera.m_projection);
+		const vec2 size = frustum_viewport_size(render.m_camera->m_proj);
 
-		float screen_diameter = distance(points[0], points[1]) * 2.f;
-		coverage = screen_diameter / (size.x + size.y);
+		const float diameter = distance(points[0], points[1]) * 2.f;
+		const float coverage = diameter / (size.x + size.y);
 
 		//if(light.m_shadow_dirty) // updated when lights and objects bounds start or stop intersecting, or move
 		//{
@@ -174,8 +269,10 @@ namespace mud
 		//	light.m_shadow_dirty = false;
 		//}
 
-		bool redraw = this->update_light(light, light.m_last_render, coverage, light.m_last_update);
+		// @todo fix coverage calculation
+		const bool redraw = this->update_light(light, render.m_frame->m_frame, 1.f, light.m_last_update);
+		//const bool redraw = this->update_light(light, render.m_frame->m_frame, min(coverage, 1.f), light.m_last_update);
 		UNUSED(redraw);
-		return light_rect(light);
+		return this->light_slot(light).m_rect;
 	}
 }

@@ -4,40 +4,35 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
+#include <stl/vector.h>
+#include <stl/map.h>
 #include <gfx/Renderer.h>
 #include <gfx/Filter.h>
 #endif
 #include <gfx-pbr/Forward.h>
 
-#ifndef MUD_CPP_20
-#include <vector>
-#include <map>
-#endif
-
-namespace mud
+namespace two
 {
 	enum ShaderOptionRadiance : unsigned int
 	{
 		RADIANCE_ENVMAP,
-		RADIANCE_ARRAY,
+		RADIANCE_CUBE,
 	};
 
-	export_ class refl_ MUD_GFX_PBR_EXPORT BlockRadiance : public DrawBlock
+	export_ class refl_ TWO_GFX_PBR_EXPORT BlockRadiance : public DrawBlock
 	{
 	public:
-		BlockRadiance(GfxSystem& gfx_system, BlockFilter& filter, BlockCopy& copy);
+		BlockRadiance(GfxSystem& gfx, BlockFilter& filter, BlockCopy& copy);
 
 		virtual void init_block() override;
 		virtual void begin_frame(const RenderFrame& frame) override;
 
 		virtual void begin_render(Render& render) override;
-		virtual void begin_pass(Render& render) override;
 
-		virtual void begin_draw_pass(Render& render) override;
-
-		virtual void options(Render& render, ShaderVersion& shader_version) const override;
-		virtual void submit(Render& render, const Pass& render_pass) const override;
+		virtual void options(Render& render, const DrawElement& element, ProgramVersion& program) const override;
+		virtual void submit(Render& render, const Pass& pass) const override;
+		virtual void submit(Render& render, const DrawElement& element, const Pass& pass) const override;
 
 		void prefilter_radiance(Radiance& radiance);
 
@@ -45,10 +40,10 @@ namespace mud
 		{
 			void createUniforms()
 			{
-				s_radiance_map = bgfx::createUniform("s_radiance_map", bgfx::UniformType::Int1);
+				s_radiance = bgfx::createUniform("s_radiance", bgfx::UniformType::Sampler, 1U, bgfx::UniformSet::View);
 			}
 
-			bgfx::UniformHandle s_radiance_map;
+			bgfx::UniformHandle s_radiance;
 
 		} u_radiance;
 
@@ -56,10 +51,12 @@ namespace mud
 		{
 			void createUniforms()
 			{
-				u_prefilter_envmap_params = bgfx::createUniform("u_prefilter_envmap_params", bgfx::UniformType::Vec4);
+				u_prefilter_envmap_p0 = bgfx::createUniform("u_prefilter_envmap_p0", bgfx::UniformType::Vec4);
+				u_prefilter_cube = bgfx::createUniform("u_prefilter_cube", bgfx::UniformType::Mat4);
 			}
 
-			bgfx::UniformHandle u_prefilter_envmap_params;
+			bgfx::UniformHandle u_prefilter_envmap_p0;
+			bgfx::UniformHandle u_prefilter_cube;
 
 		} u_prefilter;
 
@@ -68,7 +65,7 @@ namespace mud
 
 		Program& m_prefilter_program;
 
-		std::vector<Radiance*> m_prefilter_queue;
-		std::map<uint16_t, uint16_t> m_prefiltered;
+		vector<Radiance*> m_prefilter_queue;
+		map<Texture*, Texture*> m_prefiltered;
 	};
 }

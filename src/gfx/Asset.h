@@ -4,61 +4,74 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
+#include <stl/function.h>
+#include <stl/string.h>
+#include <stl/vector.h>
+#include <stl/map.h>
 #include <type/Unique.h>
-#include <infra/Array.h>
-#include <infra/NonCopy.h>
 #endif
 #include <gfx/Forward.h>
-#include <gfx/GfxSystem.h>
 
-#ifndef MUD_CPP_20
-#include <map>
-#include <vector>
-#include <string>
-#include <functional>
-#include <fstream>
-#endif
-
-namespace mud
+namespace two
 {
 	using cstring = const char*;
-	using string = std::string;
+
+	struct NoConfig {};
 
 	export_ template <class T_Asset>
-	class refl_ AssetStore : public NonCopy
+	struct AssetConfig { using type = NoConfig; };
+
+	export_ template <class T_Asset>
+	class refl_ AssetStore
 	{
 	public:
-		using Initializer = std::function<void(T_Asset&)>;
-		using Loader = std::function<void(GfxSystem&, T_Asset&, cstring)>;
+		using Config = typename AssetConfig<T_Asset>::type;
 
-		AssetStore(GfxSystem& gfx_system, cstring path);
-		AssetStore(GfxSystem& gfx_system, cstring path, const Loader& loader);
-		AssetStore(GfxSystem& gfx_system, cstring path, cstring format);
+		using Loader = function<void(T_Asset&, const string&, const Config&)>;
+		using Init = function<void(T_Asset&)>;
 
-		void add_format(cstring format, const Loader& loader);
+		AssetStore(GfxSystem& gfx, const string& path);
+		AssetStore(GfxSystem& gfx, const string& path, const Loader& loader);
+		AssetStore(GfxSystem& gfx, const string& path, const string& format);
 
-		GfxSystem& m_gfx_system;
+		AssetStore(const AssetStore& other) = delete;
+		AssetStore& operator=(const AssetStore& other) = delete;
 
-		//class Impl;
-		//unique_ptr<Impl> m_impl;
+		void add_format(const string& format, const Loader& loader);
+
+		GfxSystem& m_gfx;
 
 		string m_path;
 		Loader m_loader;
 
-		std::vector<string> m_formats;
-		std::vector<cstring> m_cformats;
-		std::vector<Loader> m_format_loaders;
+		vector<string> m_formats;
+		vector<Loader> m_format_loaders;
 
-		meth_ T_Asset* get(cstring name);
-		meth_ T_Asset& create(cstring name);
-		meth_ T_Asset& fetch(cstring name);
-		meth_ T_Asset& file_at(cstring path, cstring name);
-		meth_ T_Asset* file(cstring name);
-		meth_ void destroy(cstring name);
+		//meth_ bool locate(const string& name);
+		meth_ T_Asset* get(const string& name);
+		meth_ T_Asset& create(const string& name);
+		meth_ T_Asset& fetch(const string& name);
+		      T_Asset* file(const string& name, const Config& config);
+		meth_ T_Asset* file(const string& name) { return this->file(name, {}); }
+		      T_Asset& file_at(const string& path, const string& name, const Config& config);
+		meth_ T_Asset& file_at(const string& path, const string& name) { return this->file_at(path, name, {}); }
+			  T_Asset* load(const string& path, const string& name, const Config& config);
+		meth_ T_Asset* load(const string& path, const string& name) { return this->load(path, name, {}); }
+		meth_ void destroy(const string& name);
+		meth_ void clear();
 
-		void load_files(cstring path);
+		T_Asset& create(const string& name, const Init& init);
 
-		std::map<string, unique_ptr<T_Asset>> m_assets;
+		void load_files(const string& path);
+
+		map<string, unique<T_Asset>> m_assets;
+		vector<T_Asset*> m_vector;
 	};
+	
+	export_ template <>
+	struct AssetConfig<Prefab> { using type = ImportConfig; };
+	
+	export_ template <>
+	struct AssetConfig<Model> { using type = ImportConfig; };
 }

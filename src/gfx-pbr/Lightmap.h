@@ -2,26 +2,32 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
+#ifndef TWO_MODULES
 #include <math/ImageAtlas.h>
 #include <gfx/Renderer.h>
 #include <gfx/Light.h>
 #endif
 #include <gfx-pbr/Forward.h>
 
-namespace mud
+namespace two
 {
-	export_ class refl_ MUD_GFX_PBR_EXPORT LightmapItem
+	export_ class refl_ TWO_GFX_PBR_EXPORT LightmapItem
 	{
 	public:
 		LightmapItem() {}
-		LightmapItem(size_t item, bgfx::TextureHandle lightmap, vec4 uv_scale_offset) : m_item(item), m_lightmap(lightmap), m_uv_scale_offset(uv_scale_offset) {}
+		LightmapItem(size_t item, Texture& lightmap, vec4 uv_scale_offset) : m_item(item), m_lightmap(&lightmap), m_uv_scale_offset(uv_scale_offset) {}
 		size_t m_item = SIZE_MAX;
-		bgfx::TextureHandle m_lightmap = BGFX_INVALID_HANDLE;
+		Texture* m_lightmap = nullptr;
 		vec4 m_uv_scale_offset = vec4(1.f, 1.f, 0.f, 0.f);
 	};
 
-	export_ class refl_ MUD_GFX_PBR_EXPORT Lightmap
+	struct ModelUnwrap
+	{
+		vector<bool> success;
+		uvec2 size;
+	};
+
+	export_ class refl_ TWO_GFX_PBR_EXPORT Lightmap
 	{
 	public:
 		Lightmap(uint32_t size);
@@ -32,20 +38,23 @@ namespace mud
 
 		TextureAtlas m_atlas;
 
-		bgfx::TextureHandle m_texture = BGFX_INVALID_HANDLE;
+		Texture m_texture = {};
 
-		std::vector<LightmapItem> m_items;
+		vector<LightmapItem> m_items;
 
 		void add_item(size_t index, Item& item, bool valid, const vec4& uv_scale_offset);
 	};
 
-	export_ class refl_ MUD_GFX_PBR_EXPORT LightmapAtlas : public NonCopy
+	export_ class refl_ TWO_GFX_PBR_EXPORT LightmapAtlas
 	{
 	public:
 		LightmapAtlas(uint32_t size, float density);
 		~LightmapAtlas();
 
-		Lightmap& add_lightmap() { m_layers.emplace_back(make_unique<Lightmap>(m_size)); return *m_layers.back(); }
+		LightmapAtlas(const LightmapAtlas& other) = delete;
+		LightmapAtlas& operator=(const LightmapAtlas& other) = delete;
+
+		Lightmap& add_lightmap() { m_layers.push_back(make_unique<Lightmap>(m_size)); return *m_layers.back(); }
 
 		uint32_t m_size;
 		float m_density = 1.f;
@@ -55,29 +64,13 @@ namespace mud
 		mat4 m_capture_transform;
 		vec3 m_capture_extents;
 
-		std::vector<unique_ptr<Lightmap>> m_layers;
+		vector<unique<Lightmap>> m_layers;
 	};
 
-	struct LightmapRenderer : public Renderer
-	{
-		LightmapRenderer(GfxSystem& gfx_system, Pipeline& pipeline);
-	};
-
-	export_ class MUD_GFX_PBR_EXPORT PassLightmap : public DrawPass
+	export_ class refl_ TWO_GFX_PBR_EXPORT BlockLightmap : public DrawBlock
 	{
 	public:
-		PassLightmap(GfxSystem& gfx_system, BlockLightmap& block_lightmap);
-
-		BlockLightmap& m_block_lightmap;
-
-		virtual void next_draw_pass(Render& render, Pass& render_pass) final;
-		virtual void queue_draw_element(Render& render, DrawElement& element) final;
-	};
-
-	export_ class refl_ MUD_GFX_PBR_EXPORT BlockLightmap : public DrawBlock
-	{
-	public:
-		BlockLightmap(GfxSystem& gfx_system, BlockLight& block_light, BlockGIBake& block_gi_bake);
+		BlockLightmap(GfxSystem& gfx, BlockLight& block_light, BlockGIBake& block_gi_bake);
 
 		BlockLight& m_block_light;
 		BlockGIBake& m_block_gi_bake;
@@ -86,22 +79,19 @@ namespace mud
 		virtual void begin_frame(const RenderFrame& frame) override;
 
 		virtual void begin_render(Render& render) override;
-		virtual void begin_pass(Render& render) override;
 
-		virtual void begin_draw_pass(Render& render) override;
+		virtual void options(Render& render, const DrawElement& element, ProgramVersion& program) const override;
+		virtual void submit(Render& render, const Pass& pass) const override;
+		virtual void submit(Render& render, const DrawElement& element, const Pass& pass) const override;
 
-		virtual void options(Render& render, ShaderVersion& shader_version) const override;
-		virtual void submit(Render& render, const Pass& render_pass) const override;
-		virtual void submit(Render& render, const DrawElement& element, const Pass& render_pass) const override;
-
-		void bake_geometry(array<Item*> items, LightmapAtlas& atlas);
+		void bake_geometry(span<Item*> items, LightmapAtlas& atlas);
 		void bake_lightmaps(Scene& scene, LightmapAtlas& atlas, const mat4& transform, const vec3& extents);
 
 		struct VoxelGIUniform
 		{
 			void createUniforms()
 			{
-				s_lightmap = bgfx::createUniform("s_lightmap",        bgfx::UniformType::Int1);
+				s_lightmap = bgfx::createUniform("s_lightmap", bgfx::UniformType::Sampler, 1U, bgfx::UniformSet::View);
 			}
 
 			bgfx::UniformHandle s_lightmap;
@@ -111,6 +101,6 @@ namespace mud
 		Program* m_lightmap;
 
 		struct BakeEntry { Scene* scene; LightmapAtlas* atlas; };
-		std::vector<BakeEntry> m_bake_queue;
+		vector<BakeEntry> m_bake_queue;
 	};
 }

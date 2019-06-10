@@ -3,26 +3,26 @@
 //  This notice and the license may not be removed or altered from any source distribution.
 
 #include <infra/Cpp20.h>
-#ifndef MUD_CPP_20
+#ifndef TWO_CPP_20
 #include <cstring>
 #include <cstdio>
 #endif
 
-#ifdef MUD_MODULES
-module mud.math;
+#ifdef TWO_MODULES
+module two.math;
 #else
 #include <math/Image256.h>
 #include <math/Colour.h>
 #endif
 
-namespace mud
+namespace two
 {
 	Palette::Palette()
 		: m_colours()
 	{}
 
-	Palette::Palette(std::vector<Colour> colours)
-		: m_colours(colours)
+	Palette::Palette(span<Colour> colours)
+		: m_colours(colours.begin(), colours.end())
 	{}
 
 	Palette::Palette(Spectrum spectrum, size_t steps)
@@ -49,7 +49,7 @@ namespace mud
 		for(size_t i = 0; i < steps; ++i)
 		{
 			float h = float(i) / float(steps - 1);
-			m_colours.push_back(hsl_to_rgb(h, 0.5f, 0.5f));
+			m_colours.push_back(hsl(h, 0.5f, 0.5f));
 		}
 	}
 
@@ -85,10 +85,9 @@ namespace mud
 		return 0;
 	}
 
-	Image256::Image256(uint16_t width, uint16_t height, const Palette& palette)
-		: m_pixels(width * height)
-		, m_width(width)
-		, m_height(height)
+	Image256::Image256(const uvec2& size, const Palette& palette)
+		: m_pixels(size.x * size.y)
+		, m_size(size)
 		, m_palette(palette)
 	{}
 
@@ -98,33 +97,39 @@ namespace mud
 		return false;
 	}
 
-	void Image256::resize(uint16_t w, uint16_t h)
+	void Image256::resize(const uvec2& size)
 	{
-		m_width = w;
-		m_height = h;
-		m_pixels.resize(m_width * m_height);
+		m_size = size;
+		m_pixels.resize(size.x * size.y);
 	}
 
 	void Image256::read(uint8_t* data) const
 	{
 		size_t index = 0;
-		for(size_t y = 0; y < m_height; ++y)
-			for(size_t x = 0; x < m_width; ++x, ++index)
+		for(size_t y = 0; y < m_size.y; ++y)
+			for(size_t x = 0; x < m_size.x; ++x, ++index)
 			{
 				size_t colid = m_pixels[index];
 				Colour color = /*colid == 16 ? Colour() :*/ m_palette.m_colours[colid];
 
-				*data++ = static_cast<uint8_t>(color.m_r * 255);
-				*data++ = static_cast<uint8_t>(color.m_g * 255);
-				*data++ = static_cast<uint8_t>(color.m_b * 255);
+				*data++ = static_cast<uint8_t>(color.r * 255);
+				*data++ = static_cast<uint8_t>(color.g * 255);
+				*data++ = static_cast<uint8_t>(color.b * 255);
 				*data++ = 255;
 			}
 	}
 
-	std::vector<uint8_t> Image256::read() const
+	vector<uint8_t> Image256::read() const
 	{
-		std::vector<uint8_t> data(m_width * m_height * 4);
-		this->read(&data[0]);
-		return data;
+		vector<uint8_t> buffer(m_pixels.size() * 4);
+		this->read(buffer.data());
+		return buffer;
+	}
+
+	vector<uint32_t> Image256::read32() const
+	{
+		vector<uint32_t> buffer(m_pixels.size() * 4);
+		this->read((uint8_t*)buffer.data());
+		return buffer;
 	}
 }

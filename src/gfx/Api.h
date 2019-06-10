@@ -1,10 +1,11 @@
-#ifdef MUD_META_GENERATOR
-#include <functional>
-#endif
+#include <math/Image256.h>
+#include <geom/Geometry.h>
+#include <geom/Curve.h>
+#include <gfx/Node3.h>
 #include <gfx/Animated.h>
 #include <gfx/Animation.h>
 #include <gfx/Asset.h>
-#include <gfx/Asset.impl.h>
+//#include <gfx/Asset.hpp>
 #include <gfx/Assets.h>
 #include <gfx/Buffer.h>
 #include <gfx/Camera.h>
@@ -22,7 +23,6 @@
 #include <gfx/Importer.h>
 #include <gfx/Item.h>
 #include <gfx/Light.h>
-#include <gfx/ManualRender.h>
 #include <gfx/Material.h>
 #include <gfx/Mesh.h>
 #include <gfx/Model.h>
@@ -40,7 +40,7 @@
 #include <gfx/Skeleton.h>
 #include <gfx/Texture.h>
 #include <gfx/Types.h>
-#include <gfx/Uniform.h>
+//s#include <gfx/Uniform.h>
 #include <gfx/Viewport.h>
 #include <gfx/Blocks/Sky.h>
 

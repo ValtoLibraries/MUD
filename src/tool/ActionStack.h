@@ -4,30 +4,31 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <infra/NonCopy.h>
-#endif
 #include <tool/Tool.h>
 #include <tool/Forward.h>
 
-namespace mud
+namespace two
 {
-	export_ class MUD_TOOL_EXPORT ActionStack : public NonCopy
+	export_ class TWO_TOOL_EXPORT ActionStack
 	{
 	public:
 		ActionStack();
+		~ActionStack();
 
-		void push(object_ptr<EditorAction> action);
+		ActionStack(const ActionStack& other) = delete;
+		ActionStack& operator=(const ActionStack& other) = delete;
+
+		void push(object<EditorAction> action);
 
 		void redo();
 		void undo();
 
 	private:
-		std::vector<object_ptr<EditorAction>> m_done;
-		std::vector<object_ptr<EditorAction>> m_undone;
+		vector<object<EditorAction>> m_done;
+		vector<object<EditorAction>> m_undone;
 	};
 
-	export_ class refl_ MUD_TOOL_EXPORT UndoTool : public Tool
+	export_ class refl_ TWO_TOOL_EXPORT UndoTool : public Tool
 	{
 	public:
 		UndoTool(ToolContext& context);
@@ -35,7 +36,7 @@ namespace mud
 		virtual void activate() final;
 	};
 
-	export_ class refl_ MUD_TOOL_EXPORT RedoTool : public Tool
+	export_ class refl_ TWO_TOOL_EXPORT RedoTool : public Tool
 	{
 	public:
 		RedoTool(ToolContext& context);

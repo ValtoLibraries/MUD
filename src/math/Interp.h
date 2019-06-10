@@ -4,64 +4,78 @@
 
 #pragma once
 
-#ifndef MUD_MODULES
-#include <type/Var.h>
-#include <infra/Global.h>
-#include <type/Dispatch.h>
-//#include <refl/Meta.h>
+#ifndef TWO_MODULES
+#include <type/Ref.h>
 #endif
 #include <math/Forward.h>
-#include <math/VecOps.h>
+#include <math/Vec.hpp>
 
-namespace mud
+namespace two
 {
-	export_ class MUD_MATH_EXPORT Lerp : public Dispatch<void, Ref, Ref, float>, public LazyGlobal<Lerp>
+	inline quat lerp(const quat& a, const quat& b, float c)
 	{
-	public:
-		Lerp();
-	};
-
-	export_ template <class T>
-	inline T lerp(const T& a, const T& b, float c)
-	{
-		return T(a + (b - a) * c);
+		return slerp(a, b, c);
 	}
 
 	export_ template <class T>
 	inline T catmull_rom(const T& p0, const T& p1, const T& p2, const T& p3, float t)
 	{
-		float t2 = t * t;
-		float t3 = t2 * t;
+		const float t2 = t * t;
+		const float t3 = t2 * t;
 
-		return 0.5f * ((2.0f * p1) + (-p0 + p2) * t + (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t2 + (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t3);
+		return 0.5f * ((2.f * p1) + (-p0 + p2) * t + (2.f * p0 - 5.f * p1 + 4.f * p2 - p3) * t2 + (-p0 + 3.f * p1 - 3.f * p2 + p3) * t3);
 	}
 
 	export_ template <class T>
-	inline T bezier(T start, T control_1, T control_2, T end, float t)
+	inline T catmull_rom_three(const T& p0, const T& p1, const T& p2, const T& p3, float t)
 	{
-		/* Formula from Wikipedia article on Bezier curves.*/
-		float omt = (1.f - t);
-		float omt2 = omt * omt;
-		float omt3 = omt2 * omt;
-		float t2 = t * t;
-		float t3 = t2 * t;
-
-		return start * omt3 + control_1 * omt2 * t * 3.f + control_2 * omt * t2 * 3.f + end * t3;
+		const T v0 = (p2 - p0) * 0.5f;
+		const T v1 = (p3 - p1) * 0.5f;
+		const float t2 = t * t;
+		const float t3 = t * t2;
+		return (2.f * p1 - 2.f * p2 + v0 + v1) * t3 + (-3.f * p1 + 3.f * p2 - 2.f * v0 - v1) * t2 + v0 * t + p1;
 	}
 
 	export_ template <class T>
-	inline T cubic_interpolate(const T& a, const T& b, const T& pre_a, const T& post_b, float t)
+	inline T cubic_interpolate(const T& a, const T& b, const T& p0, const T& p1, float t)
 	{
-		float t2 = t * t;
-		float t3 = t2 * t;
+		const float t2 = t * t;
+		const float t3 = t2 * t;
 
-		return 0.5f * ((2.f * a) + (-pre_a + b) * t + (2.f * pre_a - 5.f* a + 4.f * b - post_b) * t2 + (-pre_a + 3.f * a - 3.f * b + post_b) * t3);
+		return 0.5f * ((2.f * a) + (-p0 + b) * t + (2.f * p0 - 5.f * a + 4.f * b - p1) * t2 + (-p0 + 3.f * a - 3.f * b + p1) * t3);
 	}
 
-	export_ template <>
-	inline quat lerp(const quat& a, const quat& b, float c)
+	export_ template <class T>
+	inline T bezier(T p0, T p1, T p2, T p3, float t)
 	{
-		return slerp(a, b, c);
+		const float k = (1.f - t);
+		const float k2 = k * k;
+		const float k3 = k2 * k;
+		const float t2 = t * t;
+		const float t3 = t2 * t;
+
+		return p0 * k3 + p1 * k2 * t * 3.f + p2 * k * t2 * 3.f + p3 * t3;
+	}
+	
+	export_ template <class T>
+	inline T cubic_bezier(T p0, T p1, T p2, T p3, float t)
+	{
+		auto t0 = [](T p, float t) { float k = 1.f - t;	return k * k * k * p; };
+		auto t1 = [](T p, float t) { float k = 1.f - t;	return 3.f * k * k * t * p; };
+		auto t2 = [](T p, float t) { float k = 1.f - t;	return 3.f * k * t * t * p; };
+		auto t3 = [](T p, float t) { return t * t * t * p; };
+
+		return t0(p0, t) + t1(p1, t) + t2(p2, t) + t3(p3, t);
+	}
+	
+	export_ template <class T>
+	inline T quad_bezier(T p0, T p1, T p2, float t)
+	{
+		auto t0 = [](T p, float t) { float k = 1.f - t; return k * k * p; };
+		auto t1 = [](T p, float t) { float k = 1.f - t; return 2.f * k * t * p; };
+		auto t2 = [](T p, float t) { return t * t * p; };
+
+		return t0(p0, t) + t1(p1, t) + t2(p2, t);
 	}
 
 	export_ template <>
@@ -78,7 +92,6 @@ namespace mud
 		return slerp(start, end, t);
 	}
 
-	export_ template <>
 	inline Colour lerp(const Colour& a, const Colour& b, float c)
 	{
 		vec4 va = to_vec4(a);
@@ -86,8 +99,7 @@ namespace mud
 		return to_colour(va + (vb - va) * c);
 	}
 
-	export_ inline void interpolate(Ref result, Ref a, Ref b, float t) { Lerp::me().dispatch(result, a, b, t); }
-	//export_ inline Var interpolate(Ref a, Ref b, float t) { Var result = meta(a).m_empty_var; Lerp::me().dispatch(result.m_ref, a, b, t); return result; }
+	export_ TWO_MATH_EXPORT void interpolate(Ref result, Ref a, Ref b, float t);
 	export_ inline void interpolate_cubic(Ref result, Ref a, Ref b, Ref d, Ref e, float t) { UNUSED(e); UNUSED(d); return interpolate(result, a, b, t); }
 	//export_ inline Var interpolate_cubic(Ref a, Ref b, Ref d, Ref e, float t) { UNUSED(e); UNUSED(d); return interpolate(a, b, t); }
 }
